@@ -313,7 +313,10 @@ forest(
   names position *i*, though a per-forest margin of a fit is named by
   the forests' labels. A string is never a position: `"2"` is a forest
   labeled `"2"` or none. A string that is one forest's label and another
-  position's name, or the same code as two labels, is refused.
+  position's name, or the same code as two labels, is refused. A refusal
+  that names a forest names it by its label, as the fit's results do, at
+  creation and at `$setForest` alike, and by position (`forest 2`) where
+  it has no name and no basis text.
 
   **Rows.** A basis has a value for every row of `data`, and is cut to
   the rows the fit keeps: `data` and `subset` are each evaluated once,
@@ -506,6 +509,12 @@ forest(
   under `"probit"` and `"logistic"`, where the link's own error has
   standard deviation 1 and \\\pi/\sqrt{3}\\. One number; a name on it is
   ignored. What it is the size of depends on what multiplies the forest.
+  It is a number, not a prior: a function of your own named `normal`,
+  `fixed`, `student` or `invchi` that you have defined is called there,
+  as in `sd = normal(0.5)`, and where you have defined none the call is
+  refused, those names meaning dbarts's priors only in `amplitude` (and
+  in `leaf.prior` at the fitting function). The same holds for the other
+  arguments that take a number.
 
   **No basis.** The forest enters as \\a\\f(x)\\, and `sd` is the size
   of \\a\\f(x)\\.
@@ -971,7 +980,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #>   trees: 10, 10; 20 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.000561
+#> total seconds in loop: 0.000535
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 5 2 3 2 

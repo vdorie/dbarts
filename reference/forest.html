@@ -331,7 +331,10 @@ The constructor is not exported: it resolves by bare name inside the
     labels. A string is never a
     position: <code>"2"</code> is a forest labeled <code>"2"</code> or none. A string
     that is one forest's label and another position's name, or the same code
-    as two labels, is refused.</p>
+    as two labels, is refused. A refusal that names a forest names it by its
+    label, as the fit's results do, at creation and at <code>$setForest</code>
+    alike, and by position (<code>forest 2</code>) where it has no name and no
+    basis text.</p>
 <p><strong>Rows.</strong> A basis has a value for every row of <code>data</code>, and is
     cut to the rows the fit keeps: <code>data</code> and <code>subset</code> are each
     evaluated once, for the fit, and the basis is given the same rows in the
@@ -495,7 +498,13 @@ The constructor is not exported: it resolves by bare name inside the
     under <code>"probit"</code> and <code>"logistic"</code>, where the link's own error
     has standard deviation 1 and \(\pi/\sqrt{3}\). One number;
     a name on it is ignored. What it is the size of depends on what
-    multiplies the forest.</p>
+    multiplies the forest. It is a number, not a prior: a function of your own
+    named <code>normal</code>, <code>fixed</code>, <code>student</code> or <code>invchi</code> that
+    you have defined is called there, as in <code>sd = normal(0.5)</code>, and
+    where you have defined none the call is refused, those names meaning
+    dbarts's priors only in <code>amplitude</code> (and in <code>leaf.prior</code> at the
+    fitting function). The same holds for the other arguments that take a
+    number.</p>
 <p><strong>No basis.</strong> The forest enters as \(a\,f(x)\), and
     <code>sd</code> is the size of \(a\,f(x)\).</p>
 <p><strong>A factor</strong> (a factor, a character vector or a logical vector, of
@@ -936,7 +945,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   trees: 10, 10; 20 in all</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000561</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000535</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 5 2 3 2 </span>
