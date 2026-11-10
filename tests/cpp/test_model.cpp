@@ -10301,13 +10301,14 @@ static void testMonotoneEmptyLeaf() {
 // leaves J (x0 low, x1 low), K (x0 low, x1 high), S1 (x0 high, x1 low), S2
 // (x0 high, x1 high). J < S1 and K < S2 are the only relations.
 // - setState without force declines a state outside the cone and leaves the
-//   sampler as it was, takes one inside it, and with force reseeds the tree
-//   outside it to all-zero;
+//   sampler as it was, takes one inside it, and with force merges the tree
+//   outside it where its order breaks, at the row-weighted means, as a warm
+//   start does;
 // - a warm start collapses an infeasible donor tree into the cone and keeps
 //   a feasible one;
 // - a forced predictor update that empties S1 collapses x0's high side into
-//   one leaf with S2's value, which now bounds J from above; the merged tree
-//   is outside the cone and is reseeded;
+//   one leaf with S2's value, which now bounds J from above; the tree out of
+//   the cone is merged where its order breaks, no leaf set to 0;
 // - growFromRoot's regrowth leaves every tree feasible.
 static void testMonotoneReachability() {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -10382,6 +10383,70 @@ static void testMonotoneReachability() {
     return feasible;
   };
 
+  // The leaves collapseMonotoneTree leaves on the hand tree, given its leaf
+  // values and the rows each leaf holds: a side holding an empty leaf is one
+  // leaf already (the empty-node collapse); in order, the tree is kept;
+  // else one side merged (the side of fewer nodes first, the left on a
+  // tie), the other, both, or the whole tree, each merge at the mean
+  // weighted by rows. A merged side relates to every leaf across the root,
+  // J and K only to S1 and S2 respectively.
+  double x0Cut = cutNear(0, 0.5), x1Cut = cutNear(1, 0.3);
+  auto quadrantRows = [&](const std::vector<double>& xs) {
+    std::vector<double> rows(4, 0.0);
+    for (size_t i = 0; i < n; ++i)
+      rows[(xs[i] > x0Cut ? 2 : 0) + (xs[i + n] > x1Cut ? 1 : 0)] += 1.0;
+    return rows;
+  };
+  auto handMerged = [&](const std::vector<double>& v,
+                        const std::vector<double>& rows) {
+    auto mean = [&](size_t first, size_t last) {
+      double sum = 0.0, count = 0.0;
+      for (size_t l = first; l < last; ++l) {
+        sum += rows[l] * v[l];
+        count += rows[l];
+      }
+      return sum / count;
+    };
+    std::vector<double> left = {v[0], v[1]}, right = {v[2], v[3]};
+    if (rows[0] == 0.0 || rows[1] == 0.0) left = {mean(0, 2)};
+    if (rows[2] == 0.0 || rows[3] == 0.0) right = {mean(2, 4)};
+    auto holds = [](const std::vector<double>& l,
+                    const std::vector<double>& r) {
+      if (l.size() == 2 && r.size() == 2)
+        return l[0] <= r[0] + 1e-9 && l[1] <= r[1] + 1e-9;
+      for (double a : l)
+        for (double b : r)
+          if (a > b + 1e-9) return false;
+      return true;
+    };
+    auto join = [](std::vector<double> l, const std::vector<double>& r) {
+      l.insert(l.end(), r.begin(), r.end());
+      return l;
+    };
+    if (holds(left, right)) return join(left, right);
+    bool rightFirst = right.size() < left.size();
+    for (bool mergeRight : {rightFirst, !rightFirst}) {
+      if ((mergeRight ? right : left).size() == 1) continue;
+      std::vector<double> l = left, r = right;
+      if (mergeRight)
+        r = {mean(2, 4)};
+      else
+        l = {mean(0, 2)};
+      if (holds(l, r)) return join(l, r);
+    }
+    if (left.size() == 2 && right.size() == 2 &&
+        holds({mean(0, 2)}, {mean(2, 4)}))
+      return std::vector<double>{mean(0, 2), mean(2, 4)};
+    return std::vector<double>{mean(0, 4)};
+  };
+  auto valuesNear = [](const std::vector<double>& a,
+                       const std::vector<double>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t l = 0; l < a.size(); ++l)
+      if (std::fabs(a[l] - b[l]) > 1e-12) return false;
+    return true;
+  };
+
   SamplerStateData base;
   sampler->getState(base);
   // the state carries the tree on the internal scale; values are small
@@ -10393,16 +10458,18 @@ static void testMonotoneReachability() {
   check(declinesUntouched(*sampler, infeasibleState),
         "reachability: setState without force declines a state outside the "
         "cone and leaves the sampler as it was");
+  std::vector<double> forcedValues;
   {
     auto forced = makeSampler();
-    std::vector<double> reseeded;
     bool installs = restoresAltered(*forced, infeasibleState);
-    bool inCone = liveFeasible(*forced, &reseeded);
-    bool allZero = reseeded.size() == 4;
-    for (double v : reseeded) allZero &= v == 0.0;
-    check(installs && inCone && allZero,
-          "reachability: forced, the tree outside the cone is reseeded to "
-          "all-zero and the install reports it");
+    bool inCone = liveFeasible(*forced, &forcedValues);
+    std::vector<double> expected =
+      handMerged({0.0, -0.1, -0.02, -0.09}, quadrantRows(x));
+    check(installs && inCone && expected.size() < 4 &&
+            valuesNear(forcedValues, expected),
+          "reachability: forced, the tree outside the cone is merged where "
+          "its order breaks, at the row-weighted means, and the install "
+          "reports it");
   }
   check(installsClean(*sampler, feasibleState) &&
           restoresExactly(*sampler, feasibleState),
@@ -10423,6 +10490,9 @@ static void testMonotoneReachability() {
   check(feasible && !allZero && values.size() < 4,
         "reachability: the infeasible donor tree is collapsed into the cone "
         "and not set to zero");
+  check(values == forcedValues,
+        "reachability: a forced setState merges the tree as a warm start "
+        "does");
   auto warmOk = makeSampler();
   check(warmStartsClean(*warmOk, feasibleState, liveMap, x.data()),
         "reachability: a feasible donor installs as it stands");
@@ -10432,7 +10502,6 @@ static void testMonotoneReachability() {
 
   // empty S1: every row on x0's high side moves to x1 above 0.3
   std::vector<double> moved(x);
-  double x0Cut = cutNear(0, 0.5), x1Cut = cutNear(1, 0.3);
   for (size_t i = 0; i < n; ++i)
     if (moved[i] > x0Cut && moved[i + n] <= x1Cut)
       moved[i + n] = x1Cut + (1.0 - x1Cut) * 0.5;
@@ -10440,9 +10509,11 @@ static void testMonotoneReachability() {
           PredictorUpdateResult::accepted,
         "reachability: the forced update is accepted");
   feasible = liveFeasible(*sampler, &values);
-  check(values.size() == 3,
-        "reachability: the forced update collapses x0's high side");
-  check(feasible, "reachability: the collapsed tree is reseeded into the cone");
+  std::vector<double> expected =
+    handMerged({0.0, -0.1, 0.02, -0.09}, quadrantRows(moved));
+  check(feasible && valuesNear(values, expected),
+        "reachability: the forced update's tree out of the cone is merged "
+        "where its order breaks, at the row-weighted means");
 
   // regrowth from the root, several trees
   options.numTrees = 10;

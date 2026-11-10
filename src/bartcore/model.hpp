@@ -1007,11 +1007,6 @@ inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
   return true;
 }
 
-/// What a monotone tree out of order gets: reset, every leaf 0 (a state,
-/// setData, setCutPoints, a forced setPredictor; dec-B278), or collapse
-/// (collapseMonotoneTree; a warm start, dec-B355).
-enum class MonotoneRepair { reset, collapse };
-
 /// collapseMonotoneTree at and below \p node; whether it merged anything.
 inline bool collapseMonotoneBelow(Tree& tree, std::int32_t node,
                                   const ColumnStore& data,

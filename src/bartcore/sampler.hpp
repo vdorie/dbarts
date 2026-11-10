@@ -1412,8 +1412,10 @@ public:
   /// outside its interval and the first forbidden split on each path from
   /// the root are merged into one leaf at the weighted mean of the leaves
   /// beneath (Chain::rebuildLiveForest, Chain::rebuildVarianceForest), the
-  /// direction is dropped, the monotone tree is reseeded at 0, and the DART
-  /// weights start fresh as a new fit's do (Chain::startDartFresh). Without force
+  /// direction is dropped, the monotone tree is merged where its order breaks,
+  /// each merged leaf at the mean of the leaves it replaces weighted by their
+  /// rows (collapseMonotoneTree), and the DART weights start fresh as a new
+  /// fit's do (Chain::startDartFresh). Without force
   /// the state is not installed: notClean, when non-null, is set, and false is returned with the chains, the store, the
   /// generators and the latents untouched. Only LIVE trees are held to any of
   /// this, a saved slot being a replay target routed over new rows rather
@@ -1724,8 +1726,8 @@ public:
   /// point of the store's grid inside the interval the splits above it
   /// leave, a split left no point and a leaf left no row merging at the mean
   /// of the leaves beneath weighted by the rows each held. On either arm a
-  /// monotone tree out of order is collapsed where the order breaks
-  /// (collapseMonotoneTree), where a state's is reset. A clean donor is
+  /// monotone tree out of order is merged where the order breaks
+  /// (collapseMonotoneTree), as a state's is. A clean donor is
   /// installed the same with and without force.
   ///
   /// \p currentPredictors is the call-time predictor matrix the columns
@@ -2112,8 +2114,7 @@ public:
         return failure == WarmStartResult::ok;
       };
       if (acrossGrids)
-        installAcrossGrids(donor.cutPoints, currentPredictors, installChains,
-                           MonotoneRepair::collapse);
+        installAcrossGrids(donor.cutPoints, currentPredictors, installChains);
       else
         installChains();
       return failure == WarmStartResult::ok;
@@ -3480,14 +3481,12 @@ private:
   /// chain it had finished would hold trees built on the stored grid over a
   /// store back on its own, sends every chain's trees back to a single leaf
   /// (Chain::resetEveryTree), so the sampler stays one that can be read and
-  /// run. \p repair is what
-  /// a monotone tree the move leaves out of order gets: the reset for a
-  /// state, the collapse for a warm start.
+  /// run. A monotone tree the move leaves out of order is merged where the
+  /// order breaks, for a state and a warm start alike.
   template <typename Install>
   bool installAcrossGrids(
       const std::vector<std::vector<double>>& storedCutPoints,
-      const double* currentPredictors, Install&& install,
-      MonotoneRepair repair = MonotoneRepair::reset) {
+      const double* currentPredictors, Install&& install) {
     std::vector<std::vector<double>> moved(data_.numPredictors);
     for (size_t j = 0; j < data_.numPredictors; ++j)
       if (data_.splitsByThreshold(j) &&
@@ -3513,7 +3512,7 @@ private:
     own.restore(data_);
     if (!installed) return false;
     refreshEveryChain([&](Chain<L, ResidT>& chain) {
-      chain.forceRefreshTrees(&moved, SplitPlacement::byValue, repair);
+      chain.forceRefreshTrees(&moved, SplitPlacement::byValue);
     });
     return true;
   }

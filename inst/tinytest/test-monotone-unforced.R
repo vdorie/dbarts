@@ -1,9 +1,10 @@
 # Predictor updates on a sampler with a monotone constraint that would leave a
 # tree's leaf values out of order. An unforced one is refused and rolled back
 # as one that would empty a leaf is, whichever tree of whichever chain it is
-# and under either direction; the calls that always complete set every leaf
-# of such a tree to zero and say nothing, but for a warm start, which
-# collapses it. The only change that can break the
+# and under either direction; the calls that always complete, a warm start
+# among them, merge such a tree where its order breaks, each merged leaf at
+# the mean of the leaves it replaces weighted by their rows, and say nothing.
+# The only change that can break the
 # order is an unordered factor's first missing value, which draws the side of
 # each rule on the factor: whether the order then holds is the draw's, so each
 # form of the update is held to both answers, on seeds searched for them. The
@@ -104,6 +105,41 @@ leaves <- function(sampler) {
   trees <- sampler$getTrees()
   trees$value[trees$var < 0L & trees$n < n]
 }
+# the leaf values of a sampler of one tree, a root leaf included
+treeLeaves <- function(sampler) {
+  trees <- sampler$getTrees()
+  trees$value[trees$var < 0L]
+}
+# The rows each leaf of the hand tree holds, in leaf order, given f's codes
+# from 0 (NA for a missing value) and the side each f rule sends a missing
+# value, the low rule first: the low rule sends {c, d} right, the high rule
+# {a, b}.
+handRows <- function(codes, sides = c("L", "L")) {
+  high <- x1 > cut
+  right <- ifelse(high, codes < 2, codes >= 2)
+  right[is.na(codes)] <- sides[1L + high[is.na(codes)]] == "R"
+  tabulate(1L + 2L * high + right, 4L)
+}
+# The leaves of the hand tree, increasing in x1 and out of order, once merged
+# where the order breaks, given its values and its leaves' rows: a half that
+# holds an empty leaf is one leaf already; else the low half merged, then
+# the high half, then both, the first in order, and else the whole tree.
+# Each merge is one leaf at the mean of the leaves it replaces weighted by
+# their rows, and relates to every leaf across the x1 split.
+handMerged <- function(values, rows) {
+  merged <- function(at) sum(values[at] * rows[at]) / sum(rows[at])
+  low <- merged(1:2)
+  high <- merged(3:4)
+  if (all(rows[3:4] > 0L)) {
+    if (low <= min(values[3:4])) {
+      return(c(low, values[3:4]))
+    }
+    if (max(values[1:2]) <= high) {
+      return(c(values[1:2], high))
+    }
+  }
+  if (low <= high) c(low, high) else merged(1:4)
+}
 # the factor column of data@x as codes from 0, however the sampler holds it
 heldCodes <- function(sampler) {
   x <- sampler$data@x
@@ -187,9 +223,10 @@ expectTwin(sampler, make())
 # way that holds `holds`, in order whatever they are, which draws the same
 # coins and takes the update. Each case is met with sides that break the
 # order and with sides that keep it: unforced it is refused, the sampler its
-# twin, or taken with its values; forced it is taken, the tree set to zero or
-# kept; row by row each row that brings the value is declined, the sampler
-# the twin given the rows without them, or every row is taken.
+# twin, or taken with its values; forced it is taken, the tree merged where
+# its order breaks or kept; row by row each row that brings the value is
+# declined, the sampler the twin given the rows without them, or every row
+# is taken.
 xRescaled <- xMissing
 xRescaled[, "x1"] <- 0.25 + 0.5 * x1
 sidesOf <- function(sampler) {
@@ -310,7 +347,12 @@ for (case in cases) {
       expect_identical(which(is.na(heldCodes(sampler))), naRows, info = info)
     } else if (is.null(case$declined)) {
       expect_identical(result, case$taken, info = info)
-      expect_identical(leaves(sampler), numeric(4L), info = info)
+      expect_equal(
+        treeLeaves(sampler),
+        handMerged(breaks, handRows(xMissing[, "f"])),
+        tolerance = 1e-12,
+        info = info
+      )
     } else {
       expect_identical(result, case$declined, info = info)
       expect_identical(leaves(sampler), unlist(values), info = info)
@@ -386,19 +428,22 @@ expect_true(all(
 expect_identical(leaves(sampler), breaks)
 expect_true(is.na(sampler$data@x[naRows[1L], "x1"]))
 
-# ---- the calls that complete: taken in silence, the tree set to zero ----
+# ---- the calls that complete: taken in silence, the tree merged ----
 
 dfArrived <- df
 dfArrived$f[naRows[1L]] <- NA
+arrivedCodes <- as.double(as.integer(dfArrived$f) - 1L)
 levelGrid <- expand.grid(x1 = x1Grid, f = factor(c(letters[1:4], NA)))
 # `call` returns `value` invisibly and warns of nothing, the hand tree is
-# left with `numLeaves` leaves at zero, and a sweep later the fit is monotone
-# at every level, the missing one included where the factor holds one
-completes <- function(call, value, onto = make(), numLeaves = 4L) {
+# left with the leaves `expected`, and the fit is monotone at every level,
+# the missing one included where the factor can hold one, at once and a
+# sweep later
+completes <- function(call, value, onto, expected, missingLevel = TRUE) {
   expect_identical(observe(call(onto)), outcome(value, visible = FALSE))
-  expect_identical(leaves(onto), numeric(numLeaves))
+  expect_equal(treeLeaves(onto), expected, tolerance = 1e-12)
+  grid <- levelGrid[missingLevel | !is.na(levelGrid$f), ]
+  expect_true(maxDrop(onto, grid) <= 1e-8)
   invisible(onto$run(0L, 1L))
-  grid <- levelGrid[numLeaves == 4L | !is.na(levelGrid$f), ]
   expect_true(maxDrop(onto, grid) <= 1e-8)
 }
 # setData is the call that brings a factor its first missing value. Each f
@@ -420,12 +465,18 @@ while (any((sides <- sidesDrawn(arrivalSeed)) != "R") && arrivalSeed < 60L) {
   arrivalSeed <- arrivalSeed + 1L
 }
 expect_identical(sides, c("R", "R"))
-completes(arrive, NULL, make(list(crossed), seed = arrivalSeed))
+completes(
+  arrive,
+  NULL,
+  make(list(crossed), seed = arrivalSeed),
+  handMerged(crossed, handRows(arrivedCodes, sides))
+)
 # A state stored while f could hold no missing value, installed where it can:
 # the install draws the side of each f rule from the state's own generator
 # before the order is judged. Left at both leaves `breaks` out of order: the
 # state is declined, the sampler its twin, and forced it goes in with the
-# tree set to zero. Any other sides keep the order, and the state is clean.
+# tree merged where its order breaks. Any other sides keep the order, and the
+# state is clean.
 # Seeds are tried until each has been met.
 flagged <- function(seed) make(list(holds), dfArrived, seed = seed)
 met <- c(declined = FALSE, clean = FALSE)
@@ -449,9 +500,11 @@ for (seed in 7:60) {
       observe(forced$setState(earlier, forceUpdate = TRUE)),
       outcome(NULL, visible = FALSE)
     )
-    expect_identical(leaves(forced), numeric(4L))
-    trees <- forced$getTrees()
-    expect_identical(trees$missing[trees$var == 2L], c("L", "L"))
+    expect_equal(
+      treeLeaves(forced),
+      handMerged(breaks, handRows(arrivedCodes)),
+      tolerance = 1e-12
+    )
   }
   if (all(met)) {
     break
@@ -527,10 +580,13 @@ expect_identical(met, c(broken = TRUE, kept = TRUE))
 # over such predictors, which without force is declined for the merge.
 fEmptied <- f
 fEmptied[x1 > cut & f %in% c("a", "b")] <- "c"
+emptiedMerged <- handMerged(breaks, handRows(as.integer(fEmptied) - 1L))
 completes(
   function(s) s$setPredictor(fEmptied, "f", forceUpdate = TRUE),
   NULL,
-  numLeaves = 3L
+  make(),
+  emptiedMerged,
+  missingLevel = FALSE
 )
 emptied <- function() {
   dbarts::dbarts(
@@ -549,7 +605,8 @@ completes(
   function(s) s$setState(handState(s, list(breaks)), forceUpdate = TRUE),
   NULL,
   emptied(),
-  numLeaves = 3L
+  emptiedMerged,
+  missingLevel = FALSE
 )
 # where the merged tree stays in order its values are kept
 sampler <- emptied()
@@ -623,7 +680,8 @@ sampler <- dbarts::dbarts(
 )
 expect_true(installPooled(sampler, holds))
 # the column loses its missing values and may still hold one, so values that
-# cross with one are still out of order: declined, and reseeded when forced
+# cross with one are still out of order: declined, and merged where the order
+# breaks when forced
 asFrameH <- function(codes) {
   data.frame(x1 = codes[, "x1"], h = asLabels(codes[, "h"], levels70))
 }
@@ -631,10 +689,17 @@ expect_true(sampler$setPredictor(asFrameH(pooledCodes), forceUpdate = FALSE))
 expect_identical(dbarts:::dataMissingSeen(sampler$data), c(FALSE, TRUE))
 expect_identical(installPooled(sampler, crossed), FALSE)
 expect_identical(leaves(sampler), holds)
-reseeded <- sampler$copy()
-expect_null(installPooled(reseeded, crossed, forceUpdate = TRUE))
-expect_identical(leaves(reseeded), numeric(4L))
-rm(reseeded)
+mergedPooled <- sampler$copy()
+expect_null(installPooled(mergedPooled, crossed, forceUpdate = TRUE))
+# the low rule sends levels 36-70 right, the high rule levels 1-35
+pooledHigh <- x1 > cut
+pooledRight <- ifelse(pooledHigh, as.integer(h) <= 35L, as.integer(h) > 35L)
+expect_equal(
+  treeLeaves(mergedPooled),
+  handMerged(crossed, tabulate(1L + 2L * pooledHigh + pooledRight, 4L)),
+  tolerance = 1e-12
+)
+rm(mergedPooled)
 xRegained <- pooledCodes
 regained <- which(x1 <= cut & as.integer(h) <= 35L)[1L]
 xRegained[regained, "h"] <- NA

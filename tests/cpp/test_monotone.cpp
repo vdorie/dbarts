@@ -975,9 +975,8 @@ struct Arrival {
   double installed(size_t c, size_t k) const {
     return shape.direction * values[c][k];
   }
-  // whether the leaves of chain c's hand tree are the installed values, or
-  // all zero
-  bool leavesAre(size_t c, bool zero) {
+  // whether the leaves of chain c's hand tree are the installed values
+  bool leavesKept(size_t c) {
     std::vector<FlatNode> live;
     std::vector<std::uint32_t> counts;
     sampler().flattenTree(c, shape.at, live, counts);
@@ -986,13 +985,61 @@ struct Arrival {
     for (const FlatNode& node : live)
       if (node.variable == invalidVariable) {
         same = same && numLeaves < 4 &&
-               node.value == (zero ? 0.0 : installed(c, numLeaves));
+               node.value == installed(c, numLeaves);
         ++numLeaves;
       }
     return same && numLeaves == 4;
   }
-  bool leavesKept(size_t c) { return leavesAre(c, false); }
-  bool leavesZero(size_t c) { return leavesAre(c, true); }
+  // whether chain c's hand tree, put out of order by f's first missing value
+  // in the rows of \p x (f, then x1; NaN for a missing f), is merged where
+  // its order breaks: the low half one leaf if that puts it in order, else
+  // the high half, else both, else the whole tree, each merged leaf at the
+  // mean of the leaves it replaces weighted by their rows, and no leaf 0. A
+  // missing value goes to the side the chain's coins drew. A decreasing
+  // constraint mirrors the merge.
+  bool leavesMerged(size_t c, const std::vector<double>& x) {
+    bool sentRight = values[c] == breaksSentRight;
+    double rows[4] = {0.0, 0.0, 0.0, 0.0};
+    for (size_t i = 0; i < arrivalRows; ++i) {
+      bool high = x[arrivalRows + i] > cut;
+      bool right = std::isnan(x[i]) ? sentRight
+                                    : (high ? x[i] < 2.0 : x[i] >= 2.0);
+      rows[2 * high + right] += 1.0;
+    }
+    const double* v = values[c];
+    auto mean = [&](size_t first, size_t last) {
+      double sum = 0.0, count = 0.0;
+      for (size_t k = first; k < last; ++k) {
+        sum += rows[k] * v[k];
+        count += rows[k];
+      }
+      return sum / count;
+    };
+    double low = mean(0, 2), high = mean(2, 4);
+    std::vector<double> expected;
+    if (low <= std::min(v[2], v[3]))
+      expected = {low, v[2], v[3]};
+    else if (std::max(v[0], v[1]) <= high)
+      expected = {v[0], v[1], high};
+    else if (low <= high)
+      expected = {low, high};
+    else
+      expected = {mean(0, 4)};
+    std::vector<FlatNode> live;
+    std::vector<std::uint32_t> counts;
+    sampler().flattenTree(c, shape.at, live, counts);
+    size_t numLeaves = 0;
+    bool same = true;
+    for (const FlatNode& node : live)
+      if (node.variable == invalidVariable) {
+        same = same && numLeaves < expected.size() &&
+               std::fabs(node.value - shape.direction * expected[numLeaves]) <=
+                 1e-12 &&
+               node.value != 0.0;
+        ++numLeaves;
+      }
+    return same && numLeaves == expected.size();
+  }
   void sweep(size_t numSweeps) {
     Results none;
     sampler().run(numSweeps, 0, none);
@@ -1107,7 +1154,8 @@ size_t countTrue(const bool* flags, size_t n) {
 // cut refresh, and row by row, where each row bringing the value is refused
 // and the others install. Where the values stay in order it is accepted and
 // they are kept.
-// Forced, and through setData, it is taken and such a tree is set to zero.
+// Forced, and through setData, it is taken and such a tree is merged where its
+// order breaks, at the row-weighted means.
 // The tree is a chain's only one, or one of three and not the first, in every
 // chain or the second alone, under either direction.
 static void testMonotoneMissingArrives() {
@@ -1246,7 +1294,7 @@ static void testMonotoneMissingArrives() {
     }
 
     // forced whole and by column, and setData: taken, a tree left out of
-    // order set to zero and a tree in order kept
+    // order merged where its order breaks and a tree in order kept
     for (int form = 0; form < 3; ++form) {
       static const char* const forms[3] = {", forced whole matrix",
                                            ", forced by column", ", setData"};
@@ -1265,10 +1313,13 @@ static void testMonotoneMissingArrives() {
         taken = sampler.setData(withMissing.data(), y.data(), n, nullptr,
                                 nullptr, nullptr, 0);
       checkAt(taken && s.factorHasMissing(), label, "taken");
-      bool reset = true;
+      bool repaired = true;
       for (size_t c = 0; c < numChains; ++c)
-        reset = reset && (shape.breaks[c] ? s.leavesZero(c) : s.leavesKept(c));
-      checkAt(reset, label, "a tree left out of order is zero, another kept");
+        repaired = repaired && (shape.breaks[c] ? s.leavesMerged(c, withMissing)
+                                                : s.leavesKept(c));
+      checkAt(repaired, label,
+              "a tree left out of order is merged where its order breaks, "
+              "another kept");
       ++numForced;
     }
   }

@@ -635,7 +635,8 @@ expect_true(maxDrop(monoReach) <= 1e-8)
 
 # setState of the donor's state is declined, and the sampler keeps its state
 # and its fit; forced, as a copy holding the state is, every tree outside the
-# cone is reseeded and the fit is monotone at once
+# cone is merged where its order breaks, as a forced warm start merges it, and
+# the fit is monotone at once
 stateBefore <- monoReach$state
 fitBefore <- monoReach$predict(gridReach)
 expect_identical(monoReach$setState(freeReach$state), FALSE)
@@ -645,7 +646,13 @@ forcedReach <- monoReach$copy()
 expect_null(forcedReach$setState(freeReach$state, forceUpdate = TRUE))
 expect_true(maxDrop(forcedReach) <= 1e-8)
 expect_false(identical(forcedReach$predict(gridReach), fitBefore))
-rm(stateBefore, fitBefore, forcedReach)
+warmReach <- monoReach$copy()
+expect_null(warmReach$installTrees(freeReach, forceUpdate = TRUE))
+expect_identical(
+  forcedReach$getTrees(current = TRUE),
+  warmReach$getTrees(current = TRUE)
+)
+rm(stateBefore, fitBefore, forcedReach, warmReach)
 
 # grow-from-root regrows every tree over recycled node slots; the regrown
 # leaves draw from the all-zero seed, and one sweep later the fit is monotone
@@ -668,8 +675,11 @@ rm(monoCopy)
 # each side splits x2 at 0.3, leaves J, K (x1 low) and S1, S2 (x1 high), with
 # J < S1 and K < S2 the only relations. A forced update emptying S1 collapses
 # x1's high side into one leaf holding S2's value, which now borders J from
-# above and sits below it; the merged tree is reseeded, so the fit stays
-# monotone and the state reinstalls
+# above and sits below it. Merged where the order breaks: x1's low side as
+# one leaf, J with K at their mean weighted by rows, still sits above S2, so
+# the tree becomes one leaf at the mean of J, K and S2 weighted by their rows;
+# the fit stays monotone and the state reinstalls. setData with those
+# predictors and weights merges it the same, the rows weighted.
 handReach <- dbarts::dbarts(
   xReach,
   yReach,
@@ -677,6 +687,7 @@ handReach <- dbarts::dbarts(
   control = controlReach(),
   n.trees = 1L
 )
+handFresh <- handReach$copy()
 handState <- handReach$state
 cuts <- attr(handState, "cutPoints")
 cut1 <- cuts[[1L]][which.max(cuts[[1L]] >= 0.5)]
@@ -691,22 +702,98 @@ handTree$tree.sizes <- 7L
 handTree$tree.flags <- as.raw(c(2L, 2L, 0L, 0L, 2L, 0L, 0L))
 handState[[1L]]$forests[[1L]] <- handTree
 handReach$setState(handState)
+handData <- handReach$copy()
 xEmpty <- xReach
 movedRows <- xEmpty[, 1L] > cut1 & xEmpty[, 2L] <= cut2
 xEmpty[movedRows, 2L] <- (cut2 + 1) / 2
 expect_true(any(movedRows))
+# the leaf of each row of x under the hand tree: J, K, S1, S2
+handLeaf <- function(x, split2 = cut2) {
+  1L + 2L * (x[, 1L] > cut1) + (x[, 2L] > split2)
+}
+handValues <- c(0, -0.1, 0.02, -0.09)
+handMean <- function(x, weights = rep(1, nrow(x))) {
+  sum(weights * handValues[handLeaf(x)]) / sum(weights)
+}
+handLow <- sum(handValues[1:2] * tabulate(handLeaf(xEmpty), 4L)[1:2]) /
+  sum(xEmpty[, 1L] <= cut1)
+expect_true(handLow > handValues[4L])
 handReach$setPredictor(xEmpty, forceUpdate = TRUE)
 expect_true(maxDrop(handReach) <= 1e-8)
 handReach$storeState()
+expect_equal(handReach$state[[1L]]$forests[[1L]]$tree.sizes, 1L)
+expect_equal(
+  handReach$getTrees()$value,
+  handMean(xEmpty),
+  tolerance = 1e-12
+)
 expect_silent(status <- handReach$setState(handReach$state))
 expect_true(status)
-expect_equal(handReach$state[[1L]]$forests[[1L]]$tree.sizes, 5L)
-rm(handReach, handState, cuts, cut1, cut2, handTree, xEmpty, movedRows)
+handWeights <- rep_len(c(1, 4, 2), nReach)
+handData$setData(dbarts::dbartsData(xEmpty, yReach, weights = handWeights))
+expect_true(maxDrop(handData) <= 1e-8)
+expect_equal(
+  handData$getTrees()$value,
+  handMean(xEmpty, handWeights),
+  tolerance = 1e-12
+)
+
+# setCutPoints giving x2 one point, below every x2 on x1's high side and above
+# row 1's, empties S1 the same way, and J now holds row 1 alone: x1's low
+# side merged, J with K at their mean weighted by rows, sits below S2, and
+# the high side keeps S2's value. A state holding the hand tree, forced onto
+# a sampler on that grid, goes in across the grids and is merged the same.
+point2 <- min(xReach[xReach[, 1L] > cut1, 2L]) / 2
+pointLeaf <- handLeaf(xReach, point2)
+expect_identical(sum(pointLeaf == 1L), 1L)
+pointLeaves <- c(
+  sum(handValues[pointLeaf[pointLeaf <= 2L]]) / sum(pointLeaf <= 2L),
+  handValues[4L]
+)
+handCut <- handFresh$copy()
+expect_true(handCut$setState(handState))
+handCut$setCutPoints(point2, "x2")
+expect_true(maxDrop(handCut) <= 1e-8)
+expect_equal(
+  handCut$getTrees()$value[c(2L, 3L)],
+  pointLeaves,
+  tolerance = 1e-12
+)
+handCut <- handFresh$copy()
+handCut$setCutPoints(point2, "x2")
+expect_null(handCut$setState(handState, forceUpdate = TRUE))
+expect_true(maxDrop(handCut) <= 1e-8)
+expect_equal(
+  handCut$getTrees()$value[c(2L, 3L)],
+  pointLeaves,
+  tolerance = 1e-12
+)
+rm(
+  handReach,
+  handFresh,
+  handData,
+  handCut,
+  handState,
+  cuts,
+  cut1,
+  cut2,
+  handTree,
+  xEmpty,
+  movedRows,
+  handLeaf,
+  handValues,
+  handMean,
+  handLow,
+  handWeights,
+  point2,
+  pointLeaf,
+  pointLeaves
+)
 
 # a forced predictor update that flattens x2 empties one side of every x2
 # split; the collapse merges leaves across the free axis, relating each merged
 # leaf to neighbors it did not border, and a merged tree outside the cone is
-# reseeded
+# merged where its order breaks
 xFlat <- xReach
 xFlat[-(1:2), 2L] <- 0.5
 monoReach$setPredictor(xFlat, forceUpdate = TRUE)

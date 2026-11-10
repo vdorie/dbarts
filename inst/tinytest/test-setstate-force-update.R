@@ -587,7 +587,8 @@ expectTree(treeIn(taken$state, 1L), meanTree, "unrestricted")
 expectTree(treeIn(taken$state, 0L), varianceTree, "unrestricted")
 
 # a monotone tree whose leaf values, as stored, fall where they must rise:
-# reseeded, every leaf 0
+# merged where the order breaks, here into one leaf at the mean of the two
+# weighted by their rows
 monotone <- function() warmed(monotone = c(a = "increasing"))
 falling <- list(vars = c(1L, -1L, -1L), values = c(cut[1L], 0.2, -0.2))
 state <- monotone()$state
@@ -599,7 +600,10 @@ state[[1L]]$forests[[1L]] <- withFirstTree(
 forced <- expectDeclined(monotone, state, "a monotone tree out of order")
 expectTree(
   treeIn(forced$state, 1L),
-  list(vars = falling$vars, values = c(cut[1L], 0, 0)),
+  list(
+    vars = -1L,
+    values = weightedMean(c(0.2, -0.2), c(sum(left), sum(!left)))
+  ),
   "a monotone tree out of order"
 )
 
