@@ -551,20 +551,18 @@ forestEffectLines <- function(effects) {
   lines <- vapply(
     seq_len(nrow(effects)),
     function(row) {
-      with(
-        effects[row, ],
-        paste0(
-          "  ",
-          forest,
-          " ",
-          label,
-          ", ",
-          effect,
-          ": average ",
-          shown(average, average.q5, average.q95),
-          ", spread across rows ",
-          shown(spread, spread.q5, spread.q95)
-        )
+      one <- effects[row, ]
+      paste0(
+        "  ",
+        one$forest,
+        " ",
+        one$label,
+        ", ",
+        one$effect,
+        ": average ",
+        shown(one$average, one$average.q5, one$average.q95),
+        ", spread across rows ",
+        shown(one$spread, one$spread.q5, one$spread.q95)
       )
     },
     ""
