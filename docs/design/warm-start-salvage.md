@@ -70,8 +70,8 @@ recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
   and FALSE where it did not, visibly, as `setState` does. FALSE leaves the sampler as it was: trees, drawn
   values, generators, kept draws, the `state` field. This is forced-update-returns-null.
 - dec-B398, "Repair, as we do elsewhere.": a forced `setState` already cuts a tree back at a split on a
-  column its forest may not use or past its interaction limit, and sets every leaf of a monotone tree out of
-  order to 0. The routine is [`Tree::collapseEmptyNodes`](../../src/bartcore/tree.hpp) with
+  column its forest may not use or past its interaction limit, and merges a monotone tree out of order where
+  its order breaks (dec-B693). The routine is [`Tree::collapseEmptyNodes`](../../src/bartcore/tree.hpp) with
   [`Tree::splitIsForbidden`](../../src/bartcore/tree.hpp) and
   retired: [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp) (gone under dec-B693,
   which merges such a tree as a warm start does). A forced warm start uses it, so
@@ -79,8 +79,8 @@ recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
   without. A donor out of the monotone order, and one with a side no row reaches, are FALSE unforced and
   repaired forced, where today they are repaired with no word (dec-B278 for the first). A forced warm start
   collapses a monotone tree out of order where its order breaks, each merged leaf at the mean by rows
-  ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and does not reset it (dec-B355); the other
-  forced calls keep the reset.
+  ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and does not reset it (dec-B355); a forced
+  `setState`, `setPredictor`, `setData` and `setCutPoints` do the same, as a warm start does.
 - dec-B323, "Sure, option B.": into fewer trees a warm start takes the donor trees whose fitted values vary
   most over the recipient's rows, in the donor's order, values as they are; into more it takes them all and
   starts the rest as single leaves at 0. Settled here, the ruling not naming them: "vary most" is the

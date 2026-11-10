@@ -790,6 +790,49 @@ rm(
   pointLeaves
 )
 
+# a merged part that holds no weight takes the plain mean of its leaves: setData
+# with zero weights on x1's low side leaves J and K weightless, and the low
+# side merges to their plain mean (0.10), not 0
+local({
+  set.seed(404L)
+  n <- 200L
+  x <- matrix(runif(n * 2L), n, 2L, dimnames = list(NULL, c("x1", "x2")))
+  x[1L, ] <- 0
+  x[2L, ] <- 1
+  y <- -2 * x[, 1L] + sin(4 * x[, 2L]) + rnorm(n, 0, 0.2)
+  ctl <- dbarts::dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 1L,
+    updateState = TRUE
+  )
+  s <- dbarts::dbarts(
+    x,
+    y,
+    monotone = c(x1 = "increasing"),
+    control = ctl,
+    n.trees = 1L
+  )
+  st <- s$state
+  cuts <- attr(st, "cutPoints")
+  cut1 <- cuts[[1L]][which.max(cuts[[1L]] >= 0.5)]
+  cut2 <- cuts[[2L]][which.max(cuts[[2L]] >= 0.3)]
+  tr <- st[[1L]]$forests[[1L]]
+  tr$tree.vars <- c(1L, 2L, -1L, -1L, 2L, -1L, -1L)
+  tr$tree.values <- writeBin(c(cut1, cut2, 0.5, -0.3, cut2, 0.6, 0.15), raw())
+  tr$tree.sizes <- 7L
+  tr$tree.flags <- as.raw(c(2L, 2L, 0L, 0L, 2L, 0L, 0L))
+  st[[1L]]$forests[[1L]] <- tr
+  expect_true(isTRUE(s$setState(st)))
+  xE <- x
+  mv <- xE[, 1L] > cut1 & xE[, 2L] <= cut2
+  xE[mv, 2L] <- (cut2 + 1) / 2
+  w <- ifelse(x[, 1L] <= cut1, 0, 1)
+  s$setData(dbarts::dbartsData(xE, y, weights = w))
+  tt <- s$getTrees()
+  expect_equal(tt$value[tt$var < 0], c(0.10, 0.15), tolerance = 1e-12)
+})
+
 # a forced predictor update that flattens x2 empties one side of every x2
 # split; the collapse merges leaves across the free axis, relating each merged
 # leaf to neighbors it did not border, and a merged tree outside the cone is

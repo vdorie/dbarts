@@ -51,7 +51,8 @@ A merged leaf takes the mean of the leaves it replaces, weighted by their rows u
 weights, geometric in the variance forest. On each path from the root the first offending split goes and the
 splits above it stay. A merge can leave a monotone tree out of order, and it is then merged where its order
 breaks as well, at the mean by rows ([`collapseMonotoneTree`](../../src/bartcore/model.hpp); dec-B693). The
-last three rows are repaired under dec-B398 ("Repair, as we do elsewhere."). A warm start judges and
+last three rows are repaired under dec-B398 ("Repair, as we do elsewhere."), and the monotone row under
+dec-B693 (the merge above). A warm start judges and
 repairs a donor's trees by the same table and the same staging
 ([`Chain::donorTreesStage`](../../src/bartcore/chain.hpp)): `installTrees(donor)` returns FALSE where a
 row applies and `forceUpdate = TRUE` makes the change ([Warm starts](#warm-starts)).
