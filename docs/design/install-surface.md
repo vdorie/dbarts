@@ -45,16 +45,16 @@ sampler's rows. A kept draw is replayed over new rows and never held to this par
 | records a side for missing values on a column, not pooled, that has never held one here | the side is dropped |
 | splits on a column its forest may not use (`vars`, a `blocks` group, a moderator's columns, a restricted variance forest) | cut back at the first such split from the root |
 | breaks its forest's `interactions` limit | cut back at the first such split from the root |
-| is monotone with leaf values out of order as stored | every leaf set to 0 |
+| is monotone with leaf values out of order as stored | merged where its order breaks |
 
 A merged leaf takes the mean of the leaves it replaces, weighted by their rows under the state's own working
 weights, geometric in the variance forest. On each path from the root the first offending split goes and the
-splits above it stay. A merge can leave a monotone tree out of order, and it is then reseeded as well. The
+splits above it stay. A merge can leave a monotone tree out of order, and it is then merged where its order
+breaks as well, at the mean by rows ([`collapseMonotoneTree`](../../src/bartcore/model.hpp); dec-B693). The
 last three rows are repaired under dec-B398 ("Repair, as we do elsewhere."). A warm start judges and
 repairs a donor's trees by the same table and the same staging
 ([`Chain::donorTreesStage`](../../src/bartcore/chain.hpp)): `installTrees(donor)` returns FALSE where a
-row applies and `forceUpdate = TRUE` makes the change ([Warm starts](#warm-starts)), but for the last row:
-a warm start collapses a monotone tree out of order where its order breaks.
+row applies and `forceUpdate = TRUE` makes the change ([Warm starts](#warm-starts)).
 
 The verdict and the install stage a tree by one routine,
 [`Tree::stageFromFlat`](../../src/bartcore/tree.hpp), the verdict on a scratch tree
@@ -164,7 +164,7 @@ The forced move is three passes over each live tree, mean and variance
 That is the state installed on its own grid followed by `setCutPoints(grid, splits = "value")`, the two calls
 that existed, with the sampler's weights kept; passes 2 and 3 are that call's own routine
 ([`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp)), so linear and gp leaves, the variance forest
-and the monotone reseed are handled as it handles them, and
+and the monotone merge are handled as it handles them, and
 ["equals the two calls"](../../inst/tinytest/test-state-grid-install.R) holds the two to one result. Measured
 on one tree of 200 rows, root on the 50th of 100 points, left child on the 30th, leaves 0.10, -0.20 and 0.05
 holding 73, 38 and 89 rows, forced onto the 50th and 75th points: the child has no point left and its two
@@ -231,7 +231,7 @@ state install: the donor's generators, latents and kept draws are not taken, the
 dropped, and its `state` field is stored again after every install. On a column the sampler holds as an
 ordered factor a donor recorded on other points is an error in both forms, as for a state. A monotone tree
 out of order is collapsed where its order breaks, each merged leaf at the mean of the leaves it replaces by
-rows ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and not reset to 0. A donor of fewer trees
+rows ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), as for a state. A donor of fewer trees
 is taken whole, the rest single leaves, and a donor of more gives the trees whose fits vary most over the
 sampler's rows ([`Sampler::chooseDonorTrees`](../../src/bartcore/sampler.hpp)). Under `blocks`, whatever the
 count, each block first takes in the donor's order the trees it holds as stored, and where that leaves a

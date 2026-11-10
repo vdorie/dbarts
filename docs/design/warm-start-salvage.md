@@ -73,7 +73,8 @@ recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
   column its forest may not use or past its interaction limit, and sets every leaf of a monotone tree out of
   order to 0. The routine is [`Tree::collapseEmptyNodes`](../../src/bartcore/tree.hpp) with
   [`Tree::splitIsForbidden`](../../src/bartcore/tree.hpp) and
-  [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp). A forced warm start uses it, so
+  retired: [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp) (gone under dec-B693,
+  which merges such a tree as a warm start does). A forced warm start uses it, so
   the two errors on a column restriction and an interaction limit become a cut-back under force and FALSE
   without. A donor out of the monotone order, and one with a side no row reaches, are FALSE unforced and
   repaired forced, where today they are repaired with no word (dec-B278 for the first). A forced warm start

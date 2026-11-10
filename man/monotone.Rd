@@ -92,14 +92,13 @@ monotone(directions, prior = c("joint", "leaf"))
   \code{\linkS4class{dbartsSampler}}) can leave a tree's leaf values out of
   order. The calls that always complete - \code{setPredictor} with
   \code{forceUpdate = TRUE} (its default when the whole matrix is replaced),
-  \code{setData}, \code{setCutPoints}, and \code{setState} with
-  \code{forceUpdate = TRUE} - set every leaf value of such a tree to zero,
-  without a message, and the next iteration draws them again;
-  that suits burn-in and is not a draw from the posterior. A warm start,
-  \code{installTrees} with \code{forceUpdate = TRUE} or \code{bart}'s
-  \code{warm.start}, collapses such a tree instead where its leaf values
-  are out of order, each collapsed part one leaf at the mean of the leaves
-  it replaces weighted by their rows, and keeps the rest.
+  \code{setData}, \code{setCutPoints}, \code{setState} with
+  \code{forceUpdate = TRUE}, and a warm start, \code{installTrees} with
+  \code{forceUpdate = TRUE} or \code{bart}'s \code{warm.start} - collapse
+  such a tree where its leaf values are out of order, each collapsed part
+  one leaf at the mean of the leaves it replaces weighted by their rows, and
+  keep the rest, without a message; that suits burn-in and is not a draw
+  from the posterior.
 
   An unforced update is refused instead, as one that would empty a leaf is.
   One unforced change can leave a tree out of order: the first missing value
@@ -128,8 +127,8 @@ monotone(directions, prior = c("joint", "leaf"))
   sampler has run, and where the data favor such trees a later draw can
   break the order too. Code that proposes the value again until it is
   accepted may never finish. The way to bring the value in is
-  \code{forceUpdate = TRUE}, which completes and sets those trees to zero
-  as above; the alternative is to leave the value as it was.
+  \code{forceUpdate = TRUE}, which completes and collapses those trees as
+  above; the alternative is to leave the value as it was.
 
   Only numeric and ordered columns are eligible: a direction on a categorical
   (unordered factor) predictor is an error. Names, positions and every

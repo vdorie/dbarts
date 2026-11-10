@@ -24,7 +24,8 @@ always restore its own state and `copy()` itself after its predictors changed.
   0 of 10 restores succeed on the bartcore tip, 10 of 10 on 0.9-34, whose restore ended in
   `forceUpdateTrees` and collapsed empty nodes.
 - The collapse a forced predictor update runs, including the merge of constant, vector and variance leaves,
-  gp per-observation fits, and [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp) for a
+  gp per-observation fits, and retired: [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp)
+  (gone under dec-B693) for a
   monotone forest, is the handling to reuse.
 - Install paths: `setState`, `copy`, reload from a stored state, `installTrees` and `warm.start`.
 - The warm start does not refuse: a same-grid donor whose mean trees leave a leaf with no rows of the

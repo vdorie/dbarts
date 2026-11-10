@@ -120,8 +120,8 @@ Code read on 7f948d02:
 - The merge a repair needs exists: [`collapseEmptyNodes`](../../src/bartcore/tree.hpp) walks the tree in
   pre-order and, at the first node meeting its predicate on a path (an empty child, an unrepresentable
   rule, a split outside its interval), replaces the subtree by one leaf at the weighted mean of the
-  leaves beneath (geometric for the variance forest). [`reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp)
-  sets an out-of-cone tree's leaves to 0; `rebuildLiveForest` already calls it after a merge, and the
+  leaves beneath (geometric for the variance forest).
+  retired: [`reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp) (gone under dec-B693) set an out-of-cone tree's leaves to 0; `rebuildLiveForest` already calls it after a merge, and the
   warm start calls it on an unconstrained donor.
 - `ColumnStore::hasMissing` ([data.hpp](../../src/bartcore/data.hpp)) is rewritten from content on every
   quantize ([`quantizeDenseObserved`](../../src/bartcore/data.hpp),
@@ -359,7 +359,8 @@ B8. Repair under force (dec-B398). Forced, cases d to f are installed as a warm 
   ancestors', breaks the forest's limit), so the merge, its weights and the variance forest's geometric
   merge are the routine already in use. The routine is warm-start-salvage's, pulled into this part; that
   item reuses it for installTrees's force.
-- (f): the tree is reseeded, every leaf 0 ([`reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp)),
+- (f): the tree is reseeded, every leaf 0 (retired: [`reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp),
+  gone under dec-B693),
   as a warm start does today; `monotoneStateFeasible` stops being a refusal and feeds the verdict.
 - A collapse can leave a monotone tree out of the cone; the reseed after it runs as built.
 - The containment backstops in `rebuildLiveForest` (`interactionSubtreeIsValid`,

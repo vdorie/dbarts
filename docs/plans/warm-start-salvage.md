@@ -113,7 +113,8 @@ Code as it stood before slice A:
   each tree ([`Tree::stageFromFlat`](../../src/bartcore/tree.hpp)), which arms the forbidden-split collapse
   of [`Tree::collapseEmptyNodes`](../../src/bartcore/tree.hpp), copies a gp leaf's fits as stored, and sets
   every leaf of a monotone tree out of order to 0
-  ([`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp)). Only the refusals ahead of it
+  (retired: [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp), gone under dec-B693).
+  Only the refusals ahead of it
   keep a warm start from cutting a tree back today.
 - A donor on other cut points goes through the remap arm, which slice A removed,
   retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp): built on the donor's grid with no rows
@@ -1138,7 +1139,8 @@ tests, the help and notes.
   candidate is judged by, and `mergeSubtreeToLeaf`, which `collapseEmptyNodesBelow` calls, the sums in the
   order they ran. [`collapseMonotoneTree`](../../src/bartcore/model.hpp) tests only the pairs across a split,
   by `MonotoneLeafGeometry` over the would-be leaves. The reset stays
-  [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp), unedited, behind
+  retired: [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp) (gone under dec-B693),
+  unedited, behind
   `Chain::repairInfeasibleMonotoneTree`. `setData` reaches it through `applyNewData`, `setCutPoints` and a
   forced `setPredictor` through `forceRefreshTrees`'s default, `setState` through `rebuildLiveForest`'s.
 - The hand trees are in tests/cpp's test_monotone.cpp, beside its tree builder; the verdict-against-install

@@ -706,11 +706,14 @@ requires. What happens depends on whether the call may refuse.
   ([mia-missingness.md](mia-missingness.md)).
 - The calls that always complete - a forced update, `setData`,
   `setCutPoints`, a warm start and a forced `setState`
-  ([install-surface.md](install-surface.md)) - set
-  every leaf of such a tree to zero, drawing nothing and saying nothing
-  ([`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp)).
-  No acceptance rule accounts for that move, which is why the unforced forms
-  refuse instead.
+  ([install-surface.md](install-surface.md)) - merge such a tree where its
+  order breaks, each merged leaf at the mean of the leaves it replaces
+  weighted by their rows under the working weights, drawing nothing and
+  saying nothing ([`Chain::repairInfeasibleMonotoneTree`](../../src/bartcore/chain.hpp),
+  [`collapseMonotoneTree`](../../src/bartcore/model.hpp); dec-B693). The
+  merge keeps each tree's weighted sum over its rows; a merged part that
+  holds no weight takes the plain mean of its leaves. No acceptance rule
+  accounts for that move, which is why the unforced forms refuse instead.
 
 Which update can do it. The order reads a tree's rules and leaf values and
 each column's cut or level count and has-missing flag, and no partition; an
@@ -727,14 +730,14 @@ keep their side for a missing value when the column loses its missing values,
 so a value the column regains can go right at an old rule and relate the two
 right-hand leaves. The check does not rest on the argument, which is what
 covers that case: it runs on every unforced update of a constrained sampler,
-at the cost the reset had.
+at the cost of the order check the forced forms run.
 [`testMonotoneMissingRelates`](../../tests/cpp/test_monotone.cpp) holds the
 argument on 4000 random trees over stores that never held a missing value:
 setting one flag adds 71 related pairs through a 4-level factor and none
 through a numeric, an ordered or a 70-level column, and clearing one removes
 908 and adds none. The larger run and the trial updates from R are in
 [Context](../plans/monotone-unforced-refusal.md#context), with the rate in
-fits: one tree reset in 3600 updates built to provoke it. The regained value
+fits: one tree out of order in 3600 updates built to provoke it. The regained value
 of a 70-level factor is built by hand in
 ["a factor of more than 63 levels that regains a missing value"](../../inst/tinytest/test-monotone-unforced.R).
 
@@ -751,7 +754,7 @@ the missing value is refused while some tree would be out of order with it,
 and on data that hold the crossing the missing position forbids the same
 proposal was still refused after 500 sweeps on 10 of 10 seeds, where one sweep
 cured it on data without the crossing. The way in is a forced update, at the
-cost of the reset. A refused update, for either reason, leaves the stored
+cost of the merge. A refused update, for either reason, leaves the stored
 state, the predictors, the predictions and the cached fits exactly an
 untouched sampler's but not the order a leaf holds its rows in, so the draws
 that follow agree with that sampler's to rounding, not bit for bit. And a

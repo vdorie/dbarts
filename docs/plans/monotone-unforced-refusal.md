@@ -108,7 +108,8 @@ pair of leaves the constraint relates has its values the right way round.
   the store from its snapshot and re-routes ([`Chain::repartitionTrees`](../../src/bartcore/chain.hpp)).
   Phase two, [`Chain::rebuildFitsFromParameters`](../../src/bartcore/chain.hpp), is not undone: it drops
   stale missing directions, rewrites the row-to-leaf map and the cached fits, and holds today's call of
-  [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp). The order reads the same before
+  retired: [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp) (gone under dec-B693).
+  The order reads the same before
   and after that drop: a column with its flag clear has no missing position, whatever its rules say.
 - The standard a refusal meets today. 36 updates refused for an empty leaf (by column, two columns, whole
   matrix; with a first missing value; with `updateCutPoints = TRUE`; on a column losing its last missing
@@ -188,7 +189,7 @@ with the new values. Either failure refuses it.
    each tree it re-routes, occupancy and then the order at the values it has just read, through one const
    reader on the chain that wraps [`monotoneTreeIsFeasible`](../../src/bartcore/model.hpp) and is true off
    the monotone leaf. The call of
-   [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp) in
+   retired: [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp) (gone under dec-B693) in
    [`Chain::rebuildFitsFromParameters`](../../src/bartcore/chain.hpp) goes, with its comment. Its four
    other callers keep theirs ([`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp),
    [`Chain::applyNewData`](../../src/bartcore/chain.hpp),
