@@ -860,10 +860,11 @@ nobs(object, ...)
   in, under a warning of class `dbartsScaleFallbackWarning`);
   `family = hazard(breaks = )` replaces it (a single integer bins at
   that many quantiles of those times, a boundary vector gives explicit
-  right-closed intervals), and `hazard(max.rows = )` guards the
-  expansion size, 1e7 rows by default, at about 0.85 KB a row a chain at
-  75 trees (so about 8.5 GB on one chain and 27 GB on the four of
-  `bart`; see
+  right-closed intervals), and no expansion size is refused: a row takes
+  about 35 KB at the peak of a fit at `bart`'s defaults, most of it the
+  kept draws of the training fits, and a fit whose projected peak
+  exceeds the machine's physical memory warns once per session (class
+  `dbartsMemoryWarning`) before its rows are built, then runs (see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).
   Offsets are on the link scale and replicate per subject; `weights`
   replicate and then follow the chosen binary family's policy (probit
@@ -1938,10 +1939,13 @@ warnings that a supplied input was replaced by another
 (`dbartsFallbackWarning`; `dbartsGPFallbackWarning` for Gaussian-process
 leaves, see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
-and the warning that the rows in the likelihood leave nothing to read
-the response's scale from, so every row is used
-(`dbartsScaleFallbackWarning`; see the `weights` item). Every other
-warning is an ordinary one, matched by its text.
+the warning that the rows in the likelihood leave nothing to read the
+response's scale from, so every row is used
+(`dbartsScaleFallbackWarning`; see the `weights` item), and the warning
+that a hazard fit's projected memory exceeds the machine's
+(`dbartsMemoryWarning`; see
+[`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).
+Every other warning is an ordinary one, matched by its text.
 
 **Chains and `n.threads`.** Results never depend on the thread count: a
 fit, its `predict`, and
@@ -2527,7 +2531,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001380
+#> total seconds in loop: 0.001712
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2564,7 +2568,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000746
+#> total seconds in loop: 0.000955
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2599,7 +2603,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001112
+#> total seconds in loop: 0.001405
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2653,7 +2657,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001662
+#> total seconds in loop: 0.002037
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

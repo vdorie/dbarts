@@ -446,7 +446,7 @@ dbartsControl(
 
 ## Engine limits
 
-Ten fixed values decide what the engine will represent and where it
+Nine fixed values decide what the engine will represent and where it
 switches strategy. Each was measured on one machine (arm64 macOS, 10
 cores); the five that a workload can profitably move are settings here,
 and the rest are limits of the representation or of a proposal family,
@@ -465,7 +465,6 @@ where a measurement supports one.
 | Predict parallel cutoff | [`predict`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md) | 50000 traversals | 3e4 to 1e5 | yes, `predictParallelCutoff` |
 | Sparse density threshold | `dgCMatrix` storage | 0.2 | 0.05 to 0.5 | yes, `sparseDensityThreshold` |
 | Gaussian-process leaf size | [`gp`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md) leaves | 256 observations | 256 to 512 | yes, `gp(max.leaf.size = )` |
-| Person-period expansion | [`hazard`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md) | 1e7 rows | host-dependent | yes, `hazard(max.rows = )` |
 
 Of the settings in this table, the categorical enumeration cap and the
 Gaussian-process leaf size change what is sampled. The perturb window
