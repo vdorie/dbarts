@@ -34,7 +34,7 @@ not reached.
 
 Change: in [`changedForestSettings`](../../R/forestDoor.R) the sd is compared with `inForce$sd`, the value before
 the call, like every other name; the `sdUnder` argument and its branch go, and so does
-[`sdUnderCoefficient`](../../R/forestDoor.R), whose one caller is [`writeForestDoor`](../../R/forestDoor.R). Only
+`sdUnderCoefficient`, whose one caller is [`writeForestDoor`](../../R/forestDoor.R). Only
 its rejoin branch under a `dbartsChiHyperprior` differed from `inForce$sd`, so only that case moves.
 
 Draws: a `$setForest` call naming `amplitude = fixed()` and the sd in force on a released forest with no basis that
@@ -45,8 +45,8 @@ pinned at the sd with k 1. No equivalence scenario, exact gate or snapshot passe
 alone).
 
 Tests, in [test-coefficient-prior-live.R](../../inst/tinytest/test-coefficient-prior-live.R):
-- ["an sd beside a hold under probit is the forest's own"](../../inst/tinytest/test-coefficient-prior-live.R) is
-  rewritten, on probit, on logistic and on gaussian with `leaf.prior = normal(k = chi())`: the sd in force beside `fixed()` leaves the record's sd `NA`, `getK` drawn
+- "an sd beside a hold under probit is the forest's own" is rewritten, as
+  ["an sd in force beside a hold is no change"](../../inst/tinytest/test-coefficient-prior-live.R), on probit, on logistic and on gaussian with `leaf.prior = normal(k = chi())`: the sd in force beside `fixed()` leaves the record's sd `NA`, `getK` drawn
   (not 1) and the reader's sd NULL; records and the draws after equal those of a twin given `fixed()` alone by the
   same route. The ruling's own call, the whole `getForest` list with `amplitude` set to `fixed()`, gives the same.
 - Then, on the same three, a second call `$setForest(1, sd = sd)` states it: k pinned at 1, records and draws equal
