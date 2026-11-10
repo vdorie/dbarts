@@ -771,6 +771,11 @@ family(object, ...)
 
 ## Details
 
+A fit in which every predictor holds one value on the rows kept is
+refused, naming the columns, as by
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md);
+`sampleronly = TRUE` returns the sampler without the check.
+
 BART is an Bayesian MCMC method. At each MCMC interation, we produce a
 draw from the joint posterior \\(f, \sigma) \mid (x, y)\\ in the numeric
 \\y\\ case and just \\f\\ in the binary \\y\\ case.
@@ -1447,7 +1452,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.168615
+#> total seconds in loop: 0.124697
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

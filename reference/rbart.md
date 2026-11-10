@@ -181,6 +181,10 @@ nobs(object, ...)
 
 ## Details
 
+A fit in which every predictor holds one value on the rows kept, with no
+forest having a basis, is refused, naming the columns, as by
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
+
 Fits a BART model with additive random intercepts, one for each factor
 level of `group.by`. For continuous responses:
 

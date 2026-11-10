@@ -100,10 +100,12 @@ dbarts(
   An optional matrix or data frame with the same number of predictors as
   `data`, or `formula` in backwards compatibility mode. If column names
   are present, a matching algorithm is used; when both are named,
-  `test`'s names must cover `data`'s (an error otherwise); an unnamed
-  `test` is read in the order of `data`'s columns, with no message, and
-  a named `test` given to an unnamed `data` is matched by position with
-  a warning.
+  `test`'s names must cover `data`'s (an error otherwise), and a data
+  frame `test` may carry other columns, which are ignored, as for a
+  formula fit (a matrix keeps its exact width); an unnamed `test` is
+  read in the order of `data`'s columns, with no message, and a named
+  `test` given to an unnamed `data` is matched by position with a
+  warning.
 
 - subset:
 
@@ -231,11 +233,14 @@ dbarts(
   named or one per model-matrix column, `num.vars`, which stands for the
   number of predictors (`1 / num.vars`), or `dart()` from
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md),
-  which runs DART (Linero 2018). A column of split probability zero is
-  never split on, just as one a forest's `vars` leaves out is never
-  split on. A model of several forests, and `family = "multinomial"`,
-  take a uniform vector and refuse any other, or `dart()`, by name. The
-  mean forest's alone: a variance forest takes none.
+  which runs DART (Linero 2018). A named vector reads by column or term
+  name, `.default` giving the rest, and is refused when it leaves a
+  column with no value, a single named value included. A column of split
+  probability zero is never split on, just as one a forest's `vars`
+  leaves out is never split on. A model of several forests, and
+  `family = "multinomial"`, take a uniform vector and refuse any other,
+  or `dart()`, by name. The mean forest's alone: a variance forest takes
+  none.
 
 - leaf.prior:
 
@@ -947,6 +952,11 @@ dbarts(
   and `predict` read new weights under it.
 
 ## Details
+
+A sampler in which every predictor holds one value is created, unlike a
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit, which
+refuses one: its trees have no cut point until `$setPredictor` gives a
+column values that differ.
 
 “Discrete sampler” refers to that `dbarts` is implemented using
 ReferenceClasses, so that there exists a mutable object constructed in

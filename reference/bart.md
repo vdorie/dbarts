@@ -260,11 +260,14 @@ nobs(object, ...)
 
   An optional matrix or data frame with the same number of predictors as
   `data`, or `formula` in backward-compatibility mode; if column names
-  are present, a matching algorithm is used, and an unnamed matrix
-  against named predictors is read in the fit's column order, with no
-  message. Refused, by name, when `formula` writes a model of several
-  forests (‘Formula Terms’): an amplitude-coupled fit has no
-  per-observation test replay. A formula whose one
+  are present, a matching algorithm is used, and a data frame is read as
+  a formula fit reads one, every predictor's name among its columns
+  taken by name and any other column ignored (a matrix keeps its exact
+  width), and an unnamed matrix against named predictors is read in the
+  fit's column order, with no message. Refused, by name, when `formula`
+  writes a model of several forests (‘Formula Terms’): an
+  amplitude-coupled fit has no per-observation test replay. A formula
+  whose one
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) has
   no `basis` is a single-forest fit and takes `test`.
 
@@ -1117,10 +1120,12 @@ nobs(object, ...)
   number of predictors (`1 / num.vars`), or `dart()` from
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md),
   which runs DART (Linero 2018): the probabilities are drawn given the
-  splits, and the variables the trees use are selected. A model of
-  several forests, and `family = "multinomial"`, take a uniform vector
-  and refuse any other, or `dart()`, by name. These are the mean
-  forest's alone: a variance forest takes none.
+  splits, and the variables the trees use are selected. A named vector
+  reads by column or term name, `.default` giving the rest, and is
+  refused when it leaves a column with no value, a single named value
+  included. A model of several forests, and `family = "multinomial"`,
+  take a uniform vector and refuse any other, or `dart()`, by name.
+  These are the mean forest's alone: a variance forest takes none.
 
 - leaf.prior:
 
@@ -1611,10 +1616,12 @@ nobs(object, ...)
   `sample = "train"` does, on every family's fit and without saved
   trees; an `offset` given then replaces the fit's own at the training
   rows (a category offset matrix on a multinomial fit). An unnamed
-  matrix is read in the fit's column order, with no message. A
-  data-frame column for a predictor that was a factor in training must
-  be a factor or character, matched to the training levels by label; a
-  numeric or logical one is refused, naming it, as
+  matrix is read in the fit's column order, with no message, and a data
+  frame by name, columns beyond the fit's predictors ignored, on a fit
+  made from a matrix as on one made from a formula. A data-frame column
+  for a predictor that was a factor in training must be a factor or
+  character, matched to the training levels by label; a numeric or
+  logical one is refused, naming it, as
   [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) refuses it.
 
 - type:
@@ -1709,6 +1716,20 @@ nobs(object, ...)
   `ci.level` item); on `bartMultinomial` and `bartOrdinal` also refused,
   by name, with `type = "class"` - a class prediction is a label rather
   than a quantity with a credible band.
+
+## Fits with nothing to split
+
+`bart`, [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md),
+[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) and
+[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) refuse
+a fit in which every predictor holds one value on the rows kept and no
+forest has a basis, naming the columns: a tree splits a predictor
+between its values, so the fit would be an intercept-only model under a
+normal prior. Add a predictor that varies, or drop the term.
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) takes
+such a sampler, for code that gives a column its values later with
+`$setPredictor`, and so does `bart(samplerOnly = TRUE)`. A fit with a
+basis forest is not refused.
 
 ## Formula Terms
 
@@ -2504,7 +2525,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001337
+#> total seconds in loop: 0.001067
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2541,7 +2562,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000755
+#> total seconds in loop: 0.000572
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2576,7 +2597,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001125
+#> total seconds in loop: 0.000822
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2630,7 +2651,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001716
+#> total seconds in loop: 0.001188
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

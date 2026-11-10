@@ -149,7 +149,8 @@ Fits a varying intercept/random effect BART model. A fallback this function make
 </dl></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Fits a BART model with additive random intercepts, one for each factor level of <code>group.by</code>. For continuous responses:</p>
+    <p>A fit in which every predictor holds one value on the rows kept, with no forest having a basis, is refused, naming the columns, as by <code><a href="bart.html">bart</a></code>.</p>
+<p>Fits a BART model with additive random intercepts, one for each factor level of <code>group.by</code>. For continuous responses:</p>
 <ul><li><p>\(y_i \sim N(f(x_i) + \alpha_{g[i]}, \sigma^2)\)</p></li>
 <li><p>\(\alpha_j \sim N(0, \tau^2)\).</p></li>
 </ul><p>For binary outcomes the response model is changed to \(P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})\). \(i\) indexes observations, \(g[i]\) is the group index of observation \(i\), \(f(x)\) and \(\sigma_y\) come from a BART model, and \(\alpha_j\) are the independent and identically distributed random intercepts. Draws from the posterior of \(tau\) are made using a slice sampler, with a width dynamically determined by assessing the curvature of the posterior distribution at its mode.</p>

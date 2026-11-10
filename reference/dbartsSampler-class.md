@@ -1741,9 +1741,12 @@ column that has never held one in this sampler (see ‘Missing values in
 predictors’); a split on a column the tree's forest may not use - a
 forest's `vars`, a `blocks` group, a moderator forest's columns or a
 `variance = ~ x1 + x2` variance forest's; a split that breaks the
-forest's `interactions` limit; and, under a
+forest's `interactions` limit; under a
 [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
-constraint, leaf values that are out of order as stored.
+constraint, leaf values that are out of order as stored; and, under
+DART, split weights of 0 on a column the sampler may split on, as a
+state taken from a sampler whose forest left that column out holds
+(negative, missing and all-zero weights are errors, forced or not).
 `setState(newState, forceUpdate = TRUE)` installs such a state all the
 same, as a forced `setPredictor` leaves the trees it meets, and returns
 `NULL` invisibly: a split whose threshold is not a cut point moves to
@@ -1758,27 +1761,31 @@ back in the same way at the first split from its root that the forest's
 columns or its interaction limit do not allow, the splits above it kept;
 a rule stops recording a side its column cannot use; and a monotone tree
 whose values are out of order has every leaf value set to zero, to be
-drawn again at the next iteration. After a forced `setState` the `state`
-field holds the chain the sampler holds after the install, repairs and
-drawn sides for missing values included, not the state as it was given:
-installing the field again without `forceUpdate` returns `TRUE`, and a
-`copy` or a reload starts from the repaired chain. A forced install that
-repaired nothing stores a state identical to the one given only where
-the sampler's store of kept draws (`keepTrees`) holds the same number as
-the state's; otherwise the newest that fit are kept and the stored state
-differs in them. An unforced install that went onto the sampler's own
-cut points and weights keeps the state as given; one that went onto
-other cut points or weights than it records is not kept, and the field
-holds what the sampler holds after the install. Likewise after an
-unforced install that drew a side for missing values (see ‘Missing
-values in predictors’) the field holds the state as given, without the
-sides, and installing it again, as a `copy` or a reload does, draws the
-same ones. `storeState()` stores what the sampler now holds. Forcing
-checks nothing first, so a loop that restores its own state onto rows it
-has already put back, where nothing can need repair, can pass
-`forceUpdate = TRUE` and skip the check, which costs about as much as
-one iteration of the sampler. To undo a predictor change exactly, put
-the old predictor back first, with
+drawn again at the next iteration. DART's split weights in such a state
+start fresh, equal over the columns the forest may split on, as
+`installTrees` starts them, with a drawn concentration restarted at its
+initial value and the delay counter restarted, the next sweep drawing
+the weights from the trees installed. After a forced `setState` the
+`state` field holds the chain the sampler holds after the install,
+repairs and drawn sides for missing values included, not the state as it
+was given: installing the field again without `forceUpdate` returns
+`TRUE`, and a `copy` or a reload starts from the repaired chain. A
+forced install that repaired nothing stores a state identical to the one
+given only where the sampler's store of kept draws (`keepTrees`) holds
+the same number as the state's; otherwise the newest that fit are kept
+and the stored state differs in them. An unforced install that went onto
+the sampler's own cut points and weights keeps the state as given; one
+that went onto other cut points or weights than it records is not kept,
+and the field holds what the sampler holds after the install. Likewise
+after an unforced install that drew a side for missing values (see
+‘Missing values in predictors’) the field holds the state as given,
+without the sides, and installing it again, as a `copy` or a reload
+does, draws the same ones. `storeState()` stores what the sampler now
+holds. Forcing checks nothing first, so a loop that restores its own
+state onto rows it has already put back, where nothing can need repair,
+can pass `forceUpdate = TRUE` and skip the check, which costs about as
+much as one iteration of the sampler. To undo a predictor change
+exactly, put the old predictor back first, with
 `setPredictor(..., forceUpdate = TRUE)`, and then call `setState`. An
 unforced `setPredictor` can be refused, returning `FALSE` and leaving
 the changed predictor in place; `setState` then judges the state against
@@ -1801,18 +1808,17 @@ or infinite under a prior whose scale could not draw that value (a draw
 reaches 0 only under a scale below about 3e-145 and infinity only under
 an infinite scale or one above about 1e146); a response transform that
 is not finite; a random-number generator state out of range or all zero;
-DART split weights that are negative or not finite, or 0 on a column the
-forest may split on, or a DART concentration that is not positive and
-finite; and ordinal cutpoints whose first is not 0 or that do not
-increase. Beyond that a state is not checked against the response family
-of the sampler that stored it: one whose contents fit this sampler is
-installed, and what the sampler then holds of another family's state is
-not promised. To start a sampler from a fit of another family, use
-`installTrees`, which takes the donor's trees and, where this sampler
-draws them, its `sigma`, `k` and DART state, and none of its latent
-variables. A state's `k` is installed as recorded, whatever leaf prior
-this sampler holds; the leaf sd is then `k.scale / k` against this
-sampler's `k.scale`.
+DART split weights that are negative, missing, not finite or all zero,
+or a DART concentration that is not positive and finite; and ordinal
+cutpoints whose first is not 0 or that do not increase. Beyond that a
+state is not checked against the response family of the sampler that
+stored it: one whose contents fit this sampler is installed, and what
+the sampler then holds of another family's state is not promised. To
+start a sampler from a fit of another family, use `installTrees`, which
+takes the donor's trees and, where this sampler draws them, its `sigma`,
+`k` and DART state, and none of its latent variables. A state's `k` is
+installed as recorded, whatever leaf prior this sampler holds; the leaf
+sd is then `k.scale / k` against this sampler's `k.scale`.
 
 Assigning the field directly (`sampler$state <- newState`) does *not*
 restore the sampler - it only overwrites the R-side cache, leaving the

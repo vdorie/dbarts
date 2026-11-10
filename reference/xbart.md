@@ -500,6 +500,10 @@ xbart(
 
 ## Details
 
+A fit in which every predictor holds one value on the rows kept, with no
+forest having a basis, is refused, naming the columns, as by
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
+
 Crossvalidates `n.reps` replications against the crossproduct of given
 hyperparameter vectors `n.trees` \\\times\\ `k` \\\times\\ `power`
 \\\times\\ `base`. For each fit, either one fold is withheld as test
