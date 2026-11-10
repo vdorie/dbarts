@@ -517,8 +517,8 @@ expect_identical(met, c(declined = TRUE, clean = TRUE))
 # The donor's f could hold none, so each f rule draws its side from the
 # receiving sampler's generator before the trees are judged. Left at both
 # leaves `breaks` out of order, and the warm start collapses the tree where
-# the order breaks rather than set it to zero: each side of the x1 split one
-# leaf, the low below the high. Any other sides keep the tree, and its
+# the order breaks: each side of the x1 split one leaf, the low below the
+# high. Any other sides keep the tree, and its
 # values. The receiving seed is searched for each, its sides
 # read off a start from a donor that holds `holds`.
 dfShifted <- dfArrived

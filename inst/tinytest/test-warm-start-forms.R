@@ -704,12 +704,12 @@ expect_true(
   ) >
     1e-3
 )
-# a forced setState of the same trees still sets each tree out of order to
-# zero
+# a forced setState of the same trees merges each tree out of order as the
+# warm start does, none at zero
 viaSetState <- increasing()
 freeDonor$storeState()
 expect_null(viaSetState$setState(freeDonor$state, forceUpdate = TRUE))
-expect_identical(sum(vapply(treesOf(viaSetState), allZero, NA)), 14L)
+expect_identical(treesOf(viaSetState), got30)
 
 # ---- sides for missing values ------------------------------------------------
 
