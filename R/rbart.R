@@ -377,11 +377,9 @@ rbart_vi <- function(
     eval(dataCall, envir = callingEnv)
   )
 
-  refuseBasesCarryingData(
-    data,
-    "rbart_vi()",
-    "rbart_vi fits a single forest"
-  )
+  # a sampler's data fit one forest, as at bart(): the bases they hold are not
+  # part of the model
+  data <- installFitBases(data, NULL)
   if (!is.null(attr(data, "survivalStatus")) || !is.null(data@counts)) {
     stop("'rbart_vi' fits a continuous or binary response only")
   }

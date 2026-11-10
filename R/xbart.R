@@ -223,11 +223,11 @@ xbart <- function(
   # though the slab were n rows. Refused ahead of the family resolution below,
   # which resolves counts to multinomial from "auto"
   refuseCountsCarryingData(formula, "xbart()", family)
-  refuseBasesCarryingData(
-    formula,
-    "xbart()",
-    "xbart cross-validates single-forest models"
-  )
+  # beside a data object, as at bart(), no forests list gives one forest: the
+  # bases a sampler's data hold are not part of the model
+  if (inherits(formula, "dbartsData")) {
+    formula <- installFitBases(formula, NULL)
+  }
   refuseResponseFreeFormula(formula, "xbart()")
   refuseForestTerm(formula, "xbart")
   # the first argument has been read above and is handed on as its value;

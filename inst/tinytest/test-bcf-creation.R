@@ -1421,8 +1421,9 @@ expect_identical(
   c(25, 25, 50)
 )
 
-# --- xbart and rbart_vi fit one forest: a sampler's data carrying bases are
-# refused by name ---
+# --- xbart and rbart_vi fit one forest: beside a sampler's data, as at
+# bart(), no forests list gives one forest and the bases they hold are not part
+# of the model ---
 basesData <- dbarts(
   x,
   y,
@@ -1430,24 +1431,32 @@ basesData <- dbarts(
   control = control,
   n.trees = 50L
 )$data
-expect_error(
-  xbart(basesData, n.samples = 5L, n.test = 2L, n.reps = 2L, n.threads = 1L),
-  "xbart() does not support a data object carrying 'bases'",
-  fixed = TRUE
-)
-expect_error(
+crossValidated <- function(data) {
+  xbart(
+    data,
+    n.samples = 5L,
+    n.test = 2L,
+    n.reps = 2L,
+    n.threads = 1L,
+    n.trees = 5L,
+    seed = 3L
+  )
+}
+expect_identical(crossValidated(basesData), crossValidated(dbartsData(x, y)))
+grouped <- function(data) {
   suppressWarnings(rbart_vi(
-    basesData,
+    data,
     group.by = rep(1:2, length.out = n),
     n.samples = 5L,
     n.burn = 5L,
     n.chains = 1L,
     n.threads = 1L,
+    n.trees = 5L,
+    seed = 3L,
     verbose = FALSE
-  )),
-  "rbart_vi() does not support a data object carrying 'bases'",
-  fixed = TRUE
-)
+  ))$yhat.train
+}
+expect_identical(grouped(basesData), grouped(dbartsData(x, y)))
 
 # a basis on the FIRST forest and none on the second: the control's slot
 # holds the first forest's count and the control's own goes to the second
