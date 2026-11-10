@@ -55,8 +55,10 @@ jobs:
     container:
       image: ghcr.io/r-hub/containers/${{ matrix.container }}:latest
     env:
-      # leak detection is noisy against an uninstrumented R runtime; the
-      # target here is memory-access errors and undefined behavior
+      # leak detection stays off here: R itself leaks, so it is noise against
+      # an uninstrumented R runtime; the target here is memory-access errors
+      # and undefined behavior. Leaks in the engine are cpp-tests.yaml's
+      # cpp-leak job (tests/cpp with detect_leaks=1) and valgrind.yaml
       ASAN_OPTIONS: detect_leaks=0
       UBSAN_OPTIONS: print_stacktrace=1
       # the containers' OpenBLAS 0.3.20 solves triangular systems wrongly on

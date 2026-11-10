@@ -3,7 +3,9 @@
 # bridge). Runs on macos-latest (arm64) to match the environment the bitwise
 # baselines are recorded on, so the tight-tolerance and determinism checks do
 # not drift on last-ulp reduction-order differences; x86 engine coverage is
-# already provided by the R-CMD-check and sanitizer jobs.
+# already provided by the R-CMD-check and sanitizer jobs. The cpp-leak job
+# below is the one Linux job: the same tests under ASAN+UBSAN with the leak
+# sanitizer on.
 #
 # The same arm64 pin is why the REFERENCE build's bitwise gates run here too,
 # in a second half of this one job: --enable-reference-build compiles the
@@ -178,3 +180,62 @@ jobs:
           fi
           echo "::endgroup::"
           exit $fail
+
+  # The C++ component tests under ASAN+UBSAN with the leak sanitizer ON, on
+  # Linux: macOS has no leak checker, and sanitizers.yaml must keep
+  # detect_leaks=0 because it runs R itself, whose own allocations leak. The
+  # tests here link no R runtime state they exercise, so a leak or any
+  # diagnostic is the engine's and fails the job. The build flags are the
+  # ones the tests/cpp sanitizer runs use everywhere.
+  cpp-leak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      # container-overflow is a false positive from mixing instrumented
+      # objects with the uninstrumented static libraries
+      ASAN_OPTIONS: detect_leaks=1:detect_container_overflow=0
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: setup_r_1
+        continue-on-error: true
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Wait before retrying setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
+      - name: Retry setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          needs: check
+
+      # leaves src/misc.a, src/external.a, src/rc.a for the test link
+      - name: Build the package in place
+        run: R CMD INSTALL --preclean .
+
+      - name: Build and run the C++ component tests under ASAN+UBSAN with leak detection
+        shell: bash
+        run: |
+          set -eo pipefail
+          cd tests/cpp
+          make OPT="-O2 -g -fsanitize=address,undefined"
+          ./test_bartcore 3 2>&1 | tee cpp-leak.log
+          # a UBSAN diagnostic does not always change the exit status
+          if grep -Eq "runtime error:|AddressSanitizer|LeakSanitizer|SUMMARY: .*Sanitizer" cpp-leak.log; then
+            echo "::error::sanitizer reported a finding"; exit 1
+          fi
