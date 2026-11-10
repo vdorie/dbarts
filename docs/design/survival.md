@@ -11,9 +11,9 @@ Section 2 is further AMENDED by
 S2, LANDED 2026-09-09 (c38f02d0): both survival families now take a `Surv`
 left-hand side on the formula interface, honor `subset`, and the hazard
 family accepts a `test` set, person-period-expanded on the training grid.
-Section 2's N' row guard is REPLACED (2026-11-10, dec-B367 revised): `max.rows`
-is removed from [`hazard`](../../R/family.R) and no row count is refused; a
-fit whose projected peak memory exceeds the machine's physical memory warns
+Section 2's N' row guard is REPLACED (2026-11-10, dec-B750, revising
+dec-B367): `max.rows` is removed from [`hazard`](../../R/family.R) and no row
+count is refused; a fit whose projected peak memory exceeds the machine's physical memory warns
 once per session, before its rows are built, and runs
 ([`warnHazardMemory`](../../R/dbarts.R)), at creation and at a sampler's
 `$setData`.
