@@ -1152,27 +1152,9 @@ items
     shifts draws of both response setters, so it takes that class's
     re-record. After 1.0-0 unless a slice touching that function takes
     it.
-  bartcause-agent-call-fixes: the fixes of the agent calls of the
-    2026-11-10 sitting, none yet built: the refusal of weights.rsp other
-    than 0/1 on a 0/1 response (C30, dec-A333) names the count routes
-    (write the rows out, or family = "logistic"); args.trt =
-    list(weights = ) with a BART propensity model prints "weights enter
-    the treatment-effect estimators" without population weights;
-    args.rsp = list(weights = NULL) is dropped, not refused; a NEWS line
-    on the argument shift from method.rsp on (weights.rsp sits after
-    weights); the stan4bart-path weights message (use.ranef advice; the
-    refusal comes after the treatment fit); ?bartc's w-named examples
-    beside the help's v_i; the unsplittable check reads rows of positive
-    weight only (dbarts and stan4bart); ?bartc's missing-data sentence
-    "to use rows only in the treatment model, give them an NA response
-    and a population weight of 0"; and the weights.rsp-0 refusal names
-    the NA-response route.
-  bartcause-binary-response-reading: a logical or two-level factor
-    response is read as continuous by the weights.rsp checks: bartc(y >
-    0, z, x, weights.rsp = wr) is refused before any fit, the 0/1
-    weights check missing it too, though dbarts fits it binary
-    (scratch/ratify-1110/pass2/probes/d-c24-order.R). Fixed with
-    dec-B722.
+  bartcause-agent-call-fixes: the one fix of the agent calls of the
+    2026-11-10 sitting not built: the unsplittable check reads rows of
+    positive weight only (dbarts and stan4bart code, not bartCause).
   bartcause-data-route: from the examination dec-B674 asked for
     (2026-11-08): bartc passes keep.data = FALSE at its two
     dbartsData() call sites (3 objects); the counterfactual rows go to
@@ -1186,37 +1168,16 @@ items
     R/treatmentFit.R, on main and on 1.0-10
     (scratch/ratify-1110/pass2/final-B.md; probe
     pass2/probes/aside-data-expr.R).
-  bartcause-draws-reads: (dec-B724, revising call 5 of dec-A349 and call
-    6 of dec-A350) build the entry in bartCause: refit() reads through
-    extract() with no cache, the draws argument is removed from the
-    extractor, the posterior predictive helper takes the sample count
-    directly, summary() keeps its private copy; about 10 lines, mostly
-    removed. The read-twice tests are retargeted: summary still reads
-    once, refit may read twice. Also reword the comment on the
-    forced-update flattening case in inst/tinytest/test-monotone.R so it
-    claims no merge (dec-A359 call 8; the case pins none). Not built.
+  bartcause-draws-reads: the one part of dec-B724 left, in dbarts: reword
+    the comment on the forced-update flattening case in
+    inst/tinytest/test-monotone.R so it claims no merge (dec-A359 call 8;
+    the case pins none).
   bartcause-extract-cate-order: extract(fit, "cate") orders its draws
     differently from icate when the chains are combined (found
     2026-11-10, in bartCause before the population-weights work).
 
   bartcause-fitted-ite-warning: fitted(fit, type = "ite") warns on an
     att or atc fit with missing responses (found 2026-11-08).
-  bartcause-grouped-n-eff: (dec-B721, revising call 12 of dec-A335) a
-    weighted grouped summary gets an n.eff column beside n, the total
-    row keeping today's figure, and the share of weight cut per group in
-    the table of rows cut. About 20 lines, tests and a help sentence.
-    Not built.
-  bartcause-grouped-negative-n: a grouped summary under a common-support
-    rule prints a negative n (-25, -50, -8) with a recycling warning, on
-    main and on 1.0-10
-    (scratch/ratify-1110/pass2/probes/aside-grouped-n.R). Fix with
-    bartcause-grouped-n-eff.
-  bartcause-no-weight-refusal-early: (dec-B720, revising call 9 of
-    dec-A332) refuse before the fit, for every method, an estimate the
-    weights and treatment leave no weight; a common-support rule leaving
-    none refuses at the end of the fit, before returning; the NA group
-    of a grouped fit stays. About 5 to 10 lines and a test per method.
-    Not built.
   bartcause-parametric-glm-bart: bartc(y, z, x, parametric = x2,
     method.trt = "glm") fails with "could not find function bart": the
     glm treatment model is handed z ~ x2 + bart(x1); main and 1.0-10
@@ -1231,10 +1192,6 @@ items
   bartcause-plot-support-atc: plot_support on an atc fit with the
     p.score plot stops with "'x' and 'y' lengths differ", missing
     responses or not (found 2026-11-08).
-  bartcause-print-grouped: print of a grouped fit (group.effects = TRUE)
-    runs the group values together ("Treatment effect (ate, conditional
-    average): 1.3631.077"), on main and on 1.0-10
-    (scratch/ratify-1110/final-3.md; probe probes/c29-print-grouped.R).
   bartcause-thread-default: on bartCause's dbarts-1.0 branch, bcf.R
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
@@ -1244,13 +1201,6 @@ items
     uncertainty option and a target-sample option (the fourth, a refusal
     of non-whole frequency weights, was kept as built by two passes,
     dec-A336 call 13).
-  bartcause-weights-rsp-zero-early: (dec-B722, revising call 4 of
-    dec-A327) refuse a weights.rsp of 0 on a row that counts in the
-    averages before any fit when the family plainly says gaussian
-    (string, family object, gaussian(...) call); other spellings keep
-    the after-fit check. About 8 lines and tests; the agent-call fixes
-    ride in bartcause-agent-call-fixes and
-    bartcause-binary-response-reading. Not built.
   copy-merge-weight-order: after a forced setCutPoints or refresh that
     merges, a copy's merged leaf can differ from its original's by one
     unit in the last place when the leaf's weights do not sum exactly
@@ -1293,13 +1243,12 @@ items
     (weighted-binary). Whether logistic becomes the hurdle's default
     is a separate call; pscl defaults to a logit and offers probit.
   bartcause-older-agent-fixes: found at the 2026-11-10 sitting, in
-    bartCause: bartc fails on a response written as an expression
-    (log(y)) with "invalid subscript type 'language'", on main and
-    1.0-10; the group.by length message says "observation" where the
-    weights message says "row" (dec-A297); and the plot_support NEWS
-    side note on missing responses is dropped, since 1.0-10 fits with
-    missing responses fail only when every missing row has the same
-    treatment (dec-A275 fix 2).
+    bartCause: the plot_support NEWS side note on missing responses is
+    dropped, since 1.0-10 fits with missing responses fail only when
+    every missing row has the same treatment (dec-A275 fix 2); the TODO
+    does not say which NEWS text to drop or reword. A response written
+    as an expression (log(y)) with missing values is still not handled
+    by the literal-vector builder (bcf refuses missing rows).
   binomial-sampler-refusal-wording: agent fixes from the 2026-11-10
     sitting (bullet 21 of dec-A276): the binary sampler's "y must be of
     length equal to 40" for a pair names the pair, and the flat C
