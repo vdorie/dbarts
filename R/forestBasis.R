@@ -924,6 +924,16 @@ basisClass <- function(value) {
   }
 }
 
+## How a refusal of forest `index`'s basis names the forest: by its list name,
+## else by the basis text it is labeled with, else by position.
+basisForestLabel <- function(labels, index, text) {
+  name <- if (length(labels) >= index) labels[[index]] else ""
+  if (is.na(name) || !nzchar(name)) {
+    name <- if (is.null(text) || is.na(text)) "" else text
+  }
+  forestKnobLabel(replace(rep("", index), index, name), index)
+}
+
 ## A forest as a message names it: by position, with its label where the
 ## label is not the position's own.
 forestName <- function(index, labels = NULL) {
@@ -2012,8 +2022,7 @@ buildFitBases <- function(
       block <- held$bases[[read$held]]
       if (NROW(block) != numObservations) {
         stop(
-          "forest ",
-          index,
+          basisForestLabel(labels, index, read$label),
           "'s 'basis' (",
           read$label,
           ") is held over ",
@@ -2037,8 +2046,7 @@ buildFitBases <- function(
     )
     if (nrow(built$basis) != numObservations) {
       stop(
-        "forest ",
-        index,
+        basisForestLabel(labels, index, read$label),
         "'s 'basis' (",
         read$label,
         ") has ",

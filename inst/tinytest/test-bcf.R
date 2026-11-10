@@ -345,7 +345,7 @@ expect_error(
 # 1:50 is forest 1's whole range but exceeds tau's 25
 expect_error(
   bcMod$getTrees(forest = 2L, treeNums = seq_len(50L), current = TRUE),
-  "'treeNums' must be in [1, 25] for forest 2",
+  "'treeNums' must be in [1, 25] for forest \"factor(z)\"",
   fixed = TRUE
 )
 

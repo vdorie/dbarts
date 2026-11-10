@@ -5027,8 +5027,8 @@ dbartsSampler <- setRefClass(
           stop(
             "'treeNums' must be in [1, ",
             forestTreeCount,
-            "] for forest ",
-            forestIndex + 1L
+            "] for ",
+            doorForestLabel(model, forestIndex + 1L)
           )
         }
         block <- .Call(

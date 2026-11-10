@@ -493,7 +493,7 @@ dev.off()
 # an explicit treeNums is checked against the NAMED forest's own count
 expect_error(
   asymFit$fit$getTrees(forest = 2L, treeNums = 1:75),
-  "'treeNums' must be in [1, 50] for forest 2",
+  "'treeNums' must be in [1, 50] for forest \"z\"",
   fixed = TRUE
 )
 rm(asymDf, asymFit, asymTrees, asymFitSmall, asymSmallForest2, a, b, z, y, n)

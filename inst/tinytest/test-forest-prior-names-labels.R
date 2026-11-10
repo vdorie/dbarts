@@ -247,3 +247,65 @@ sampler <- dbarts(
   control = ctl
 )
 expect_equal(refusal(sampler$setForest(2, n.perturb.cuts = 0)), one(2L))
+
+# ---- B708, the rest: other number arguments, an alias, a nested call ----
+
+invchi <- function(v) v + 1
+normal <- function(v) 2 * v
+fit <- dbarts(
+  y ~ x1 + x2,
+  dat,
+  forests = list(forest(), forest(x2, basis = dose, n.trees = invchi(4))),
+  n.trees = 5L,
+  control = ctl
+)
+expect_equal(fit$model@forests[[2L]]@n.trees, 5L)
+
+# a call through an alias of forest() reads the same way
+fc <- dbartsForests$forest
+fit <- dbarts(
+  y ~ x1 + x2,
+  dat,
+  forests = list(fc(), fc(x2, basis = dose, sd = normal(0.5))),
+  n.trees = 5L,
+  control = ctl
+)
+expect_equal(sdsOf(fit)[2L], 1)
+
+# and a prior's name nested in an expression
+fit <- dbarts(
+  y ~ x1 + x2,
+  dat,
+  forests = list(forest(), forest(x2, basis = dose, sd = 1 + normal(0.5))),
+  n.trees = 5L,
+  control = ctl
+)
+expect_equal(sdsOf(fit)[2L], 2)
+rm(invchi, normal, fc)
+
+# ---- B713, getTrees names a labeled forest by its label ----
+
+ctlKeep <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = 0L,
+  n.samples = 2L,
+  updateState = FALSE,
+  seed = 3L,
+  keepTrees = TRUE
+)
+sampler <- dbarts(
+  y ~ x1 + x2,
+  dat,
+  forests = list(mu = forest(), dose = forest(basis = ~dose)),
+  n.trees = 5L,
+  control = ctlKeep
+)
+expect_equal(
+  refusal(sampler$getTrees(forest = "dose", treeNums = 99L)),
+  "'treeNums' must be in [1, 50] for forest \"dose\""
+)
+expect_equal(
+  refusal(sampler$getTrees(forest = 2L, treeNums = 99L)),
+  "'treeNums' must be in [1, 50] for forest \"dose\""
+)
