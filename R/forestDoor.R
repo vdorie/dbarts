@@ -237,11 +237,11 @@ changedForestSettings <- function(given, inForce, label) {
   if (length(given) == 0L) {
     return(given)
   }
-  given <- resolveForestMoves(validateForestKnobs(given), label)
+  given <- resolveForestMoves(validateForestKnobs(given, label), label)
   amplitudeChanges <- !is.null(given$amplitude) &&
     !sameCoefficientPrior(
       given$amplitude,
-      validateForestAmplitude(inForce$amplitude)
+      validateForestAmplitude(inForce$amplitude, label)
     )
   changed <- vapply(
     names(given),
@@ -541,7 +541,7 @@ writeForestDoor <- function(sampler, forest, given, supplied, updateState) {
   if (multinomial && !is.null(given$amplitude)) {
     # no category has a coefficient to draw: fixed() states what is so
     refuseCoefficientPriorWithNoForest(
-      validateForestAmplitude(given$amplitude),
+      validateForestAmplitude(given$amplitude, label),
       label,
       lone = TRUE,
       sharing = FALSE

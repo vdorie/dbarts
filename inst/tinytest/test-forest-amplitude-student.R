@@ -219,7 +219,7 @@ refused(
     forests = list(forest(), forest(basis = zf, amplitude = "student")),
     control = ctl()
   ),
-  "a forest's 'amplitude' must be fixed(), which holds its coefficient, normal() or student(df)"
+  "'amplitude' must be fixed(), which holds its coefficient, normal() or student(df)"
 )
 refused(
   dbarts(y ~ forest(x1, amplitude = student(3)), d, control = ctl()),

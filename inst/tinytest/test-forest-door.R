@@ -1634,8 +1634,8 @@ varianceRefusals <- list(
     list(interactions = list()),
     "unused argument 'interactions'"
   ),
-  list("power", list(power = -1), "forest 'power' must be"),
-  list("base with power", list(power = 0.5, base = 2), "forest 'base' must be"),
+  list("power", list(power = -1), "'power' must be"),
+  list("base with power", list(power = 0.5, base = 2), "'base' must be"),
   list(
     "rule_gibbs",
     list(

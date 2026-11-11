@@ -158,16 +158,16 @@ refusal <- function(expr) {
 ## --- the loop: every refused object, at every door it can be written at ----
 # %1$s is the basis as written, its label, and %2$s the factor's one term
 levelsText <- paste0(
-  "forest 2 ('%1$s') has a basis of 3 levels ('a', 'b', 'c'); in this ",
+  "forest \"%1$s\" has a basis of 3 levels ('a', 'b', 'c'); in this ",
   "version a factor, a character or a logical basis has two levels. Give ",
   "each level but the first a forest of its own, as forest(x1, basis = %2$s ",
   "== \"b\") + forest(x1, basis = %2$s == \"c\")"
 )
 columnsText <- function(label, names, advice) {
   paste0(
-    "forest 2 ('",
+    "forest \"",
     label,
-    "') has a basis of ",
+    "\" has a basis of ",
     length(names),
     " numeric columns (",
     toString(sQuote(names, FALSE)),
@@ -205,7 +205,7 @@ refusedCode <- list(
     indicatorWords
   ),
   "1 + dose" = paste0(
-    "forest 2 ('1 + dose') has a basis of 2 numeric columns ('(Intercept)', ",
+    "forest \"1 + dose\" has a basis of 2 numeric columns ('(Intercept)', ",
     "'dose'): '1 +' in a basis adds a constant column, and in this version a ",
     "basis is one numeric column. Write the column alone, as basis = dose"
   ),
@@ -320,7 +320,7 @@ expect_identical(
     control = sizeControl(),
     n.trees = 5L
   )),
-  sub("forest 2", "forest 2 ('treat')", valueLevels, fixed = TRUE)
+  sub("forest 2", "forest \"treat\"", valueLevels, fixed = TRUE)
 )
 expect_identical(
   refusal(dbarts(
@@ -330,7 +330,7 @@ expect_identical(
     control = sizeControl(),
     n.trees = 5L
   )),
-  sub("('arm')", "('treat')", refusedCode$arm, fixed = TRUE)
+  sub("\"arm\"", "\"treat\"", refusedCode$arm, fixed = TRUE)
 )
 # every forest's size is judged, not the second's alone: a third forest as
 # a value at dbartsSpec(), which builds no data object, and as code
@@ -486,7 +486,7 @@ numericSampler <- function() {
 swapped <- numericSampler()
 twin <- numericSampler()
 widthText <- paste0(
-  "forest 2 ('dose') multiplies one numeric column, and '%s' gives it 2; in ",
+  "forest \"dose\" multiplies one numeric column, and '%s' gives it 2; in ",
   "this version a basis is one numeric column. Give the one column"
 )
 expect_identical(

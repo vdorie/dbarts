@@ -794,7 +794,7 @@ expect_identical(
   )$run()
 )
 longSd <- paste0(
-  "forest 'sd' must be a single number, not a vector of length 2: a forest ",
+  "'sd' must be a single number, not a vector of length 2: a forest ",
   "states one sd; to size a column differently, rescale it in 'basis', as ",
   "I(dose / 30)"
 )

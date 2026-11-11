@@ -482,10 +482,10 @@ expect_error(heldSampler$setModel(infiniteModel), infiniteDf, fixed = TRUE)
 # variance forest, are held to the checks bart() makes of its own: a string, a
 # logical or a factor is refused by name, not read as the number it codes
 forestRefusals <- list(
-  list("power", "2", "forest 'power' must be a single positive number"),
-  list("power", TRUE, "forest 'power' must be a single positive number"),
-  list("power", factor("3"), "forest 'power' must be a single positive number"),
-  list("base", "0.5", "forest 'base' must be a single number in (0, 1)")
+  list("power", "2", "'power' must be a single positive number"),
+  list("power", TRUE, "'power' must be a single positive number"),
+  list("power", factor("3"), "'power' must be a single positive number"),
+  list("base", "0.5", "'base' must be a single number in (0, 1)")
 )
 twoForests <- dbarts(
   y ~ a + b,

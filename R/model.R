@@ -1629,16 +1629,22 @@ replayForestBasis <- function(term, newdata, index) {
   )$basis
 }
 
+## How a value refusal opens: the forest named as forestKnobLabel names it,
+## with an owner's 's, or "forest " where the caller has no forest to name.
+forestOwner <- function(who = NULL) {
+  if (is.null(who)) "forest " else paste0(who, "'s ")
+}
+
 ## A forest's stated power or base, held to the checks cgm() makes of the
 ## fitting function's: one number, no string, logical or factor, in range.
-validateForestTreePrior <- function(value, name) {
+validateForestTreePrior <- function(value, name, who = NULL) {
   refusal <- if (identical(name, "power")) {
     priorScalarRefusal(value, name, isPositiveNumber, "positive number")
   } else {
     priorScalarRefusal(value, name, isOpenUnitInterval, "number in (0, 1)")
   }
   if (!is.null(refusal)) {
-    stop("forest ", refusal, call. = FALSE)
+    stop(forestOwner(who), refusal, call. = FALSE)
   }
   as.double(value)
 }
@@ -1647,26 +1653,26 @@ validateForestTreePrior <- function(value, name) {
 ## checked; an omitted one keeps its NULL, so the caller can tell "not
 ## declared" from "declared at the default" - which is what makes the
 ## top-level-versus-forest-0 ambiguity below detectable.
-validateForestKnobs <- function(spec) {
+validateForestKnobs <- function(spec, who = NULL) {
   if (!is.null(spec$n.trees)) {
     n.trees <- spec$n.trees
     numTrees <- coerceOrError(n.trees, "integer")
     if (length(numTrees) != 1L || is.na(numTrees) || numTrees < 1L) {
-      stop("forest 'n.trees' must be a single integer >= 1")
+      stop(forestOwner(who), "'n.trees' must be a single integer >= 1")
     }
     spec$n.trees <- numTrees
   }
   if (!is.null(spec$power)) {
-    spec$power <- validateForestTreePrior(spec$power, "power")
+    spec$power <- validateForestTreePrior(spec$power, "power", who)
   }
   if (!is.null(spec$sd)) {
-    spec$sd <- validateForestSd(spec$sd)
+    spec$sd <- validateForestSd(spec$sd, who)
   }
   if (!is.null(spec$base)) {
-    spec$base <- validateForestTreePrior(spec$base, "base")
+    spec$base <- validateForestTreePrior(spec$base, "base", who)
   }
   if (!is.null(spec$amplitude)) {
-    spec$amplitude <- validateForestAmplitude(spec$amplitude)
+    spec$amplitude <- validateForestAmplitude(spec$amplitude, who)
   }
   spec
 }
@@ -1771,7 +1777,7 @@ forestMoveRecord <- function(specs, numForests, variance) {
 ## Returns "fixed" for the hold and the normal() or student() object as it is. A
 ## bare fixed, normal or student is the constructor called, as a constructor
 ## given where a value is.
-validateForestAmplitude <- function(amplitude) {
+validateForestAmplitude <- function(amplitude, who = NULL) {
   if (identical(amplitude, fixed)) {
     amplitude <- fixed()
   } else if (identical(amplitude, studentPrior)) {
@@ -1782,6 +1788,7 @@ validateForestAmplitude <- function(amplitude) {
   if (is(amplitude, "dbartsNormalPrior")) {
     if (!isBareNormalPrior(amplitude)) {
       stop(
+        if (!is.null(who)) forestOwner(who),
         "'amplitude = normal()' takes no 'k' or 'sd': a drawn coefficient's ",
         "size is the forest's own 'sd'"
       )
@@ -1793,7 +1800,8 @@ validateForestAmplitude <- function(amplitude) {
   }
   if (!is(amplitude, "dbartsFixedPrior")) {
     stop(
-      "a forest's 'amplitude' must be fixed(), which holds its coefficient, ",
+      if (is.null(who)) "a forest's " else forestOwner(who),
+      "'amplitude' must be fixed(), which holds its coefficient, ",
       "normal() or student(df), which draw it under that prior, or left out, ",
       "which draws it under its default prior",
       if (is(amplitude, "dbartsFamily")) {
@@ -1804,6 +1812,7 @@ validateForestAmplitude <- function(amplitude) {
   value <- amplitude@value
   if (!is.numeric(value) || length(value) != 1L || value != 1) {
     stop(
+      if (!is.null(who)) forestOwner(who),
       "'amplitude = fixed(",
       paste(deparse(value), collapse = ""),
       ")': a held coefficient is 1, and what it multiplies is the basis: ",
@@ -1846,30 +1855,32 @@ sdKindRefused <- function(sd) {
 ## prior the map can scale, so it is refused rather than carried into a leaf
 ## scale. A number is a numeric or integer, whatever
 ## class it carries.
-validateForestSd <- function(sd) {
+validateForestSd <- function(sd, who = NULL) {
   if (isSingleNA(sd) || (is.numeric(sd) && length(sd) == 1L && is.nan(sd))) {
-    stop("forest 'sd' must not be NA; leave it out for the default")
+    stop(forestOwner(who), "'sd' must not be NA; leave it out for the default")
   }
   if (is(sd, "dbartsSdHyperprior")) {
     stop(
-      "forest 'sd' must be a number, not invchi(): a hyperprior on a forest's ",
+      forestOwner(who),
+      "'sd' must be a number, not invchi(): a hyperprior on a forest's ",
       "sd is not supported yet"
     )
   }
   kind <- sdKindRefused(sd)
   if (!is.null(kind)) {
-    stop("forest 'sd' must be a number, not ", kind)
+    stop(forestOwner(who), "'sd' must be a number, not ", kind)
   }
   if (length(sd) != 1L) {
     stop(
-      "forest 'sd' must be a single number, not a vector of length ",
+      forestOwner(who),
+      "'sd' must be a single number, not a vector of length ",
       length(sd),
       ": a forest states one sd; to size a column differently, rescale it ",
       "in 'basis', as I(dose / 30)"
     )
   }
   if (is.na(sd) || !is.finite(sd) || sd <= 0) {
-    stop("forest 'sd' must be positive and finite")
+    stop(forestOwner(who), "'sd' must be positive and finite")
   }
   as.double(sd)
 }
@@ -2296,7 +2307,7 @@ resolveForests <- function(
   labels <- forestLabels(names(forests), basisTexts, length(forests))
   resolved <- lapply(seq_along(forests), function(index) {
     resolveForestMoves(
-      validateForestKnobs(forests[[index]]),
+      validateForestKnobs(forests[[index]], forestKnobLabel(labels, index)),
       forestKnobLabel(labels, index)
     )
   })

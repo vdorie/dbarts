@@ -131,7 +131,7 @@ expect_equal(
     n.trees = 5L,
     control = ctl
   )),
-  "forest 'sd' must be a number, not a dbartsNormalPrior"
+  "forest \"dose\"'s 'sd' must be a number, not a dbartsNormalPrior"
 )
 expect_equal(
   refusal(dbarts(
@@ -141,7 +141,7 @@ expect_equal(
     n.trees = 5L,
     control = ctl
   )),
-  "forest 'sd' must be a number, not a dbartsFixedPrior"
+  "forest \"dose\"'s 'sd' must be a number, not a dbartsFixedPrior"
 )
 
 # ---- B713: a refusal names a forest by its label ----

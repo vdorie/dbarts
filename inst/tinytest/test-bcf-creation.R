@@ -1033,7 +1033,7 @@ expect_error(
     control = control,
     n.trees = 50L
   ),
-  "forest 'base'"
+  "'base'"
 )
 expect_error(
   dbarts(
@@ -1043,7 +1043,7 @@ expect_error(
     control = control,
     n.trees = 50L
   ),
-  "forest 'n.trees'"
+  "'n.trees'"
 )
 # a fractional n.trees is refused, naming the argument, rather than silently
 # truncated (coerceOrError's integer branch)
@@ -1066,7 +1066,7 @@ expect_error(
     control = control,
     n.trees = 50L
   ),
-  "forest 'power'"
+  "'power'"
 )
 expect_error(
   dbarts(
@@ -1076,7 +1076,7 @@ expect_error(
     control = control,
     n.trees = 50L
   ),
-  "forest 'sd'"
+  "'sd'"
 )
 expect_error(
   dbarts(
@@ -1089,7 +1089,7 @@ expect_error(
     control = control,
     n.trees = 50L
   ),
-  "a forest's 'amplitude' must be fixed()"
+  "'amplitude' must be fixed()"
 )
 expect_error(
   dbarts(

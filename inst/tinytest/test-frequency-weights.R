@@ -1053,8 +1053,8 @@ expect_identical(
   paste0(
     "fewer than two distinct values of the response are in the likelihood ",
     "(3 of 40 observations are in it), so the response's scale and the ",
-    "prior's center are taken from all 40, and the scale of forest 2 ",
-    "('x2')'s basis from all 40 at their weights' counts, a weight of 0 read ",
+    "prior's center are taken from all 40, and the scale of forest ",
+    "\"x2\"'s basis from all 40 at their weights' counts, a weight of 0 read ",
     "as 1"
   )
 )

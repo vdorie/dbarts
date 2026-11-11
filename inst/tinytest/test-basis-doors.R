@@ -322,7 +322,7 @@ expect_identical(predict(stringTerm, newRows), byValue)
 expect_identical(
   refusal(predict(termFit, newRows, bases = "dosage")),
   paste0(
-    "'bases' gives forest 2 ('dose') the name 'dosage', which names no ",
+    "'bases' gives forest \"dose\" the name 'dosage', which names no ",
     "column of 'newdata'"
   )
 )
@@ -335,7 +335,7 @@ expect_identical(
 expect_identical(
   refusal(predict(termFit, newRows[1L, ], bases = "dosage")),
   paste0(
-    "'bases' gives forest 2 ('dose') the name 'dosage', which names no ",
+    "'bases' gives forest \"dose\" the name 'dosage', which names no ",
     "column of 'newdata'"
   )
 )
@@ -354,7 +354,7 @@ armFit <- bart(
 expect_identical(
   refusal(predict(armFit, d[1L, ], bases = "trt")),
   paste0(
-    "'bases' gives forest 2 ('factor(z, labels = c(\"ctl\", \"trt\"))') ",
+    "'bases' gives forest \"factor(z, labels = c(\"ctl\", \"trt\"))\" ",
     "the name 'trt', which names no column of 'newdata'"
   )
 )

@@ -259,7 +259,7 @@ objects <- list(
 for (door in sevenDoors) {
   said <- made(door, rep(1, n))$refused
   expect_true(
-    startsWith(said, "forest 2") &&
+    startsWith(said, "forest ") &&
       grepl(
         "'s basis is constant (1 on every row",
         said,
@@ -278,7 +278,7 @@ for (object in objects) {
     for (door in sevenDoors) {
       said <- made(door, object[[2L]])$refused
       expect_true(
-        startsWith(said, "forest 2") &&
+        startsWith(said, "forest ") &&
           grepl(paste0(" has a basis of ", size), said, fixed = TRUE),
         info = paste(info, "at", door)
       )
@@ -481,7 +481,7 @@ expect_error(
     control = kindControl(),
     n.trees = 15L
   ),
-  "'basis' gives forest 2 ('tau') a data frame",
+  "'basis' gives forest \"tau\" a data frame",
   fixed = TRUE
 )
 # and where its rows are judged, in a list at dbarts() and at dbartsSpec()
@@ -489,7 +489,7 @@ labeled <- list(
   mu = forest(),
   tau = do.call(forest, list(basis = withNaLevel))
 )
-labeledText <- paste0("'basis' gives forest 2 ('tau')", naLevel)
+labeledText <- paste0("'basis' gives forest \"tau\"", naLevel)
 expect_error(
   dbarts(x, y, forests = labeled, control = kindControl(), n.trees = 15L),
   labeledText,
@@ -633,8 +633,7 @@ for (door in sevenDoors) {
   expect_identical(
     made(door, zf, weights = zeroWeights)$refused,
     paste0(
-      "forest 2",
-      if (door %in% codeDoors) " ('B')",
+      if (door %in% codeDoors) "forest \"B\"" else "forest 2",
       "'s basis is \"1\" on every row in the likelihood, so its other level ",
       "has no observations there and the forest would be multiplied by a ",
       "constant"
@@ -1259,12 +1258,12 @@ expect_identical(dim(allTreated), c(20L, n))
 expect_false(identical(allTreated, aligned))
 expect_error(
   predict(fromTerm, newRows, bases = ifelse(z2 == 1, "one", "0")),
-  "'bases' gives forest 2 ('B') the level 'one', which it does not have: its levels are '0', '1', fixed at creation",
+  "'bases' gives forest \"B\" the level 'one', which it does not have: its levels are '0', '1', fixed at creation",
   fixed = TRUE
 )
 expect_error(
   predict(fromTerm, newRows, bases = cbind(1 - z2, z2)),
-  "forest 2 ('B') multiplies a factor with the levels '0', '1', and 'bases' gives it numbers",
+  "forest \"B\" multiplies a factor with the levels '0', '1', and 'bases' gives it numbers",
   fixed = TRUE
 )
 expect_error(

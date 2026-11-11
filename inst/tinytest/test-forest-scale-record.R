@@ -142,7 +142,7 @@ expect_warning(
     forests = list(forest(), forest(basis = ~dose)),
     control = recordControl()
   ),
-  "fewer than two distinct values of the response are in the likelihood (0 of 150 observations are in it), so the response's scale, the prior's center and the scale of forest 2 ('dose')'s basis are taken from all 150",
+  "fewer than two distinct values of the response are in the likelihood (0 of 150 observations are in it), so the response's scale, the prior's center and the scale of forest \"dose\"'s basis are taken from all 150",
   fixed = TRUE
 )
 # a value far from the rest on rows of weight zero is no part of the scale,
@@ -188,7 +188,7 @@ expect_error(
     forests = list(forest(), forest(basis = ~flat)),
     control = recordControl()
   ),
-  "forest 2 ('flat')'s basis is constant (0.25 on every row in the likelihood)",
+  "forest \"flat\"'s basis is constant (0.25 on every row in the likelihood)",
   fixed = TRUE
 )
 expect_error(
@@ -239,7 +239,7 @@ expect_warning(
     forests = list(forest(), forest(basis = ~dose)),
     control = recordControl()
   ),
-  "no observation is in the likelihood (0 of 150 have a positive weight), so the scale of forest 2 ('dose')'s basis is taken from all 150",
+  "no observation is in the likelihood (0 of 150 have a positive weight), so the scale of forest \"dose\"'s basis is taken from all 150",
   fixed = TRUE
 )
 # fewer than two rows in read the column over every row under every family
@@ -261,7 +261,7 @@ fallbackTexts <- function(expr) {
 oneIn <- c(1, rep(0, n - 1L))
 oneRowBasis <- paste0(
   "one observation is in the likelihood (1 of 150 has a positive weight), ",
-  "so the scale of forest 2 ('dose')'s basis is taken from all 150"
+  "so the scale of forest \"dose\"'s basis is taken from all 150"
 )
 made <- fallbackTexts(dbarts(
   yb ~ x1 + x2,
@@ -298,7 +298,7 @@ expect_identical(
   paste0(
     "fewer than two distinct values of the response are in the likelihood ",
     "(1 of 150 observations is in it), so the response's scale, the prior's ",
-    "center and the scale of forest 2 ('dose')'s basis are taken from all 150"
+    "center and the scale of forest \"dose\"'s basis are taken from all 150"
   )
 )
 expect_equal(recordOf(made$value), sd(dose), tolerance = 1e-12)
@@ -349,7 +349,7 @@ expect_error(
     forests = list(forest(), forest(basis = ~twoFlat)),
     control = recordControl()
   ),
-  "forest 2 ('twoFlat')'s basis is constant (0.25 on every row in the likelihood)",
+  "forest \"twoFlat\"'s basis is constant (0.25 on every row in the likelihood)",
   fixed = TRUE
 )
 # a store of two rows with one in reads both
@@ -371,7 +371,7 @@ expect_identical(
   made$warnings,
   paste0(
     "one observation is in the likelihood (1 of 2 has a positive weight), so ",
-    "the scale of forest 2 ('dose')'s basis is taken from all 2"
+    "the scale of forest \"dose\"'s basis is taken from all 2"
   )
 )
 expect_equal(recordOf(made$value), sd(pairData$dose), tolerance = 1e-12)
@@ -388,7 +388,7 @@ for (weights in list(oneIn, rep(0, n))) {
       control = recordControl()
     )),
     paste0(
-      "forest 2 ('allFlat')'s basis is constant (0.3 on ",
+      "forest \"allFlat\"'s basis is constant (0.3 on ",
       "every row, read because too few are in the likelihood)"
     ),
     fixed = TRUE,
@@ -893,7 +893,7 @@ expect_error(
     subset = kept,
     control = recordControl()
   ),
-  "forest 2 ('subsetFlat')'s basis is constant (2.5 on every row in the",
+  "forest \"subsetFlat\"'s basis is constant (2.5 on every row in the",
   fixed = TRUE
 )
 expect_error(
@@ -903,7 +903,7 @@ expect_error(
     weights = as.double(d$kept),
     control = recordControl()
   ),
-  "forest 2 ('subsetFlat')'s basis is constant (2.5 on every row in the",
+  "forest \"subsetFlat\"'s basis is constant (2.5 on every row in the",
   fixed = TRUE
 )
 # a later swap stays taken, its copy and a stated forest's reload with it, and
@@ -935,7 +935,7 @@ expect_error(
     forests = list(forest(), forest(basis = ~subsetFlat)),
     control = recordControl()
   ),
-  "forest 2 ('subsetFlat')'s basis is constant (2.5 on",
+  "forest \"subsetFlat\"'s basis is constant (2.5 on",
   fixed = TRUE
 )
 # and the same through a creation from a data object whose record is cleared

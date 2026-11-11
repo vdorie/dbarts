@@ -357,7 +357,7 @@ expect_identical(unname(replaced$data@bases[[2L]][, 1L]), frame$age)
 before <- replaced$data@bases[[2L]]
 expect_error(
   replaced$setForestBasis(2L, cbind(dose = frame$dose, age = frame$age)),
-  "forest 2 ('dose') multiplies one numeric column, and 'basis' gives it 2",
+  "forest \"dose\" multiplies one numeric column, and 'basis' gives it 2",
   fixed = TRUE
 )
 expect_identical(replaced$data@bases[[2L]], before)
@@ -370,7 +370,7 @@ expect_identical(replaced$data@bases[[2L]], cbind(dose = halved))
 expect_identical(labelsOf(replaced), c("forest1", "dose"))
 expect_error(
   replaced$setForestBasis(2L, ~ doubled + halved),
-  "forest 2 ('dose') multiplies one numeric column, and 'basis' gives it 2",
+  "forest \"dose\" multiplies one numeric column, and 'basis' gives it 2",
   fixed = TRUE
 )
 expect_error(
@@ -562,3 +562,68 @@ expect_identical(
   c("forest1", "forest2", "forest3")
 )
 expect_true(is.integer(multinomial$fit$getTrees()$forest))
+
+## --- Block D: a value refusal names its forest the way every refusal does --
+# the sd, power, base, n.trees and amplitude refusals, at creation and at
+# $setForest, say forest "dose" where the forest has a label and forest 2
+# where it has none
+valueRefusals <- list(
+  list("sd", -1, "'sd' must be positive and finite"),
+  list("power", -1, "'power' must be a single positive number"),
+  list("base", 2, "'base' must be a single number in (0, 1)"),
+  list("n.trees", 0L, "'n.trees' must be a single integer >= 1"),
+  list("amplitude", "x", "'amplitude' must be fixed(), which holds")
+)
+for (arm in valueRefusals) {
+  knob <- arm[[1L]]
+  args <- stats::setNames(list(arm[[2L]]), knob)
+  # the forest's label is its basis text, or forest 2 with none
+  for (basis in list(as.name("dose"), NULL)) {
+    forests <- list(
+      forest(),
+      do.call(
+        forest,
+        c(list("x2"), if (!is.null(basis)) list(basis = basis), args)
+      )
+    )
+    expect_error(
+      dbarts(
+        y ~ x1 + x2 + x3,
+        frame,
+        forests = forests,
+        control = labelControl(),
+        n.trees = 5L
+      ),
+      paste0(
+        if (is.null(basis)) "forest 2" else "forest \"dose\"",
+        "'s ",
+        arm[[3L]]
+      ),
+      fixed = TRUE,
+      info = paste("creation", knob, is.null(basis))
+    )
+  }
+  # a tree count cannot be set later: $setForest refuses it by its own rule
+  if (knob == "n.trees") {
+    next
+  }
+  sampler <- dbarts(
+    y ~ x1 + x2 + x3,
+    frame,
+    forests = list(forest(), dose = forest(x2, basis = dose)),
+    control = labelControl(),
+    n.trees = 5L
+  )
+  expect_error(
+    do.call(sampler$setForest, c(list("dose"), args)),
+    paste0("forest \"dose\"'s ", arm[[3L]]),
+    fixed = TRUE,
+    info = paste("setForest", knob)
+  )
+  expect_error(
+    do.call(sampler$setForest, c(list(1L), args)),
+    paste0("forest 1's ", arm[[3L]]),
+    fixed = TRUE,
+    info = paste("setForest 1", knob)
+  )
+}

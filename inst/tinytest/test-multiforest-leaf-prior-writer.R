@@ -303,15 +303,15 @@ expect_error(a$setLeafPrior(forests = list(forest())), "unused argument")
 for (bad in list(0, -1, Inf)) {
   expect_error(
     a$setForest(1, sd = bad),
-    "forest 'sd' must be positive and finite"
+    "'sd' must be positive and finite"
   )
 }
 for (bad in list(NaN, NA)) {
-  expect_error(a$setForest(1, sd = bad), "forest 'sd' must not be NA")
+  expect_error(a$setForest(1, sd = bad), "'sd' must not be NA")
 }
 expect_error(
   a$setForest(1, sd = c(1, 2)),
-  "forest 'sd' must be a single number, not a vector of length 2"
+  "'sd' must be a single number, not a vector of length 2"
 )
 # every refusal came before any write
 expect_identical(a$getLeafPrior(), amplitudeSampler(twoDefault)$getLeafPrior())
@@ -337,7 +337,7 @@ expect_error(
     n.trees = 15L,
     control = writerControl()
   ),
-  "forest 'sd' must be positive and finite"
+  "'sd' must be positive and finite"
 )
 
 expect_identical(numWarnings, 0L)

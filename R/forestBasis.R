@@ -929,12 +929,10 @@ basisForestLabel <- function(labels, index, text) {
   forestKnobLabel(replace(rep("", index), index, name), index)
 }
 
-## A forest as a message names it: by position, with its label where the
-## label is not the position's own.
+## A forest as a message names it: by its label, and by position where the
+## label is not its own.
 forestName <- function(index, labels = NULL) {
-  label <- if (length(labels) >= index) labels[[index]] else ""
-  own <- is.na(label) || label %in% c("", paste0("forest", index))
-  paste0("forest ", index, if (!own) paste0(" ('", label, "')"))
+  forestKnobLabel(labels, index)
 }
 
 ## The refusal of a value of a class a basis does not take (basisClass), at

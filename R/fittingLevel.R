@@ -185,7 +185,11 @@ levelDepths <- function(sampler, given, stored) {
       }
     }
     for (index in which(givenStates)) {
-      value <- validateForestTreePrior(stated[[index]], name)
+      value <- validateForestTreePrior(
+        stated[[index]],
+        name,
+        doorForestLabel(model, index)
+      )
       if (!identical(value, forestDepthValue(stored, index, name))) {
         stored <- modelWithDepth(
           stored,
@@ -488,7 +492,10 @@ statedForestSds <- function(sampler, stored, givenSds, ownSds, levelSized) {
   }
   ptr <- sampler$getPointer()
   for (index in which(!is.na(givenSds))) {
-    sd <- validateForestSd(givenSds[[index]])
+    sd <- validateForestSd(
+      givenSds[[index]],
+      doorForestLabel(sampler$model, index)
+    )
     if (identical(sd, unname(ownSds[[index]]))) {
       next
     }

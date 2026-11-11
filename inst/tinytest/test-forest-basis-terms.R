@@ -649,7 +649,7 @@ expect_true(sizeRefused(
 expect_identical(
   refusal(listFit("~ dose + age")),
   paste0(
-    "forest 2 ('dose + age') has a basis of 2 numeric columns ('dose', ",
+    "forest \"dose + age\" has a basis of 2 numeric columns ('dose', ",
     "'age'); in this version a basis is one numeric column, or a factor, a ",
     "character or a logical vector of two levels. Give each column a forest ",
     "of its own, as forest(x1, basis = dose) + forest(x1, basis = age)"
@@ -677,7 +677,7 @@ expect_identical(
 expect_identical(
   refusal(listFit("~ 1 + dose")),
   paste0(
-    "forest 2 ('1 + dose') has a basis of 2 numeric columns ('(Intercept)', ",
+    "forest \"1 + dose\" has a basis of 2 numeric columns ('(Intercept)', ",
     "'dose'): '1 +' in a basis adds a constant column, and in this version a ",
     "basis is one numeric column. Write the column alone, as basis = dose"
   )

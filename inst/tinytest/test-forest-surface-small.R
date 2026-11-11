@@ -46,7 +46,7 @@ expect_identical(
   )
 )
 invchiRefusal <- paste0(
-  "forest 'sd' must be a number, not invchi(): a hyperprior on a forest's ",
+  "forest \"w\"'s 'sd' must be a number, not invchi(): a hyperprior on a forest's ",
   "sd is not supported yet"
 )
 expect_identical(

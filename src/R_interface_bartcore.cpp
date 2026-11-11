@@ -4356,9 +4356,8 @@ const char* const forestSdUnitMessage =
   "spread to state one against (its standard deviation is 0); leave 'sd' "
   "out, or give a response that varies";
 
-// A forest as a message names it, as R's forestName does: by position from
-// 1, with its label from the forests' record where the label is not the
-// position's own.
+// A forest as a message names it, as R's forestName does: by its label from
+// the forests' record, and by position from 1 where the label is not its own.
 std::string forestMessageName(SEXP modelExpr, size_t f) {
   std::string name = "forest " + std::to_string(f + 1);
   SEXP recordsExpr = PROTECT(slotOrNull(modelExpr, "forests"));
@@ -4372,7 +4371,7 @@ std::string forestMessageName(SEXP modelExpr, size_t f) {
   if (labelExpr == NA_STRING) return name;
   std::string label = CHAR(labelExpr);
   if (label.empty() || label == "forest" + std::to_string(f + 1)) return name;
-  return name + " ('" + label + "')";
+  return "forest \"" + label + "\"";
 }
 
 // The refusal of a numeric column with no scale over the rows its default is

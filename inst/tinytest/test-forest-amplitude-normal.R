@@ -683,7 +683,13 @@ expect_identical(
     "forests share one total: state each forest's 'sd' to give it its own"
   )
 )
-taken <- "'amplitude = normal()' takes no 'k' or 'sd': a drawn coefficient's size is the forest's own 'sd'"
+taken <- function(forestName) {
+  paste0(
+    forestName,
+    "'s 'amplitude = normal()' takes no 'k' or 'sd': a drawn coefficient's ",
+    "size is the forest's own 'sd'"
+  )
+}
 for (written in list(
   normalPrior(k = 2),
   normalPrior(sd = 2),
@@ -694,19 +700,19 @@ for (written in list(
       forest(sd = 1, amplitude = written),
       forest(basis = zf)
     ))),
-    taken
+    taken("forest 1")
   )
   expect_identical(
     refusal(make(list(forest(), forest(basis = zf, amplitude = written)))),
-    taken
+    taken("forest \"zf\"")
   )
   expect_identical(
     refusal(make(list(forest(), forest(basis = dose, amplitude = written)))),
-    taken
+    taken("forest \"dose\"")
   )
 }
 other <- paste0(
-  "a forest's 'amplitude' must be fixed(), which holds its coefficient, normal() ",
+  "forest 1's 'amplitude' must be fixed(), which holds its coefficient, normal() ",
   "or student(df), which draw it under that prior, or left out, which draws it ",
   "under its default prior"
 )
@@ -819,7 +825,7 @@ local({
       n.cuts = 20L,
       control = ctl()
     ),
-    "forest 'sd' must be a number, not a dbartsNormalPrior",
+    "'sd' must be a number, not a dbartsNormalPrior",
     fixed = TRUE
   )
 })

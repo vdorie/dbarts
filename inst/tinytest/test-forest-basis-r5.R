@@ -82,7 +82,7 @@ expect_identical(firstThenSecond$getForestAmplitudes(), before)
 # a width the forest was not created with is refused, nothing being installed
 expect_error(
   firstThenSecond$setForestBasis(1L, cbind(1, x[, 4L])),
-  "forest 1 ('x[, 4L]') multiplies one numeric column, and 'basis' gives it 2",
+  "forest \"x[, 4L]\" multiplies one numeric column, and 'basis' gives it 2",
   fixed = TRUE
 )
 expect_identical(unname(firstThenSecond$data@bases[[1L]][, 1L]), other)

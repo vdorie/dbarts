@@ -221,7 +221,7 @@ refusedOn(
   3L,
   3 * dose,
   paste0(
-    "forest 3 ('column') states its sd, 0.4, so it has no default to ",
+    "forest \"column\" states its sd, 0.4, so it has no default to ",
     "update; restate ",
     "it with $setForest or leave updateBasisScale FALSE"
   )
@@ -234,7 +234,7 @@ refusedOn(
   3L,
   3 * dose,
   paste0(
-    "forest 3 ('column') states its sd, 0.25, so it has no default to ",
+    "forest \"column\" states its sd, 0.25, so it has no default to ",
     "update; restate ",
     "it with $setForest or leave updateBasisScale FALSE"
   )
@@ -244,7 +244,7 @@ refusedOn(
   2L,
   z,
   paste0(
-    "forest 2 ('z') is multiplied by a factor, so its default is one unit and ",
+    "forest \"z\" is multiplied by a factor, so its default is one unit and ",
     "reads no column; leave updateBasisScale FALSE"
   )
 )
@@ -265,7 +265,7 @@ labeled <- dbarts(
 )
 expect_error(
   labeled$setForestBasis(2L, dose, updateBasisScale = TRUE),
-  "forest 2 ('dose') states its sd, 0.4, so it has no default",
+  "forest \"dose\" states its sd, 0.4, so it has no default",
   fixed = TRUE
 )
 
@@ -290,7 +290,7 @@ expect_identical(
   keptText(oneIn$setForestBasis(3L, far, updateBasisScale = TRUE)),
   paste0(
     "fewer than two observations are in the likelihood (1 of 80), so the ",
-    "scale of forest 3 ('column')'s basis is kept as it was (said once per ",
+    "scale of forest \"column\"'s basis is kept as it was (said once per ",
     "sampler)"
   )
 )
@@ -317,7 +317,7 @@ noneIn <- threeForests(dose)
 noneIn$setWeights(rep(0, n))
 expect_match(
   keptText(noneIn$setForestBasis(3L, far, updateBasisScale = TRUE)),
-  "(0 of 80), so the scale of forest 3 ('column')'s basis is kept",
+  "(0 of 80), so the scale of forest \"column\"'s basis is kept",
   fixed = TRUE
 )
 # constant over the rows in, varying over the others
@@ -327,7 +327,7 @@ flat <- ifelse(w > 0, 2, dose)
 expect_identical(
   keptText(constant$setForestBasis(3L, flat, updateBasisScale = TRUE)),
   paste0(
-    "forest 3 ('column')'s basis is constant over the rows in the ",
+    "forest \"column\"'s basis is constant over the rows in the ",
     "likelihood, so its ",
     "scale is kept as it was (said once per sampler)"
   )

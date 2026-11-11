@@ -84,7 +84,7 @@ for (basis in list(quote(I(1 - z) + z), cbind(1 - z, z))) {
       control = argumentControl(),
       n.trees = 10L
     ))),
-    "forest 2.* has a basis of 2 numeric columns",
+    "forest .* has a basis of 2 numeric columns",
     info = deparse(basis)
   )
 }
@@ -269,7 +269,7 @@ for (refused in list("fixed", FALSE)) {
       control = argumentControl(),
       n.trees = 10L
     ))),
-    "a forest's 'amplitude' must be fixed(), which holds its coefficient",
+    "'amplitude' must be fixed(), which holds its coefficient",
     fixed = TRUE
   )
 }
@@ -408,7 +408,7 @@ local({
       forest(),
       forest(basis = ~ factor(z), amplitude = fixed)
     ))),
-    "a forest's 'amplitude' must be fixed()",
+    "'amplitude' must be fixed()",
     fixed = TRUE
   )
   expect_error(
@@ -418,7 +418,7 @@ local({
       control = argumentControl(),
       n.trees = 10L
     ),
-    "a forest's 'amplitude' must be fixed()",
+    "'amplitude' must be fixed()",
     fixed = TRUE
   )
 })
@@ -551,7 +551,7 @@ twin <- heldSwap()
 # numbers on a forest of levels meet the rule of the kind first
 expect_error(
   swapped$setForestBasis(2L, x[, 1L]),
-  "forest 2 ('factor(z)') multiplies a factor with the levels '0', '1', and 'basis' gives it numbers",
+  "forest \"factor(z)\" multiplies a factor with the levels '0', '1', and 'basis' gives it numbers",
   fixed = TRUE
 )
 expect_identical(swapped$data@bases, twin$data@bases)
@@ -576,7 +576,7 @@ expect_identical(swapped$run(0L, 5L), twin$run(0L, 5L))
 expect_equal(swapped$getForestAmplitudes()[, 1L], c(1, 0, 1))
 expect_error(
   swapped$setForestBasis(2L, ~z),
-  "forest 2 ('factor(z)') multiplies a factor with the levels '0', '1', and 'basis' gives it numbers",
+  "forest \"factor(z)\" multiplies a factor with the levels '0', '1', and 'basis' gives it numbers",
   fixed = TRUE
 )
 expect_identical(swapped$data@bases, twin$data@bases)
@@ -719,12 +719,12 @@ for (place in c("creation", "writer")) {
   expect_identical(sdMessage(c(dose = 1), place), "accepted")
   expect_match(
     sdMessage(c(1, 2), place),
-    "forest 'sd' must be a single number, not a vector of length 2: a forest states one sd; to size a column differently, rescale it in 'basis', as I(dose / 30)",
+    "'sd' must be a single number, not a vector of length 2: a forest states one sd; to size a column differently, rescale it in 'basis', as I(dose / 30)",
     fixed = TRUE
   )
   expect_match(
     sdMessage(c(dose = 1, age = 2), place),
-    "forest 'sd' must be a single number, not a vector of length 2",
+    "'sd' must be a single number, not a vector of length 2",
     fixed = TRUE
   )
   expect_match(
@@ -760,19 +760,19 @@ for (place in c("creation", "writer")) {
   for (bad in list(c(a = -1), c(a = 0))) {
     expect_match(
       sdMessage(bad, place),
-      "forest 'sd' must be positive and finite"
+      "'sd' must be positive and finite"
     )
   }
   expect_match(
     sdMessage(NA_real_, place),
-    "forest 'sd' must not be NA; leave it out for the default",
+    "'sd' must not be NA; leave it out for the default",
     fixed = TRUE
   )
-  expect_match(sdMessage(NaN, place), "forest 'sd' must not be NA")
+  expect_match(sdMessage(NaN, place), "'sd' must not be NA")
   for (bad in list(0, -1, Inf)) {
     expect_match(
       sdMessage(bad, place),
-      "forest 'sd' must be positive and finite"
+      "'sd' must be positive and finite"
     )
   }
 }
