@@ -358,15 +358,29 @@ doors <- list(
   )$fit,
   dbartsSpec = new("dbartsSampler", spec$control, spec$model, spec$data)
 )
+# the creation door reads every record; a new fit takes the grids and derives
+# the response's scale from the response it is given
+derived <- dbarts::dbarts(fresh, control = controlWith(), n.trees = 15L)
 for (door in names(doors)) {
-  expect_identical(
-    recordOf(doors[[door]])[c("cutPoints", "response.range")],
-    recordOf(sampler)[c("cutPoints", "response.range")],
-    info = door
-  )
+  if (door == "new") {
+    expect_identical(
+      recordOf(doors[[door]])[c("cutPoints", "response.range")],
+      recordOf(sampler)[c("cutPoints", "response.range")],
+      info = door
+    )
+  } else {
+    expect_identical(
+      recordOf(doors[[door]])[c("cutPoints", "response.range")],
+      list(
+        cutPoints = recordOf(sampler)$cutPoints,
+        response.range = recordOf(derived)$response.range
+      ),
+      info = door
+    )
+  }
   expectRecordIsReader(doors[[door]], door)
 }
-derived <- dbarts::dbarts(fresh, control = controlWith(), n.trees = 15L)
+expect_false(identical(derived$data@response.range, carried@response.range))
 expect_false(identical(derived$data@cutPoints, carried@cutPoints))
 # the prior predictive draws on the sampler's grid
 priorOf <- function(sampler) {
@@ -461,7 +475,17 @@ countSampler <- dbarts::dbarts(
   control = controlWith(),
   n.trees = 15L
 )
-expect_identical(countSampler$data@response.range, min(counts) - 1 + c(0, 1))
+# a new fit derives a count model's center from its counts: the carried
+# record is not read there
+expect_identical(
+  countSampler$data@response.range,
+  dbarts::dbarts(
+    dbarts::dbartsData(x, counts),
+    family = "nbinom",
+    control = controlWith(),
+    n.trees = 15L
+  )$data@response.range
+)
 binaryData <- dbarts::dbartsData(x, yBinary)
 binaryData@response.range <- gaussianRange
 binarySampler <- dbarts::dbarts(
@@ -496,7 +520,8 @@ for (door in list(sampler$copy(), reloadOf(sampler))) {
 
 # a record that fits no data is refused at creation, naming the slot and
 # saying that NULL derives it; a grid out of order is sorted
-recorded <- make(run = FALSE)$data
+recordedSampler <- make(run = FALSE)
+recorded <- recordedSampler$data
 withSlot <- function(slot, value) {
   data <- recorded
   methods::slot(data, slot) <- value
@@ -510,14 +535,24 @@ refusals <- list(
   list("response.range", c(2, 1), "two finite numbers"),
   list("forest.calibration", c(anchor = -1, unit = 1), "positive")
 )
+# the response's records are read where a sampler is created from its own
+# data; a new fit derives them and refuses none
+creating <- function(refusal) {
+  data <- withSlot(refusal[[1L]], refusal[[2L]])
+  if (refusal[[1L]] == "cutPoints") {
+    dbarts::dbarts(data)
+  } else {
+    new("dbartsSampler", recordedSampler$control, recordedSampler$model, data)
+  }
+}
 for (refusal in refusals) {
   expect_error(
-    dbarts::dbarts(withSlot(refusal[[1L]], refusal[[2L]])),
+    creating(refusal),
     paste0("'", refusal[[1L]], "' record .*", refusal[[3L]]),
     info = refusal[[3L]]
   )
   expect_error(
-    dbarts::dbarts(withSlot(refusal[[1L]], refusal[[2L]])),
+    creating(refusal),
     "set it to NULL to derive it",
     info = refusal[[3L]]
   )

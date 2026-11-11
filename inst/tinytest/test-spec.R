@@ -149,12 +149,17 @@ expect_error(
   "must be a dbartsControl"
 )
 
-## an explicit sigma overrides the data's; the default leaves it alone
+## an explicit sigest states sigma; the default estimates it from the data's
+## response, whatever a data object carries
 sigmaData <- dbarts::dbartsData(x, y)
 sigmaData@sigma <- 2.5
 expect_equal(
   dbarts::dbartsSpec(sigmaData, control = control, n.trees = 10L)$data@sigma,
-  2.5
+  dbarts::dbartsSpec(
+    dbarts::dbartsData(x, y),
+    control = control,
+    n.trees = 10L
+  )$data@sigma
 )
 expect_equal(
   dbarts::dbartsSpec(

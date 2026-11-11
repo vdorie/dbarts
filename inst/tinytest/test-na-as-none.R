@@ -102,15 +102,16 @@ expect_error(sigmaSampler(sigest = NaN), "'sigest'")
 expect_error(sigmaSampler(sigest = 0), "'sigest'")
 expect_identical(sigmaSampler(sigest = 1.5)$data@sigma, 1.5)
 
-# dbartsSpec: NULL leaves the data object's own estimate alone
+# dbartsSpec: NULL estimates from the data's response, whatever estimate the
+# data object carries
 specData <- dbarts::dbartsData(x, y)
 specData@sigma <- 0.7
 specOf <- function(...) {
   dbarts::dbartsSpec(specData, control = control, ..., n.trees = 5L)$data@sigma
 }
 resetKeys(naKey("sigest", "dbartsSpec"))
-expect_identical(specOf(), 0.7)
-expect_identical(specOf(sigest = NULL), 0.7)
+expect_identical(specOf(), defaultSigma)
+expect_identical(specOf(sigest = NULL), defaultSigma)
 expect_error(
   specOf(sigest = NA),
   "'sigest' must not be NA on 'dbartsSpec'.*NULL"

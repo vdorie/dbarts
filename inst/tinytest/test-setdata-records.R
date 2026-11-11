@@ -167,16 +167,16 @@ expect_error(
   ),
   fixed = TRUE
 )
-expect_error(
-  dbarts::dbarts(
-    edited,
-    family = "nbinom",
-    control = controlWith(),
-    n.trees = 15L
-  ),
-  "'response.range' record must be two finite numbers, the second above",
-  fixed = TRUE
-)
+# a new fit reads no range record, so none is refused there: it derives the
+# center from the counts
+newRange <- dbarts::dbarts(
+  edited,
+  family = "nbinom",
+  control = controlWith(),
+  n.trees = 15L
+)$data@response.range
+expect_false(identical(newRange, c(2, 2)))
+expect_identical(diff(newRange), 1)
 edited@response.range <- c(2, 5)
 countSampler$setData(edited)
 expect_identical(countSampler$data@response.range, c(2, 3))
