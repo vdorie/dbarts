@@ -17286,7 +17286,7 @@ static void testSweepHookMatchesOneSweepRuns() {
       Results viewResults = viaView.results();
       canceled = viewFixture.sampler->run(
         0, numSweeps, viewResults, {},
-        shipped.engineHook(HookData::numChains, HookData::n, !gaussian),
+        shipped.prepareRun(HookData::numChains, HookData::n, !gaussian),
         DrawHook{&toyGibbsDraw, &viewGibbs});
       bool ownBuffers = true;
       for (size_t c = 0; c < HookData::numChains; ++c)

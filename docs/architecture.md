@@ -621,8 +621,8 @@ sampler-wide offset each install hands every chain
 (`Sampler::chainsHoldOwnOffsets`, `Sampler::restoreSharedOffset`): a
 sampler-wide `setOffset` or `setData` puts every chain back on it, clearing
 the hook restores it, and a re-derivation of the response transform while a
-chain holds its own is refused, since it would read one transform from
-several offsets. A copy, a stored state and the R object's data carry the
+chain holds its own is refused, since the transform is read from the
+sampler-wide offset, which that chain no longer draws against. A copy, a stored state and the R object's data carry the
 sampler-wide offset only.
 
 **Per-draw callback.** A compiled function of the shipped

@@ -165,10 +165,11 @@ int probeSweep(void* context, dbarts_chain_view* view, std::size_t sweepIndex,
   const double nan = std::numeric_limits<double>::quiet_NaN();
   const double inf = std::numeric_limits<double>::infinity();
   const double bad[4] = { 1.0, nan, 3.0, 4.0 };
+  const double badLast[4] = { 1.0, 2.0, 3.0, nan };
   const double good[4] = { 1.0, 2.0, 3.0, 4.0 };
-  probe.statuses = { view->setOffset(view, bad), view->setOffset(view, good),
-                     view->setSigma(view, 0.0), view->setSigma(view, inf),
-                     view->setSigma(view, 2.0) };
+  probe.statuses = { view->setOffset(view, bad), view->setOffset(view, badLast),
+                     view->setOffset(view, good), view->setSigma(view, 0.0),
+                     view->setSigma(view, inf), view->setSigma(view, 2.0) };
   return 7;
 }
 
@@ -176,13 +177,13 @@ int probeSweep(void* context, dbarts_chain_view* view, std::size_t sweepIndex,
 // operation's status, a refused value reaching nothing.
 void testSweepHookView() {
   ShippedSweepHook hook;
-  check(hook.engineHook(3, 4, false).fn == nullptr,
+  check(hook.prepareRun(3, 4, false).fn == nullptr,
         "capi sweep: nothing is registered by default");
 
   ViewProbe probe;
   hook.set(&probeSweep, &probe, 3, 4);
   ChainSpy chain;
-  SweepHook engine = hook.engineHook(3, 4, false);
+  SweepHook engine = hook.prepareRun(3, 4, false);
   int result = engine.fn(engine.context, chain, 2, 7, true);
   const double* own = hook.chainOffsets[2].data();
   check(result == 7 && probe.seen.structSize == sizeof(dbarts_chain_view) &&
@@ -191,28 +192,31 @@ void testSweepHookView() {
         "capi sweep: the hook sees its chain, sweep and burn-in flag, and its "
         "return goes back to the engine");
   check(probe.statuses == std::vector<int>{ DBARTS_INVALID_ARGUMENT,
+                                            DBARTS_INVALID_ARGUMENT,
                                             DBARTS_OK,
                                             DBARTS_INVALID_ARGUMENT,
                                             DBARTS_INVALID_ARGUMENT,
                                             DBARTS_OK } &&
           chain.offsetWrites == 1 && chain.offset == own && own[1] == 2.0 &&
           own[3] == 4.0 && chain.sigmaWrites == 1 && chain.sigma == 2.0,
-        "capi sweep: a non-finite offset or a sigma not finite and positive "
-        "is refused untouched; a write lands in the chain's own buffer");
+        "capi sweep: a non-finite offset, in any row, or a sigma not finite "
+        "and positive is refused untouched; a write lands in the chain's own "
+        "buffer");
 
   ChainSpy pinned;
-  engine = hook.engineHook(3, 4, true);
+  engine = hook.prepareRun(3, 4, true);
   engine.fn(engine.context, pinned, 0, 0, false);
   check(probe.statuses.back() == DBARTS_UNSUPPORTED &&
           pinned.sigmaWrites == 0 && probe.isBurnIn == 0 &&
           pinned.offset == hook.chainOffsets[0].data(),
         "capi sweep: a pinned sigma answers unsupported and writes nothing");
 
-  hook.clear();
+  hook.set(nullptr, &probe, 3, 4);
   check(hook.fn == nullptr && hook.context == nullptr &&
           hook.chainOffsets.empty() &&
-          hook.engineHook(3, 4, false).fn == nullptr,
-        "capi sweep: a clear drops the hook, its context and the buffers");
+          hook.prepareRun(3, 4, false).fn == nullptr,
+        "capi sweep: a null function clears the hook, its context and the "
+        "buffers");
 }
 
 }  // namespace

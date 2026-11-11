@@ -1567,20 +1567,24 @@ SEXP capi_gibbs_report(void) {
 
 /* Each refusal a view answers, on chain 0's first sweep: a non-finite offset,
  * a sigma of 0, then a sigma of 1, which a pinned family refuses. */
-static int capi_viewStatuses[3];
+static int capi_viewStatuses[4];
 
 static int capi_probeSweep(void* context, dbarts_chain_view* view,
                            size_t sweepIndex, int isBurnIn) {
-  double* offset = (double*) context;
+  /* two offsets end to end: one non-finite in its second row, one in its
+   * last */
+  double* offsets = (double*) context;
   (void) isBurnIn;
   if (view->chainIndex != 0 || sweepIndex != 0) return 0;
-  capi_viewStatuses[0] = view->setOffset(view, offset);
-  capi_viewStatuses[1] = view->setSigma(view, 0.0);
-  capi_viewStatuses[2] = view->setSigma(view, 1.0);
+  capi_viewStatuses[0] = view->setOffset(view, offsets);
+  capi_viewStatuses[1] =
+    view->setOffset(view, offsets + view->numObservations);
+  capi_viewStatuses[2] = view->setSigma(view, 0.0);
+  capi_viewStatuses[3] = view->setSigma(view, 1.0);
   return 0;
 }
 
-/* the registration's status, then the three statuses (NA where the hook
+/* the registration's status, then the four statuses (NA where the hook
  * never ran), from a run of numSweeps sweeps whose train comes back */
 SEXP capi_view_probe(SEXP ptrExpr, SEXP numSweepsExpr) {
   const char* names[] = { "status", "train", "" };
@@ -1589,22 +1593,23 @@ SEXP capi_view_probe(SEXP ptrExpr, SEXP numSweepsExpr) {
   size_t n = dbarts_sampler_numObservations(sampler);
   size_t chains = dbarts_sampler_numChains(sampler);
   size_t fitted = dbarts_sampler_numFittedValuesPerObservation(sampler);
-  double* offset = (double*) R_alloc(n, sizeof(double));
+  double* offsets = (double*) R_alloc(2 * n, sizeof(double));
   dbarts_results results = DBARTS_RESULTS_INIT;
   SEXP result = PROTECT(Rf_mkNamed(VECSXP, names));
-  SEXP status = Rf_allocVector(INTSXP, 4);
+  SEXP status = Rf_allocVector(INTSXP, 5);
   SET_VECTOR_ELT(result, 0, status);
   SET_VECTOR_ELT(
     result, 1,
     Rf_allocVector(REALSXP, (R_xlen_t) (n * fitted * numSweeps * chains)));
-  for (size_t i = 0; i < n; ++i) offset[i] = i == 1 ? R_NaN : 0.5;
-  for (int i = 0; i < 3; ++i) capi_viewStatuses[i] = NA_INTEGER;
+  for (size_t i = 0; i < 2 * n; ++i)
+    offsets[i] = i == 1 || i == 2 * n - 1 ? R_NaN : 0.5;
+  for (int i = 0; i < 4; ++i) capi_viewStatuses[i] = NA_INTEGER;
   INTEGER(status)[0] =
-    dbarts_sampler_setSweepHook(sampler, &capi_probeSweep, offset);
+    dbarts_sampler_setSweepHook(sampler, &capi_probeSweep, offsets);
   results.train = REAL(VECTOR_ELT(result, 1));
   dbarts_sampler_run(sampler, 0, numSweeps, &results);
   dbarts_sampler_setSweepHook(sampler, NULL, NULL);
-  for (int i = 0; i < 3; ++i) INTEGER(status)[i + 1] = capi_viewStatuses[i];
+  for (int i = 0; i < 4; ++i) INTEGER(status)[i + 1] = capi_viewStatuses[i];
   UNPROTECT(1);
   return result;
 }

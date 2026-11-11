@@ -3971,9 +3971,10 @@ void refuseChainOffsetRederivation(const bartcore::SamplerBase& sampler,
       !sampler.chainsHoldOwnOffsets())
     return;
   Rf_error("%s: 'updateScale' cannot be TRUE while chains hold offsets their "
-           "sweep hook wrote, since one transform cannot be read from "
-           "several offsets; set a sampler-wide offset first, or pass "
-           "updateScale = FALSE", caller);
+           "sweep hook wrote, since the transform is read from the "
+           "sampler-wide offset, which those chains no longer draw against; "
+           "set a sampler-wide offset first, or pass updateScale = FALSE",
+           caller);
 }
 
 // The weight policy, stated once for creation and every mutation conduit: a

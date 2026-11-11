@@ -96,14 +96,16 @@ expect_false(identical(hashes$text, "0xa84b67742536fbc4"))
 # sweep hook's isBurnIn unsigned, the view's setOffset taking a non-const
 # offset, the draw callback a non-const draw. A token blind to a callback's
 # or an operation's parameter list would read one of these
-expect_false(identical(hashes$text, "0x0337e88b95749642"))
-expect_false(identical(hashes$text, "0x1945d8d3f58ded0d"))
-expect_false(identical(hashes$text, "0x42ac4b080ae4b8dd"))
+expect_false(identical(hashes$text, "0x61f458fbd0bc3b87"))
+expect_false(identical(hashes$text, "0x401b7f45c5caa88e"))
+expect_false(identical(hashes$text, "0xa2c748d20acd0d1e"))
 # and this header's with DBARTS_DRAW_ALL naming only today's ten channels
-expect_false(identical(hashes$text, "0xd2db09fcb6caecbf"))
+expect_false(identical(hashes$text, "0x9aefbc798921eb02"))
+# the token before the statuses carried their words, which it now folds
+expect_false(identical(hashes$text, "0x7220b30db0d94fd4"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0x7220b30db0d94fd4")
+expect_identical(hashes$text, "0x2f7fe00e6d31f2df")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -2477,16 +2479,17 @@ expect_false(fourThreaded$unexpected)
 expect_identical(fourInline$train, fourThreaded$train)
 expect_identical(fourInline$sigma, fourThreaded$sigma)
 
-# the view's refusals touch nothing and raise nothing: a non-finite offset,
-# a sigma of 0, and on a probit sampler any sigma, which it pins
+# the view's refusals touch nothing and raise nothing: an offset non-finite in
+# its second row or its last, a sigma of 0, and on a probit sampler any sigma,
+# which it pins
 gaussianProbe <- CALL("capi_view_probe", hookSampler(2L, 2L)$getPointer(), 3L)
-expect_identical(gaussianProbe$status, c(1L, -2L, -2L, 0L))
+expect_identical(gaussianProbe$status, c(1L, -2L, -2L, -2L, 0L))
 probitProbe <- CALL(
   "capi_view_probe",
   hookSampler(2L, 2L, TRUE)$getPointer(),
   3L
 )
-expect_identical(probitProbe$status, c(1L, -2L, -1L, -1L))
+expect_identical(probitProbe$status, c(1L, -2L, -2L, -1L, -1L))
 expect_identical(
   probitProbe$train,
   CALL(
@@ -2500,7 +2503,7 @@ expect_identical(
 )
 # a softmax, whose offset no chain can write, registers nothing
 softmaxProbe <- CALL("capi_view_probe", multinomialW()$getPointer(), 2L)
-expect_identical(softmaxProbe$status, c(0L, NA, NA, NA))
+expect_identical(softmaxProbe$status, c(0L, NA, NA, NA, NA))
 
 # a hook's nonzero return stops the run, which returns normally: a positive
 # value, a deliberate stop, and a negative one, the hook's failure
@@ -2550,13 +2553,13 @@ expect_identical(again$train, reference$train)
 expect_identical(again$sigma, reference$sigma)
 
 # while chains hold their own offsets a re-derivation of the transform is
-# refused on every route; a sampler-wide offset, or a clear, puts every chain
-# back on one offset and lifts it
+# refused on every route; a sampler-wide offset, new data, or a clear, puts
+# every chain back on one offset and lifts it
 refusal <- "sweep hook wrote"
-heldOffsets <- function() {
-  sampler <- hookSampler(2L, 2L)
+heldOffsets <- function(binary = FALSE) {
+  sampler <- hookSampler(2L, 2L, binary)
   ptr <- sampler$getPointer()
-  CALL("capi_gibbs_reset", ptr, TRUE, -1L, -1L, 1L)
+  CALL("capi_gibbs_reset", ptr, !binary, -1L, -1L, 1L)
   CALL("capi_set_gibbs_hooks", ptr, 2L)
   CALL("capi_gibbs_run", ptr, 3L, FALSE)
   sampler
@@ -2581,7 +2584,24 @@ held <- heldOffsets()
 ptr <- held$getPointer()
 CALL("capi_set_gibbs_hooks", ptr, 0L)
 expect_equal(CALL("capi_set_response", ptr, yH, TRUE), 1L)
-rm(held, ptr)
+held <- heldOffsets()
+held$setData(dbartsData(xH, yH, offset = rep(0.1, nH)))
+ptr <- held$getPointer()
+expect_equal(CALL("capi_set_response", ptr, yH, TRUE), 1L)
+CALL("capi_set_gibbs_hooks", ptr, 0L)
+# a probit sampler has no response scale to re-derive, so its chains' own
+# offsets refuse nothing
+accepted <- function(expr) {
+  !inherits(tryCatch(expr, error = function(e) e), "error")
+}
+held <- heldOffsets(TRUE)
+ptr <- held$getPointer()
+oneRowOut <- c(0, rep(1, nH - 1L))
+expect_true(accepted(held$setWeights(oneRowOut, updateScale = TRUE)))
+expect_true(accepted(held$setActiveRows(oneRowOut, updateScale = TRUE)))
+expect_equal(CALL("capi_set_response", ptr, as.numeric(yH > 1.5), TRUE), 1L)
+CALL("capi_set_gibbs_hooks", ptr, 0L)
+rm(held, ptr, accepted, oneRowOut)
 
 # a C++ consumer's exceptions, from its sweep hook and its draw callback,
 # inline and on a worker, come back to R as errors carrying their what(), and

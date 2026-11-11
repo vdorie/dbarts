@@ -76,40 +76,40 @@ void captureExceptions(CapturedError& into, Body&& body) {
   }
 }
 
-/// captureExceptions, then the raise, labeled with \p caller. For the flat C
-/// API, whose errors are read by a compiled consumer that needs to know which
-/// entry point refused.
-template <typename Body>
-void callConvertingExceptions(const char* caller, Body&& body) {
-  CapturedError error;
-  captureExceptions(error, std::forward<Body>(body));
-  if (error.failed) Rf_error("%s: %s", caller, error.message);
-}
-
-/// Runs \p body and returns its value, with every C++ outcome turned into the
-/// R one: an escaping exception becomes an R error carrying its message alone,
-/// and an UnwindJump resumes the jump it carries. Both are raised once the
-/// handler is left and every frame beneath has unwound, so the owners in those
-/// frames are freed and nothing is in flight at the longjmp.
+/// Runs \p body with every C++ outcome turned into the R one: an escaping
+/// exception becomes an R error carrying its message, after "caller: " when
+/// \p caller is not null, and an UnwindJump resumes the jump it carries. Both
+/// are raised once the handler is left and every frame beneath has unwound, so
+/// the owners in those frames are freed and nothing is in flight at the
+/// longjmp.
 ///
 /// This is the one conversion on the R side. Every .Call entry is registered
-/// through GuardedEntry, which runs the entry under it, and unwindProtect runs
-/// its closure under it, because R_UnwindProtect is itself a C frame. A
-/// caller that must act between the failure and the raise (free a buffer by
-/// hand, hand back R's stream, release a sampler left part-way, add context to
-/// the message) still captures for itself and raises after.
+/// through GuardedEntry and every flat C API entry through GuardedApiEntry,
+/// which run the entry under it, and unwindProtect runs its closure under it,
+/// because R_UnwindProtect is itself a C frame. A caller that must act between
+/// the failure and the raise (free a buffer by hand, hand back R's stream,
+/// release a sampler left part-way, add context to the message) still captures
+/// for itself and raises after.
 template <typename Body>
-SEXP callRaisingExceptions(Body&& body) {
-  SEXP result = R_NilValue;
+void callRaisingExceptions(const char* caller, Body&& body) {
   SEXP continuation = NULL;
   CapturedError error;
   try {
-    captureExceptions(error, [&]() { result = body(); });
+    captureExceptions(error, std::forward<Body>(body));
   } catch (const UnwindJump& jump) {
     continuation = jump.continuation;
   }
   if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
-  if (error.failed) Rf_error("%s", error.message);
+  if (!error.failed) return;
+  if (caller != NULL) Rf_error("%s: %s", caller, error.message);
+  Rf_error("%s", error.message);
+}
+
+/// The unlabeled form for a body returning a SEXP, which it hands back.
+template <typename Body>
+SEXP callRaisingExceptions(Body&& body) {
+  SEXP result = R_NilValue;
+  callRaisingExceptions(NULL, [&]() { result = body(); });
   return result;
 }
 
@@ -141,13 +141,13 @@ struct EntryName {
 };
 
 /// The registration form of a flat C API entry \p Entry, named \p Name: the
-/// same signature, the body run under callConvertingExceptions, so an
-/// exception escaping any entry becomes an R error naming it and carrying its
-/// what(), and an UnwindJump resumes the jump it carries. A compiled
-/// consumer calls an entry from its own frames, which no exception may cross.
-/// A value-returning entry that raises returns nothing, the raise being a
-/// jump; this is where an engine reporting errors without R would return a
-/// negative status and keep the message instead.
+/// same signature, the body run under callRaisingExceptions labeled with the
+/// name, so an exception escaping any entry becomes an R error naming it and
+/// carrying its what(). A compiled consumer calls an entry from its own
+/// frames, which no exception may cross. A value-returning entry that raises
+/// returns nothing, the raise being a jump; this is where an engine reporting
+/// errors without R would return a negative status and keep the message
+/// instead.
 template <auto Entry, EntryName Name, typename Signature = decltype(Entry)>
 struct GuardedApiEntry;
 
@@ -155,26 +155,12 @@ template <auto Entry, EntryName Name, typename Result, typename... Args>
 struct GuardedApiEntry<Entry, Name, Result (*)(Args...)> {
   static Result call(Args... args) {
     if constexpr (std::is_void_v<Result>) {
-      run([&]() { Entry(args...); });
+      callRaisingExceptions(Name.text, [&]() { Entry(args...); });
     } else {
       Result result{};
-      run([&]() { result = Entry(args...); });
+      callRaisingExceptions(Name.text, [&]() { result = Entry(args...); });
       return result;
     }
-  }
-
-private:
-  /// callConvertingExceptions, then the jump an UnwindJump carries, resumed
-  /// once its handler is left.
-  template <typename Body>
-  static void run(Body&& body) {
-    SEXP continuation = NULL;
-    try {
-      callConvertingExceptions(Name.text, std::forward<Body>(body));
-    } catch (const UnwindJump& jump) {
-      continuation = jump.continuation;
-    }
-    if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
   }
 };
 

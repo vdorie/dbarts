@@ -152,21 +152,21 @@
 ///
 /// It folds, in fixed order: the stringized DBARTS_C_API_LIST signatures
 /// (return types, names, parameter lists), the six ABI enums' enumerator names
-/// and values and the text of DBARTS_DRAW_ALL, the stringized signatures of the
-/// two callback types and of the chain view's operations, and the LAYOUT of
-/// every struct that crosses the ABI - dbarts_results, dbarts_predictor_source,
-/// dbarts_draw, dbarts_chain_view - as the compiler reports it: each struct's
-/// size, and each field's name paired with its offset, both in pointer units so
-/// the token is one number on every supported platform. dbarts_draw is the
-/// exception that rule needs: it is the one struct carrying by-value doubles,
-/// whose offset in pointer units is not the same number everywhere, so it folds
-/// its FIELD COUNT in place of its size and folds those doubles by name,
-/// declaration position and width instead of by offset. So a field appended,
-/// removed, reordered or retyped to a different width, a renamed field, and a
-/// renumbered or added enumerator all move it. What it still does not see is an
-/// in-place type swap of a struct field of the SAME width (double* -> int64_t*
-/// under an unchanged name), which moves no offset and no name; that residue is
-/// announced to consumers by hand.
+/// and values, the statuses' words, the text of DBARTS_DRAW_ALL, the stringized
+/// signatures of the two callback types and of the chain view's operations, and
+/// the LAYOUT of every struct that crosses the ABI - dbarts_results,
+/// dbarts_predictor_source, dbarts_draw, dbarts_chain_view - as the compiler
+/// reports it: each struct's size, and each field's name paired with its
+/// offset, both in pointer units so the token is one number on every supported
+/// platform. dbarts_draw is the exception that rule needs: it is the one struct
+/// carrying by-value doubles, whose offset in pointer units is not the same
+/// number everywhere, so it folds its FIELD COUNT in place of its size and
+/// folds those doubles by name, declaration position and width instead of by
+/// offset. So a field appended, removed, reordered or retyped to a different
+/// width, a renamed field, and a renumbered or added enumerator all move it.
+/// What it still does not see is an in-place type swap of a struct field of the
+/// SAME width (double* -> int64_t* under an unchanged name), which moves no
+/// offset and no name; that residue is announced to consumers by hand.
 ///
 /// dbarts_apiHash() == DBARTS_C_API_HASH is an OPT-IN exact-ABI check beside
 /// the major/minor handshake the stubs always enforce: while the version
@@ -189,7 +189,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0x7220b30db0d94fd4ULL
+#  define DBARTS_C_API_HASH 0x2f7fe00e6d31f2dfULL
 #endif
 
 #ifdef __cplusplus
@@ -384,7 +384,10 @@ typedef struct dbarts_draw_t {
 /// called once per SAVED draw per chain, immediately after the engine settles
 /// that draw, with the context registered beside it. A sweep discarded as
 /// burn-in never reaches it. It observes: nothing in the draw may be written
-/// through, and no sampler state may be mutated from inside it.
+/// through, and no sampler state may be mutated from inside it. It calls no
+/// dbarts_sampler_* entry on this sampler, the setters and the run included:
+/// an entry made while the sampler's run is in flight is undefined, as it is
+/// from a sweep hook.
 ///
 /// RETURN. 0 continues. A positive value is a deliberate stop and a negative
 /// value the callback's failure; the run treats the two alike, and either
@@ -637,12 +640,15 @@ typedef enum { DBARTS_SWAP_STATUS_LIST(DBARTS_ENUMERATOR) } dbarts_swap_status;
 /// and treats an unknown negative value as a failure. UNSUPPORTED: the chain
 /// cannot do this at all. INVALID_ARGUMENT: the call is wrong. A view returns
 /// a status rather than raising, since it runs on whatever thread runs the
-/// hook.
+/// hook. Each status carries its words beside its value, so none is added
+/// without them; the compile-time token folds both.
 #define DBARTS_STATUS_LIST(X) \
-  X(DBARTS_OK, 0) \
-  X(DBARTS_UNSUPPORTED, -1) \
-  X(DBARTS_INVALID_ARGUMENT, -2)
-typedef enum { DBARTS_STATUS_LIST(DBARTS_ENUMERATOR) } dbarts_status;
+  X(DBARTS_OK, 0, "success") \
+  X(DBARTS_UNSUPPORTED, -1, "not supported by this sampler") \
+  X(DBARTS_INVALID_ARGUMENT, -2, "invalid argument")
+#define DBARTS_STATUS_ENUMERATOR(name, value, words) name = value,
+typedef enum { DBARTS_STATUS_LIST(DBARTS_STATUS_ENUMERATOR) } dbarts_status;
+#undef DBARTS_STATUS_ENUMERATOR
 
 /// The channels a draw callback reads, one flag per pointer channel of
 /// dbarts_draw, combined with | as dbarts_sampler_setDrawCallback's channels.
@@ -687,11 +693,13 @@ typedef enum {
 /// answers 0; DBARTS_INVALID_ARGUMENT on a sigma that is not finite and
 /// positive.
 ///
-/// The library sets structSize to its own sizeof, as it does in dbarts_draw.
-/// internal is the library's and never read or written by the caller. The
-/// operation members are generated from DBARTS_CHAIN_VIEW_OPS, whose text the
-/// compile-time token folds; a future operation appends to that list, which
-/// puts its member last.
+/// The library sets structSize to its own sizeof, as it does in dbarts_draw,
+/// so a consumer reads a member appended after the header it was built against
+/// through DBARTS_HAS_FIELD(dbarts_chain_view, view, member). internal is the
+/// library's and never read or written by the caller. The operation members
+/// are generated from DBARTS_CHAIN_VIEW_OPS, whose text the compile-time token
+/// folds; a future operation appends to that list, which puts its member last,
+/// and bumps DBARTS_C_API_MINOR after 1.0-0.
 typedef struct dbarts_chain_view_t dbarts_chain_view;
 #define DBARTS_CHAIN_VIEW_OPS(X) \
   X(int, setOffset, (dbarts_chain_view* view, const double* offset)) \
@@ -703,6 +711,9 @@ struct dbarts_chain_view_t {
   size_t numObservations;
   void* internal;    ///< the library's
   DBARTS_CHAIN_VIEW_OPS(DBARTS_CHAIN_VIEW_MEMBER)
+  /* 1.0-0 field boundary: the members above are the initial set. An
+     operation appended to DBARTS_CHAIN_VIEW_OPS lands after them, never
+     before, and bumps DBARTS_C_API_MINOR after 1.0-0. */
 };
 #undef DBARTS_CHAIN_VIEW_MEMBER
 
@@ -725,7 +736,8 @@ struct dbarts_chain_view_t {
 /// NO R CALL OF ANY KIND, on any path, an inline run's included: no
 /// allocation, printing, error, random number or interrupt check, so one rule
 /// holds at every thread count. The hook touches only its own chain, through
-/// the view, and calls no dbarts_sampler_* entry on this sampler. No C++
+/// the view, and calls no dbarts_sampler_* entry on this sampler, which is
+/// undefined while its run is in flight. No C++
 /// exception may escape it: a consumer catches its own, keeps it, returns a
 /// negative value and re-raises after the run, on a draw callback's rule,
 /// whose safety net catches one here too.

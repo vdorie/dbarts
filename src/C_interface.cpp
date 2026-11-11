@@ -39,17 +39,24 @@ using bartcore_bridge::validateTestContainerAgainstStore;
 
 namespace {
 
+// No entry runs on a sampler while its run is in flight, as from inside one of
+// its hooks: the header calls that undefined. Asserted where assertions are
+// compiled in, which no build of the package is, R adding -DNDEBUG; a check in
+// a shipped build could report only by an R error, itself undefined on the
+// worker where such a call would land.
+inline void assertNotRunning([[maybe_unused]] const dbarts_sampler* sampler) {
+  assert(!sampler->sampler->isRunning());
+}
+
 // dbarts_sampler_t IS the bridge's holder (R_interface_bartcore_common.hpp), so
 // the address in an R sampler object's external pointer is the handle dbarts.h
-// declares. Nothing is wrapped and nothing is owned here. No entry runs on a
-// sampler while its run is in flight, as from inside one of its hooks, which a
-// debug build asserts here.
+// declares. Nothing is wrapped and nothing is owned here.
 inline bartcore::SamplerBase& samplerOf(dbarts_sampler* sampler) {
-  assert(!sampler->sampler->isRunning());
+  assertNotRunning(sampler);
   return *sampler->sampler;
 }
 inline const bartcore::SamplerBase& samplerOf(const dbarts_sampler* sampler) {
-  assert(!sampler->sampler->isRunning());
+  assertNotRunning(sampler);
   return *sampler->sampler;
 }
 
@@ -525,6 +532,8 @@ constexpr std::uint64_t dbarts_foldLayout(std::uint64_t hash) {
 
 // "NAME=VALUE;" per enumerator.
 #define DBARTS_ENUMERATOR_TEXT(name, value) #name "=" #value ";"
+// "NAME=VALUE:words;" per status, the words being part of what a status is
+#define DBARTS_STATUS_TEXT(name, value, words) #name "=" #value ":" words ";"
 // a macro's expansion as a string literal
 #define DBARTS_MACRO_TEXT_(text) #text
 #define DBARTS_MACRO_TEXT(macro) DBARTS_MACRO_TEXT_(macro)
@@ -547,7 +556,7 @@ constexpr std::uint64_t dbarts_apiToken() {
   hash = dbarts_fnv1a(hash, DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_SWAP_STATUS_LIST(DBARTS_ENUMERATOR_TEXT));
-  hash = dbarts_fnv1a(hash, DBARTS_STATUS_LIST(DBARTS_ENUMERATOR_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_STATUS_LIST(DBARTS_STATUS_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_DRAW_CHANNEL_LIST(DBARTS_ENUMERATOR_TEXT));
   hash =
     dbarts_fnv1a(hash, "DBARTS_DRAW_ALL=" DBARTS_MACRO_TEXT(DBARTS_DRAW_ALL));
@@ -661,16 +670,17 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
       // from R's stream once at creation), never from R's stream during a run,
       // so no GetRNGstate/PutRNGstate bracket is needed here - and none is
       // left unbalanced by a longjmp out of the engine.
-      // the registered observer, adapted to the shipped draw struct one draw
+      //
+      // The sweep hook's views read the row count and the pinned-sigma
+      // answer, settled here once on this thread.
+      bartcore::SweepHook onSweep = sampler->sweepHook.prepareRun(
+        shape.numChains, shape.numObservations,
+        sigmaIsPinned(samplerOf(sampler)));
+      // The registered observer is adapted to the shipped draw struct one draw
       // at a time; an empty hook when nothing is registered. The interrupt
       // poll is the R route's, so a pending interrupt cancels the run at the
       // next sweep boundary or inside a leaf-order count, and the engine says
       // whether a cancel was the callback's stop rather than an interrupt.
-      // the sweep hook's views read the row count and the pinned-sigma
-      // answer, settled here once on this thread
-      bartcore::SweepHook onSweep = sampler->sweepHook.engineHook(
-        shape.numChains, shape.numObservations,
-        sigmaIsPinned(samplerOf(sampler)));
       canceled = samplerOf(sampler).run(
         numBurnIn, numSamples, engineResults, bartcore_bridge::userInterrupted,
         onSweep, sampler->drawHook.engineHook(), &stoppedByCallback);
@@ -703,6 +713,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
 void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
                                     dbarts_draw_callback fn, void* context,
                                     unsigned int channels) {
+  assertNotRunning(sampler);
   sampler->drawHook.set(fn, context, channels);
 }
 
@@ -715,11 +726,7 @@ int dbarts_sampler_setSweepHook(dbarts_sampler* sampler, dbarts_sweep_hook fn,
   bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   if (responseConduitIsFixed(shape)) return 0;
-  if (fn == NULL) {
-    engine.restoreSharedOffset();
-    sampler->sweepHook.clear();
-    return 1;
-  }
+  if (fn == NULL) engine.restoreSharedOffset();
   sampler->sweepHook.set(fn, context, shape.numChains, shape.numObservations);
   return 1;
 }

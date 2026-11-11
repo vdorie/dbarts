@@ -144,7 +144,8 @@ text of both hook typedefs, `dbarts_draw_callback` and `dbarts_sweep_hook`, so a
 it (call A13).
 
 - Registration copies (fn, context) into the holder on the copy-on-set rule and allocates one n-double offset
-  buffer per chain, each seeded from the sampler-wide offset in force (zeros if none). It is a capability
+  buffer per chain, not seeded: a chain draws against the sampler-wide offset until its hook first writes its
+  own through the view, which copies all n values. It is a capability
   status: 0, touching nothing, on a sampler where a chain's offset can never be written: a fixed response
   conduit, or a multi-forest coupling that admits no response mutation, the cases where
   `dbarts_sampler_setOffset` returns 0 or raises whatever its arguments. 1 otherwise. A null fn clears the hook
@@ -166,7 +167,8 @@ it (call A13).
   touching nothing, on a non-finite value. Registration has already ruled out a sampler where the write is
   never legal. `setSigma(view, sigma)`: `DBARTS_OK` on a write; `DBARTS_UNSUPPORTED` (-1) where the model fixes
   sigma, as `dbarts_sampler_setSigma` decides; `DBARTS_INVALID_ARGUMENT` on a value that is not finite and
-  positive. The names and values are the host-neutral plan's statuses, from `DBARTS_STATUS_LIST` (call A7).
+  positive. The names, values and words are the host-neutral plan's statuses, from its three-argument
+  `DBARTS_STATUS_LIST` (call A7).
 - `dbarts_sampler_setDrawCallback` takes the channels the callback reads, `unsigned int channels`: one
   `dbarts_draw_channel` flag per pointer channel of `dbarts_draw` (the variance pair one flag), or
   `DBARTS_DRAW_ALL`. A run computes the channels it stores and the named ones; one neither stored nor named
@@ -210,10 +212,11 @@ setter. Its operations are never resolved through `DBARTS_USE_STUBS`, whose firs
 
 ### Bridge (D2)
 
-- The holder gains `std::vector<std::vector<double>> ownedChainOffsets`: nested, as `ownedForestWeights` is,
-  so a pointer a chain borrows survives later growth. It is sized at registration, empty otherwise. It also
-  gains the shipped hook (fn, context), beside `drawHook`.
-- The view's operations live in the flat entry file, with no R API inside (no `R_finite`; `std::isfinite`).
+- The holder gains `sweepHook`, beside `drawHook`: the shipped hook (fn, context) and its
+  `std::vector<std::vector<double>> chainOffsets`, nested, as `ownedForestWeights` is, so a pointer a chain
+  borrows survives later growth. The buffers are sized at registration, empty otherwise.
+- The view's operations live in the shared bridge header, so tests/cpp reaches them, with no R API inside
+  (no `R_finite`; `std::isfinite`).
   The bridge fills one view per chain per run on the worker's stack.
 - A sampler-wide `dbarts_sampler_setOffset` (or the R `$setOffset`) after chains hold their own offsets puts
   every chain back on the shared buffer, as it does today. A sampler-wide re-derivation of the transform
@@ -533,10 +536,10 @@ A6. **No exception escapes either hook**, by dec-B581's rule: a consumer catches
     contract across separately built C++ runtimes (Windows DLLs). stan4bart's slices follow the rule.
     Alternative: the net as the contract, which fails where unwinding does not cross libraries.
 A7. **The host-neutral statuses** (dec-B119, dec-B571, dec-B572): 0 `DBARTS_OK`, -1 `DBARTS_UNSUPPORTED`, -2
-    `DBARTS_INVALID_ARGUMENT`, defined now from `DBARTS_STATUS_LIST` with that plan's names and values; the
-    host-neutral work adds its other codes to the same list. Alternative: a separate three-valued chain status,
-    which the host-neutral header would carry beside its own; or the capability 0/1 with a raise on bad
-    values, which is not allowed on a worker.
+    `DBARTS_INVALID_ARGUMENT`, defined now from `DBARTS_STATUS_LIST` in that plan's three-argument form (name,
+    value, words, all folded into the token); the host-neutral work adds its other codes to the same list.
+    Alternative: a separate three-valued chain status, which the host-neutral header would carry beside its
+    own; or the capability 0/1 with a raise on bad values, which is not allowed on a worker.
 A8. **Latents in `dbarts_draw`.** Alternative: keep a `getLatents` on the view and hand a binary fit's latents
     over at the next group's hook. That splits the hand-off across two calls and, at a run's last draw,
     pushes it past the adaptation freeze at the warmup boundary, out of today's order.

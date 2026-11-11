@@ -140,10 +140,10 @@ struct ShippedDrawHook {
 /// leaves its callbacks unprotected, which is the behavior a registered
 /// callback had before this existed.
 ///
-/// The previous value is RESTORED rather than cleared: a callback may enter a
-/// run of its own on the same sampler, which nests two of these over one hook,
-/// and clearing would leave the outer run's remaining draws unprotected once
-/// the inner run returned.
+/// The previous value is RESTORED rather than cleared, so the protection
+/// nests: a callback that enters a run of its own on the same sampler, which
+/// the header leaves undefined and the engine refuses, leaves the outer run's
+/// remaining draws protected.
 class DrawCallbackProtection {
 public:
   explicit DrawCallbackProtection(ShippedDrawHook& hook)
@@ -248,28 +248,32 @@ struct ShippedSweepHook {
   std::size_t numObservations = 0;
   bool sigmaIsPinned = false;
 
-  /// Registers \p function and \p callerContext, sizing a buffer per chain
-  /// first, so an allocation that fails registers nothing new.
+  /// ShippedDrawHook::set's semantics, with a buffer per chain: a null
+  /// function CLEARS, dropping the context and the buffers, and the caller
+  /// first puts every chain back on the sampler-wide offset, since a chain may
+  /// borrow one; a registration sizes the buffers before it takes \p function
+  /// and \p callerContext, so an allocation that fails registers nothing new.
   void set(dbarts_sweep_hook function, void* callerContext,
            std::size_t numChains, std::size_t rows) {
+    if (function == nullptr) {
+      fn = nullptr;
+      context = nullptr;
+      std::vector<std::vector<double>>().swap(chainOffsets);
+      return;
+    }
     resize(numChains, rows);
     fn = function;
     context = callerContext;
   }
-  /// Drops the hook, its context and the buffers. The caller first puts every
-  /// chain back on the sampler-wide offset, since a chain may borrow one.
-  void clear() {
-    fn = nullptr;
-    context = nullptr;
-    std::vector<std::vector<double>>().swap(chainOffsets);
-  }
 
-  /// The engine-facing hook for one run, empty while nothing is registered.
-  /// Called on the run's own thread before it starts, so no view allocates:
-  /// a buffer is resized only where the row count moved, which only a
-  /// sampler-wide install does, one that leaves no chain borrowing a buffer.
-  /// It borrows THIS object, so it must not outlive it.
-  bartcore::SweepHook engineHook(std::size_t numChains, std::size_t rows,
+  /// Readies the registration for one run and returns the engine-facing hook,
+  /// empty while nothing is registered: sizes each chain's buffer to \p rows
+  /// and pins the run's answer to whether sigma is fixed. Called on the run's
+  /// own thread before it starts, so no view allocates: a buffer is resized
+  /// only where the row count moved, which only a sampler-wide install does,
+  /// one that leaves no chain borrowing a buffer. The hook borrows THIS
+  /// object, so it must not outlive it.
+  bartcore::SweepHook prepareRun(std::size_t numChains, std::size_t rows,
                                  bool pinned);
 
 private:
@@ -298,7 +302,7 @@ inline int shippedSweepTrampoline(void* context, bartcore::ChainView& chain,
   return hook.fn(hook.context, &view, sweepIndex, isBurnIn ? 1 : 0);
 }
 
-inline bartcore::SweepHook ShippedSweepHook::engineHook(std::size_t numChains,
+inline bartcore::SweepHook ShippedSweepHook::prepareRun(std::size_t numChains,
                                                         std::size_t rows,
                                                         bool pinned) {
   if (fn == nullptr) return bartcore::SweepHook();
@@ -596,7 +600,8 @@ void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
 /// Errors on a sampler of a family with a response scale whose chains hold
 /// offsets a sweep hook wrote (SamplerBase::chainsHoldOwnOffsets), asked to
 /// re-derive the response transform (any updateScale but an explicit FALSE),
-/// which would read it from several offsets. Raised before anything is
+/// which is read from the sampler-wide offset those chains no longer draw
+/// against. Raised before anything is
 /// installed. A sampler-wide offset swap at updateScale true is not refused:
 /// it hands every chain one offset. caller labels the error.
 void refuseChainOffsetRederivation(const bartcore::SamplerBase& sampler,
