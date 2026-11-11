@@ -2315,7 +2315,24 @@ readConvergence <- function() {
             agg <- t(vapply(
               perRep,
               function(fl) {
-                v <- lapply(fl, function(f) f$coverage[[cl]])
+                # a replication may hold no row of a class (no tail row)
+                v <- Filter(
+                  Negate(is.null),
+                  lapply(fl, function(f) f$coverage[[cl]])
+                )
+                if (length(v) == 0L) {
+                  return(c(
+                    n = 0,
+                    cov = 0,
+                    perfit = NA,
+                    sq = 0,
+                    err = 0,
+                    width = 0,
+                    sqP = 0,
+                    errP = 0,
+                    widthP = 0
+                  ))
+                }
                 n <- sum(vapply(v, function(x) x[["n"]], 0))
                 cov <- sum(vapply(v, function(x) x[["cov90"]], 0))
                 perfit <- mean(
@@ -2644,6 +2661,14 @@ runR3Stream <- function(key, Lmax) {
   # columns), or, on the effect regimes, ite (every unit, each draw's
   # difference of probabilities, as classesFrom forms it)
   have <- intersect(c("fInt", "fTail", "ite"), names(comp$rows))
+  # a class may hold no row on a dataset (no tail row): it is not read there
+  have <- have[vapply(
+    have,
+    function(nm) {
+      is.null(comp$rows[[nm]]$cols) || length(comp$rows[[nm]]$cols) > 0L
+    },
+    NA
+  )]
   ref <- lapply(have, refRow)
   names(ref) <- have
   rowsOf <- function(Ld, nm, cols) {
