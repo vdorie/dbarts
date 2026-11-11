@@ -5,10 +5,11 @@
 # derives one it does not, except the response range, which the sampler keeps
 # as setResponse does (dec-B778). So setData(sampler$data) after an edit holds
 # the grid, the range and the standardization, and a fresh dbartsData()
-# derives the grid and the standardization and keeps the range. setPredictor(updateStandardization = TRUE) derives a linear
-# or gp leaf's standardization over the values the update leaves, a linear
-# leaf's coefficients rewritten into it. A gp sampler holding kept draws is
-# refused only a call that would change its standardization or its range.
+# derives the grid and the standardization and keeps the range.
+# setPredictor(updateStandardization = TRUE) derives a linear or gp leaf's
+# standardization over the values the update leaves, a linear leaf's
+# coefficients rewritten into it. A gp sampler holding kept draws is refused
+# only a call that would change its standardization or its range.
 
 set.seed(71L, sample.kind = "Rejection")
 n <- 120L
@@ -122,7 +123,9 @@ for (prior in c("linear", "normal")) {
 }
 
 # the kept range is the sampler's record, so a copy and a sampler saved and
-# loaded after the call are made on it and draw as the sampler does
+# loaded after the call are made on it and draw as the sampler does (the
+# nbinom case below compares the copy with the reload only: a nbinom copy
+# draws differently from its sampler even with no setData, a separate matter)
 sampler <- make(normal())
 own <- sampler$data@response.range
 sampler$setData(dbarts::dbartsData(x.other, y.other))
@@ -136,7 +139,8 @@ expect_identical(readerOf(copied)$response.range, own)
 expect_identical(readerOf(reloaded)$response.range, own)
 expect_identical(stateOf(copied), stateOf(sampler))
 expect_identical(stateOf(reloaded), stateOf(sampler))
-draws <- copied$run(0L, 5L)
+draws <- sampler$run(0L, 5L)
+expect_identical(copied$run(0L, 5L), draws)
 expect_identical(reloaded$run(0L, 5L), draws)
 
 # ---- carried held ----------------------------------------------------------
@@ -184,6 +188,28 @@ expect_equal(
   log(mean(2 * counts[x[, 1L] > 0.5])),
   tolerance = 1e-14
 )
+# the count center is kept like the range: a fresh data object on other counts
+# leaves it, and updateScale = TRUE gives what a sampler made on them takes
+fresh <- dbarts::dbarts(
+  x,
+  counts,
+  family = "nbinom",
+  control = controlWith(),
+  n.trees = 15L
+)
+freshCenter <- fresh$data@response.range
+fresh$setData(dbarts::dbartsData(x, 2 * counts))
+expect_identical(fresh$data@response.range, freshCenter)
+fresh$setData(dbarts::dbartsData(x, 2 * counts), updateScale = TRUE)
+doubled <- dbarts::dbarts(
+  x,
+  2 * counts,
+  family = "nbinom",
+  control = controlWith(),
+  n.trees = 15L
+)
+expect_identical(fresh$data@response.range, doubled$data@response.range)
+expect_false(identical(fresh$data@response.range, freshCenter))
 # a count record that is no center's is refused naming the slot; one of
 # another width is read by its first number, the center, and recorded as
 # the window the family holds

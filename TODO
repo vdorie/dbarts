@@ -1994,9 +1994,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     updateScale explicitly with the value their model means (dec-B498) -
     countSTAR, mcmcsae, nlfh, TobitBART, SURBART, nkids, sebart, nbbart,
     sudo, mf-bavart, mf-ss; $setData with a fresh dbartsData() keeps the
-    sampler's response scale where 0.9-34 derived it (dec-B778), so nkids
-    (four $setData calls in R/princeB5.r) is asked to pass updateScale
-    with the value its model means; the maintainer's own plotBart and
+    sampler's response scale where 0.9-34 derived it (dec-B778); nkids'
+    four $setData calls (R/princeB5.r) pass dbartsData() on the X, response
+    and subset the samplers were made on, so the kept scale equals the
+    derived one and it is unaffected; the maintainer's own plotBart and
     thinkCausal get change lists. This subsumes the separate lorax, WeightIt/MatchIt, countSTAR
     and tmle contact items below.
   pre-release sequence (VD 2026-09-12): VD's own items before the

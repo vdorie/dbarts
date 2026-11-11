@@ -1767,7 +1767,7 @@ setDataChoices <- function(
       updateScale,
       "updateScale",
       dataResponseRange(newData),
-      "keep"
+      absent = "keep"
     ),
     standardization = choose(
       updateStandardization,
