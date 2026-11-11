@@ -3,11 +3,11 @@ source(
   local = TRUE
 )
 
-# Serializing a keepTrees fit for later predict requires capturing the tree
-# state first with storeState() - it is not captured automatically because it
-# duplicates the trees on the R side. The round-trip must then reproduce
-# pre-serialization predictions exactly, and a fit saved without the capture
-# must error on predict naming storeState().
+# A bart() fit that keeps its trees stores the sampler's state at the end of the
+# fit, so a fit saved and read back predicts as the original did; a sampler
+# run further is stored again with storeState() before saving. A fit that keeps
+# no trees has no sampler to store. A bartBT-style fit keeps its tree state as
+# 0.9-x did.
 
 roundTripStoreState <- function(object) {
   tempFile <- tempfile()
@@ -49,10 +49,51 @@ bart2Fit <- dbarts::bart(
 )
 preds.old <- predict(bart2Fit, x)
 
-# without the capture, the reloaded fit refuses predict, naming the mechanism
-expect_error(predict(roundTripStoreState(bart2Fit), x), pattern = "storeState")
-
-bart2Fit$fit$storeState()
+# no manual step: the fit stored its state at the end of the fit
+# (reading the state field would itself store it, so it is read after)
+expect_equal(predict(roundTripStoreState(bart2Fit), x), preds.old)
 expect_true(!is.null(bart2Fit$fit$state))
-preds.new <- predict(roundTripStoreState(bart2Fit), x)
-expect_equal(preds.old, preds.new)
+bart2Fit$fit$storeState()
+expect_equal(predict(roundTripStoreState(bart2Fit), x), preds.old)
+
+# a default hazard fit keeps its trees, so it reloads whole too
+set.seed(3L)
+nh <- 40L
+h <- data.frame(
+  time = sample(1:3, nh, TRUE),
+  status = rbinom(nh, 1L, 0.7),
+  x1 = runif(nh)
+)
+hazardFit <- bart(
+  survival::Surv(time, status) ~ x1,
+  data = h,
+  family = "hazard",
+  n.trees = 5L,
+  n.samples = 6L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_equal(
+  survivalProbabilities(
+    roundTripStoreState(hazardFit),
+    1:3,
+    newdata = h[1:5, ]
+  ),
+  survivalProbabilities(hazardFit, 1:3, newdata = h[1:5, ])
+)
+
+# a fit that keeps no trees keeps no sampler and is unchanged
+noTrees <- dbarts::bart(
+  x,
+  y,
+  n.trees = 5L,
+  n.samples = 7L,
+  n.burn = 0L,
+  keepTrees = FALSE,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_null(noTrees$fit)
+expect_equal(roundTripStoreState(noTrees)$yhat.train, noTrees$yhat.train)

@@ -719,6 +719,11 @@ packageBartResults <- function(
   }
 
   if (keepSampler) {
+    # a fit that keeps its trees holds them behind a pointer, which saveRDS
+    # keeps only through the stored state
+    if (fit$control@keepTrees) {
+      fit$storeState()
+    }
     result$fit <- fit
   }
   # the Gaussian-process fallback census of the run that produced this fit:
@@ -2541,6 +2546,9 @@ bart2Multinomial <- function(
   # keepSampler retains $fit on its own, independent of keepTrees, so a
   # caller can see the sampler without paying for the K forests' saved trees.
   if (control@keepTrees || keepSampler) {
+    if (control@keepTrees) {
+      sampler$storeState()
+    }
     result$fit <- sampler
   }
   result
@@ -2631,6 +2639,9 @@ bart2MultinomialCounts <- function(
     levels.source = if (synthesized) "index" else "labels"
   )
   if (control@keepTrees || keepSampler) {
+    if (control@keepTrees) {
+      sampler$storeState()
+    }
     result$fit <- sampler
   }
   result
@@ -2947,6 +2958,9 @@ bart2Ordinal <- function(
     result$thresholds.raw <- thresholdsRawFull
   }
   if (control@keepTrees || keepSampler) {
+    if (control@keepTrees) {
+      sampler$storeState()
+    }
     result$fit <- sampler
   }
   result
@@ -3239,6 +3253,9 @@ bart2Negbin <- function(
     result$shape.raw <- shapeRaw
   }
   if (control@keepTrees || keepSampler) {
+    if (control@keepTrees) {
+      sampler$storeState()
+    }
     result$fit <- sampler
   }
   result

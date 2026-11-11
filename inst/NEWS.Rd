@@ -326,6 +326,12 @@
   }
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
+      \item A \code{bart} fit that keeps its trees stores its sampler's
+            state at the end of the fit, so it reloads whole after
+            \code{saveRDS} or \code{save}: 0.9-34's fit with
+            \code{keeptrees = TRUE} needed \code{fit$fit$storeState()}
+            before saving. It adds about 8 to 9 MB of file and 15 to 25 MB
+            of memory at the defaults, growing with draws and trees.
       \item A \code{TRUE}/\code{FALSE} argument takes a single logical or
             number, read as \code{as.logical} reads it (0 is \code{FALSE}),
             and refuses \code{NA}, a string or another length by name.
@@ -826,12 +832,15 @@
             \code{predict(bases = )} takes back. \code{summary} gives each
             basis forest's average effect per unit of its basis over the
             training rows, each row at its count under frequency weights, and
-            its spread across them, each a posterior median with an interval.
+            its spread across them, each a posterior median with an interval;
+            on a binary, binomial or hazard response a second line gives the
+            change in probability (a factor's second level against its
+            first) or the slope of the probability per unit.
             Gaussian, probit, logistic and discrete-time hazard responses;
             \code{predict} and \code{extract} report each forest separately
             (\code{type = "forest"}) or combined. A forest's size is its
             \code{sd}, \code{forest(sd = )}, a number of the response's
-            units (those of the latent index under probit and logistic),
+            units (those of the latent index under probit, logistic and the hazards),
             which \code{$setForest} restates and
             \code{$getLeafPrior()} returns, with whether it was stated; the
             one forest of a single-forest model states its size as
