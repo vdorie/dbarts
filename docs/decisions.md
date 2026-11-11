@@ -2520,7 +2520,7 @@ Landed on dbarts main on 2026-11-11 (f57eed4e9; the commits ffbd318cd, 8a89ea960
 5. The builder's call. docs/design/kernel-vocabulary.md's "bitwise identical across instruction sets" invariant holds only where multiply-adds fuse within one expression or not at all, and points to the Reproducibility contract in docs/architecture.md; TODO misc-makefile-echo was opened for src/misc/Makefile's SIMD rules, whose echoed compile lines are not the ones run.
 The reviewer's nit stays open and unverified: from GCC's documentation, GCC 13 and earlier may treat -ffp-contract=on as off, which is harmless for the skips.
 Gates of the slice: touched test files on the shipped and reference libraries (0 failures; 12, 81 and 102 assertions), the workflow steps run as written on the reference library and on the fast-math mutant (all fail there), YAML parse, actionlint (nothing new), lintr, air, rc-codoc, win-drift, doc-freshness and verify-anchors ok; the review reran the step scripts on its own libraries; CI on the tip all green.
-Record: .github/workflows/exact-gates.yaml and cpp-tests.yaml; src/R_interface.cpp (buildInfo); docs/design/kernel-vocabulary.md; TODO, misc-makefile-echo. Marked: blank. See also: [dec-B786]. [dec-A450]
+Record: .github/workflows/exact-gates.yaml and cpp-tests.yaml; src/R_interface.cpp, the buildInfo field; docs/design/kernel-vocabulary.md; TODO, misc-makefile-echo. Marked: blank. See also: [dec-B786]. [dec-A450]
 
 ## B. Decisions with maintainer evidence
 
