@@ -6195,6 +6195,15 @@ Built (r-fixes-1111).
 See also: [dec-B220], [dec-B750].
 Record: root TODO, pdbart-max-predictions-cap-revisit. Marked: ruled by the maintainer, 2026-11-11. [dec-B812]
 
+**A hazard fit keeps its training draws by default, as every family does**
+dec-B750 left open whether hazard fits keep training draws by default. They are each draw's fitted hazard at every person-period row, about 32 of the roughly 36 KB a row a fit costs at bart()'s defaults (4 chains of 500 draws): 10,000 subjects over 10 periods hold about 3.6 GB with them and 0.4 GB without (scratch/haztrain/report.md). They serve fitted, residuals, predict with no newdata, extract of ev, bart, ppd and loglik, and plot; print, summary, test-set draws and the scalar extracts work without them, and the draws are the same either way. Without them, everything but plot is recoverable from predict on the person-period rows only when the fit kept its trees, which bart() does not by default. No family defaults differently; 0.9-34 kept training fits by default in every model and had no hazard family; the BART package's surv.bart always returns training draws. Shown: (a) keep as built, the dec-B750 warning naming keepTrainingFits = FALSE when the projection exceeds memory, recommended; (b) hazard fits default to keepTrainingFits = FALSE; (c) drop them only when the projected memory exceeds the machine's.
+The maintainer, 2026-11-11: "(a)"
+The rule: hazard fits keep training draws by default, as every family does; the memory warning names keepTrainingFits = FALSE as a way out.
+The alternative was a lean default for hazard fits, with fitted failing on a default fit. The cost is about 32 KB a person-period row at the defaults, stated by the warning when it matters.
+Built (as it stood).
+See also: [dec-B750], [dec-B795].
+Record: root TODO, hazard-keep-training-default. Marked: ruled by the maintainer, 2026-11-11. [dec-B813]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

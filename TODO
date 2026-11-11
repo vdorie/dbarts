@@ -1682,7 +1682,7 @@ items
     range, as the updateScale item does. (8) The help of
     model.frame.dbartsData states that an unnamed matrix of two or
     more columns is named 1, 2, ... until basis-references-part-2
-    lands (dec-B805). Not built.
+    lands (dec-B805). Built (03dac6b27, on main at f59b8de2a).
   summary-basis-probability-line: (dec-B806, revising dec-A438 call
     16) on a binary, binomial or hazard fit the basis-forest block
     adds a change-in-probability line under its link-scale line, per
@@ -1705,10 +1705,8 @@ items
     dec-A455 says. Not done.
   pdbart-max-predictions-cap-revisit: dec-B812 drops pdbart's
     n.max.predictions refusal and argument. Built on r-fixes-1111.
-  hazard-keep-training-default: a question for the maintainer left
-    open by dec-B750: whether hazard fits keep training draws by
-    default (keepTrainingFits; about 31 KB a row, nine tenths of it
-    the kept draws). A premise run, then the question. Not decided.
+  hazard-keep-training-default: dec-B813 keeps hazard fits' training
+    draws by default, as every family does. Nothing to build.
   fixes-2026-11-10-slices: the 2026-11-10 sitting's unbuilt fix items,
     queued after threaded-chains lands, in four slices (about 350
     lines): R fixes 2, no draws move (fit-weights-record,
