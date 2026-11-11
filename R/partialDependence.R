@@ -10,8 +10,7 @@ pdbart.ownArgs <- c(
   "newdata",
   "n.average.rows",
   "average.weights",
-  "times",
-  "n.max.predictions"
+  "times"
 )
 
 # bart's arguments pdbart sets itself, under either spelling, each mapped to
@@ -536,8 +535,7 @@ pdbart.checkAveraging <- function(
   newdata,
   n.average.rows,
   caller,
-  times = NULL,
-  n.max.predictions = 5e9
+  times = NULL
 ) {
   if (
     !is.null(times) &&
@@ -548,14 +546,6 @@ pdbart.checkAveraging <- function(
         any(times <= 0))
   ) {
     stop("'times' must be finite and positive", call. = FALSE)
-  }
-  if (
-    !is.numeric(n.max.predictions) ||
-      length(n.max.predictions) != 1L ||
-      is.na(n.max.predictions) ||
-      n.max.predictions <= 0
-  ) {
-    stop("'n.max.predictions' must be a positive number", call. = FALSE)
   }
   if (!is.character(type) || length(type) != 1L || is.na(type)) {
     stop("'type' must be a single string", call. = FALSE)
@@ -1547,8 +1537,7 @@ pdbart.setup <- function(
   n.average.rows,
   average.weights,
   caller,
-  times = NULL,
-  n.max.predictions = 5e9
+  times = NULL
 ) {
   sampler <- prologue$sampler
   isSampler <- prologue$isSampler
@@ -1602,7 +1591,6 @@ pdbart.setup <- function(
         }
       ))
     },
-    n.max.predictions = n.max.predictions,
     formulaFit = formulaFit,
     xind = xind,
     keys = pdbart.keys(sampler, xind, formulaFit),
@@ -1859,41 +1847,12 @@ pdbart.chunkOffset <- function(sampler, frame, rows) {
 }
 
 # Per-draw averages of the survival scale at each setting and time, draws x
-# times x settings. On a hazard fit the work is counted first and refused
-# above 'n.max.predictions'.
+# times x settings.
 pdbart.survivalDrawsAt <- function(setup, settings, bound) {
   fit <- setup$fit
   sampler <- setup$sampler
   frame <- setup$frame
   times <- setup$times
-  if (setup$hazard) {
-    numPeriods <- sum(fit$periods <= max(times))
-    count <- as.double(nrow(frame$rows)) *
-      numPeriods *
-      sampler$control@n.samples *
-      sampler$control@n.chains *
-      length(settings)
-    if (count > setup$n.max.predictions) {
-      stop(
-        "partial dependence on this hazard fit would make ",
-        format(count, digits = 3L),
-        " predictions (subjects x periods up to the largest time x draws x ",
-        "grid values), above n.max.predictions = ",
-        format(setup$n.max.predictions, digits = 3L),
-        ". Use a coarser period grid (hazard(breaks = )), fewer subjects ",
-        "('newdata' or 'n.average.rows'), fewer grid values ('levs' or ",
-        "'levquants'), or an earlier largest time ('times'), or raise ",
-        "'n.max.predictions'",
-        if (setup$dataCall) {
-          paste0(
-            ". Fit once with bart(..., keepTrees = TRUE) and pass the fit, ",
-            "so that a retry does not refit"
-          )
-        },
-        call. = FALSE
-      )
-    }
-  }
   fd <- NULL
   for (i in seq_along(settings)) {
     rows <- pdbart.setVariables(
@@ -2013,7 +1972,6 @@ pdbart <- function(
   n.average.rows = NULL,
   average.weights = NULL,
   times = NULL,
-  n.max.predictions = 5e9,
   ...
 ) {
   matchedCall <- match.call()
@@ -2030,8 +1988,7 @@ pdbart <- function(
     newdata,
     n.average.rows,
     "pdbart",
-    times,
-    n.max.predictions
+    times
   )
 
   dataGiven <- !missing(data)
@@ -2061,8 +2018,7 @@ pdbart <- function(
     n.average.rows,
     average.weights,
     "pdbart",
-    times,
-    n.max.predictions
+    times
   )
   numVariables <- length(setup$xind)
   massign[levs, levels] <- pdbart.grid(
@@ -2128,7 +2084,6 @@ pd2bart <- function(
   n.average.rows = NULL,
   average.weights = NULL,
   times = NULL,
-  n.max.predictions = 5e9,
   ...
 ) {
   matchedCall <- match.call()
@@ -2145,8 +2100,7 @@ pd2bart <- function(
     newdata,
     n.average.rows,
     "pd2bart",
-    times,
-    n.max.predictions
+    times
   )
 
   dataGiven <- !missing(data)
@@ -2216,8 +2170,7 @@ pd2bart <- function(
     n.average.rows,
     average.weights,
     "pd2bart",
-    times,
-    n.max.predictions
+    times
   )
   massign[levs, levels] <- pdbart.grid(setup, levs, levquants, 2L, `<=`)
   rows <- if (setup$isSampler) setup$frame$source else setup$frame$rows

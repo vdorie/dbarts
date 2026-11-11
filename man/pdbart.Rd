@@ -15,7 +15,7 @@ pdbart(
     pl = TRUE, plquants = c(0.05, 0.95),
     type = "auto", newdata = NULL,
     n.average.rows = NULL, average.weights = NULL,
-    times = NULL, n.max.predictions = 5e9,
+    times = NULL,
     \dots)
 
 \method{plot}{pdbart}(
@@ -32,7 +32,7 @@ pd2bart(
     pl = TRUE, plquants = c(0.05, 0.95),
     type = "auto", newdata = NULL,
     n.average.rows = NULL, average.weights = NULL,
-    times = NULL, n.max.predictions = 5e9,
+    times = NULL,
     \dots)
 
 \method{plot}{pd2bart}(
@@ -71,9 +71,6 @@ pd2bart(
   }
   \item{times}{
     On a survival \code{type}, the times at which survival is read. The usual reason to give them is a fixed horizon, such as 5-year survival. By default, the training data's Kaplan-Meier median survival time, or, when the Kaplan-Meier curve does not reach one half, the median of the observed event times; on a hazard fit the times are read on its period grid. Refused on any other \code{type}.
-  }
-  \item{n.max.predictions}{
-    On a hazard fit, the most predictions to make, one being one person-period row under one draw at one grid value: subjects x periods up to the largest time x draws x grid values, counted before anything runs. A call above it is refused, naming the count and the ways to reduce it - a coarser period grid, fewer subjects, fewer grid values, an earlier largest time - or this argument to raise it. The default, \code{5e9}, takes on the order of ten minutes.
   }
   \item{plot.type}{
     On a result with times, \code{"dependence"}, the partial dependence plot, puts the varied variable on the horizontal axis with one line (\code{plot.pd2bart}: one image) per time; \code{"curves"}, adjusted survival curves or direct adjustment, puts time on the axis with one median curve per grid value and needs at least three times. The dependence view draws the median and the \code{plquants} interval at each time, in \code{cols}, the times told apart by line type.
@@ -118,7 +115,7 @@ pd2bart(
 
    A data call fits through \code{\link{bart}} at its defaults, keeping trees and sampler, and predicts each grid value from the saved trees, so \code{pdbart(x, y, seed = s)} and \code{pdbart(bart(x, y, seed = s, keepTrees = TRUE))} agree. \code{pdbart(bartBT(x, y, keeptrees = TRUE))} gives the model dbarts 0.9-34 fit. The first data call in a session prints a message saying so; a call from package code does not.
 
-   \code{pdbart} and \code{pd2bart} serve gaussian, Student-t, probit, logistic, negative binomial and hurdle fits. Multinomial and ordinal fits, whose prediction is a probability per category, are refused; \code{predict} on rows with the variable set gives each category's. On accelerated failure time and hazard fits they average survival, the event probability or the cumulative hazard per subject at chosen times; on a hazard fit each subject's rows are expanded to the periods up to the largest time and replayed in chunks, so the work grows with the period grid and is counted against \code{n.max.predictions} first. \code{newdata} and \code{n.average.rows} there are subject rows, and the default time stays the training data's. In a formula hazard fit the subjects are read from the data the call names, as in any formula fit, and coded with their offset at each grid value; the period is never a predictor. Each refusal comes before anything is fit, whether the family is named, resolved by \code{family = "auto"} from the response, or that of a fit or sampler passed in.
+   \code{pdbart} and \code{pd2bart} serve gaussian, Student-t, probit, logistic, negative binomial and hurdle fits. Multinomial and ordinal fits, whose prediction is a probability per category, are refused; \code{predict} on rows with the variable set gives each category's. On accelerated failure time and hazard fits they average survival, the event probability or the cumulative hazard per subject at chosen times; on a hazard fit each subject's rows are expanded to the periods up to the largest time and replayed in chunks, so memory stays bounded. The work is the number of predictions, one being one person-period row under one draw at one grid value: subjects x periods up to the largest time x draws x grid values. It grows with that count (about ten minutes at \code{5e9}) and no call refuses on it; to shrink it, use a coarser period grid (\code{hazard(breaks = )}), fewer subjects (\code{newdata} or \code{n.average.rows}), fewer grid values (\code{levs} or \code{levquants}), or an earlier largest time (\code{times}). \code{newdata} and \code{n.average.rows} there are subject rows, and the default time stays the training data's. In a formula hazard fit the subjects are read from the data the call names, as in any formula fit, and coded with their offset at each grid value; the period is never a predictor. Each refusal comes before anything is fit, whether the family is named, resolved by \code{family = "auto"} from the response, or that of a fit or sampler passed in.
 
    This is a computationally intensive procedure. For example, in \code{pdbart}, to compute the partial dependence plot for 5 \eqn{x_s} values, we need to compute \eqn{f(x_s, x_c)} for all possible \eqn{(x_s, x_{ic})} and there would be \eqn{5n} of these where \eqn{n} is the sample size. All of that computation would be done for each kept BART draw. For this reason thinning the draws with \code{n.thin} larger than 1 (eg. 10) makes the procedure much faster.
 }

@@ -663,8 +663,8 @@
             response on hurdle fits and survival at the median survival
             time on accelerated failure time and hazard fits, with
             \code{"event"}, \code{"cumhaz"} and \code{times}),
-            \code{newdata}, \code{n.average.rows}, \code{average.weights}
-            and \code{n.max.predictions}; they serve negative binomial,
+            \code{newdata}, \code{n.average.rows} and \code{average.weights};
+            they serve negative binomial,
             hurdle, accelerated failure time and hazard fits, and their
             plots label the scale and take \code{plot.type}.
       \item Sampling is faster. Against 0.9-34 on a four-core x86-64

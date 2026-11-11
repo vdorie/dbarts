@@ -259,47 +259,8 @@ expect_equal(
 rm(breaks, coarseFit, coarsened, censored, heavyAft, heavyHazard)
 rm(eventMedian)
 
-# --- the hazard size check ---
-# subjects x periods up to the largest time x draws x grid values
-numPeriods <- sum(hazardFit$periods <= max(times))
-count <- n * numPeriods * 12 * 2
-expect_error(
-  dbarts::pdbart(
-    hazardFit,
-    xind = "a",
-    levs = list(c(0.2, 0.7)),
-    times = times,
-    n.max.predictions = count - 1,
-    pl = FALSE
-  ),
-  "hazard(breaks = )",
-  fixed = TRUE
-)
-expect_silent(dbarts::pdbart(
-  hazardFit,
-  xind = "a",
-  levs = list(c(0.2, 0.7)),
-  times = times,
-  n.max.predictions = count,
-  pl = FALSE
-))
-# counted in double precision, past 2^31
-bigGrid <- list(seq(0, 1, length.out = 80000L))
-bigCount <- n * length(hazardFit$periods) * 12 * 80000
-expect_true(bigCount > 2^31)
-expect_error(
-  dbarts::pdbart(
-    hazardFit,
-    xind = "a",
-    levs = bigGrid,
-    times = max(hazardFit$periods),
-    n.max.predictions = bigCount - 1,
-    pl = FALSE
-  ),
-  format(bigCount, digits = 3L),
-  fixed = TRUE
-)
-# a 20-period fit at bart's default run does not trip the default limit
+# --- no size refusal ---
+# a hazard pdbart runs at any count: a 20-period fit at bart's default run
 twentyFit <- dbarts::bart(
   Surv(t, s) ~ a + b,
   df,
@@ -315,30 +276,7 @@ expect_equal(
   dim(dbarts::pdbart(twentyFit, xind = "a", pl = FALSE)$fd[[1L]]),
   c(2000L, 1L, 11L)
 )
-# a data call refused there is told how not to refit on the retry
-expect_error(
-  dbarts::pdbart(
-    Surv(t, s) ~ a + b,
-    df,
-    family = "hazard",
-    xind = "a",
-    n.max.predictions = 1,
-    n.trees = 3L,
-    n.samples = 2L,
-    n.burn = 0L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE,
-    pl = FALSE
-  ),
-  "bart(..., keepTrees = TRUE)",
-  fixed = TRUE
-)
-expect_error(
-  dbarts::pdbart(hazardFit, n.max.predictions = 0, pl = FALSE),
-  "'n.max.predictions' must be a positive number"
-)
-rm(numPeriods, count, bigGrid, bigCount, twentyFit)
+rm(twentyFit)
 
 # --- refusals ---
 # the period is the time axis, not a predictor
