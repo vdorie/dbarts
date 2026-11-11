@@ -370,13 +370,14 @@ cgroupMemoryLimit <- function() {
   if (length(limits) == 0L) NA_real_ else min(limits)
 }
 
-# A byte count in words, in megabytes or gigabytes of 2^20 and 2^30 bytes.
+# A byte count in words: megabytes of 2^20 bytes below two gigabytes, gigabytes
+# of 2^30 above, each to three significant digits and never short of a whole
+# number, so that a limit stated as 512m, 1536m or 2g prints as stated.
 formatBytes <- function(bytes) {
-  if (bytes < 2^30) {
-    paste(format(signif(bytes / 2^20, 2L)), "MB")
-  } else {
-    paste(format(signif(bytes / 2^30, 2L)), "GB")
-  }
+  inMegabytes <- bytes < 2^31
+  size <- bytes / if (inMegabytes) 2^20 else 2^30
+  size <- if (size >= 100) round(size) else signif(size, 3L)
+  paste(format(size, scientific = FALSE), if (inMegabytes) "MB" else "GB")
 }
 
 # Warns, once per session, when a hazard fit's projected peak memory

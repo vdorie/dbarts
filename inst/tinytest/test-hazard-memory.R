@@ -431,5 +431,47 @@ expect_true(grepl(
   fixed = TRUE
 ))
 
+# a figure prints as a user states it, to three digits and never short of a
+# whole number: megabytes below two gigabytes, gigabytes above
+formatBytes <- dbarts:::formatBytes
+expect_equal(formatBytes(2^18), "0.25 MB")
+expect_equal(formatBytes(512 * 2^20), "512 MB")
+expect_equal(formatBytes(1536 * 2^20), "1536 MB")
+expect_equal(formatBytes(2 * 2^30), "2 GB")
+expect_equal(formatBytes(24 * 2^30), "24 GB")
+expect_equal(formatBytes(15.5 * 2^30), "15.5 GB")
+expect_equal(formatBytes(1000 * 2^20 + 2^19), "1000 MB")
+expect_equal(formatBytes(1234567890), "1180 MB")
+expect_equal(formatBytes(7.123456 * 2^30), "7.12 GB")
+expect_equal(formatBytes(1024 * 2^30), "1024 GB")
+
+# both figures of the message, the projection and a limit of 512m
+options(
+  dbarts.cgroupRoot = makeTree(
+    "0::/a",
+    list("a/memory.max" = as.character(512 * 2^20))
+  ),
+  dbarts.physicalMemory = 24 * 2^30
+)
+resetKey()
+bigRun <- hazardRunSettings(
+  dbartsControl(n.chains = 2L, n.threads = 1L, n.samples = 10L),
+  5L
+)
+bigRows <- 6e6
+bigMessage <- conditionMessage(collect(
+  dbarts:::warnHazardMemory(bigRows, 0L, 2L, bigRun)
+)$warnings[[1L]])
+expect_true(grepl(
+  paste0(
+    "it needs about ",
+    formatBytes(hazardFitBytes(bigRows, 0L, 2L, bigRun)),
+    " at its peak, and this process may use 512 MB; "
+  ),
+  bigMessage,
+  fixed = TRUE
+))
+expect_true(grepl("it needs about [0-9.]+ (MB|GB) at", bigMessage))
+
 options(oldOptions)
 resetKey()

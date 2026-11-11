@@ -533,13 +533,26 @@ for (entry in forestRefusals) {
       control = control,
       n.trees = 5L
     ),
-    entry[[3L]],
+    paste0("varianceForest()'s ", entry[[3L]]),
+    fixed = TRUE,
+    info = info
+  )
+  expect_error(
+    dbarts::bart(
+      y ~ a + b,
+      df,
+      variance = do.call(dbartsForests$varianceForest, stated),
+      n.trees = 5L,
+      n.threads = 1L,
+      verbose = FALSE
+    ),
+    paste0("varianceForest()'s ", entry[[3L]]),
     fixed = TRUE,
     info = info
   )
   expect_error(
     do.call(withVariance$setVarianceForest, stated),
-    entry[[3L]],
+    paste0("varianceForest()'s ", entry[[3L]]),
     fixed = TRUE,
     info = info
   )
