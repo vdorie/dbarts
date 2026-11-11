@@ -528,10 +528,16 @@ invisible(xbart(
 expect_identical(length(xDraws), 1L)
 # The values are handed on in calls that name no row: after an error inside
 # a fit, the calls on the stack are no longer for 10000 rows than for 100
+# only the frames below this one count: a caller's own (a parallel worker's
+# job wrapper holds the whole file) is not the fit's
 stackSize <- function(fit) {
   calls <- NULL
+  base <- sys.nframe()
   tryCatch(
-    withCallingHandlers(fit, error = function(e) calls <<- sys.calls()),
+    withCallingHandlers(
+      fit,
+      error = function(e) calls <<- sys.calls()[-seq_len(base)]
+    ),
     error = function(e) NULL
   )
   sum(nchar(unlist(lapply(calls, deparse))))
