@@ -230,8 +230,10 @@ In [C_interface.cpp](../../src/C_interface.cpp):
   yet") is restated for R-built handles.
 - Predict's offset checks read only the shape, the holder's two owned
   category offsets and the caller's buffer. They run at the top of the
-  entry, before [`callConvertingExceptions`](../../src/R_interface_exceptions.hpp) opens, and
-  never as an `Rf_error` inside the captured body.
+  entry, before anything is allocated, so the `Rf_error` they raise abandons
+  no resource; the entry's guard,
+  [`callRaisingExceptions`](../../src/R_interface_exceptions.hpp), converts
+  only C++ exceptions.
 - For F > 1 the offset reaches the engine's predict as its category offset,
   and the slab add stays for F = 1. The sentences are shared with the R
   route's [`validateCategoryOffset`](../../src/R_interface_bartcore.cpp) and the

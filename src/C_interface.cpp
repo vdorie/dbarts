@@ -829,8 +829,8 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
   // A multi-location (multinomial) surface reads its offset as numRows x F,
   // before the softmax, under R's two refusals. Both read only the shape, the
   // holder's own category offsets and the caller's buffer, so they raise here,
-  // before anything is captured or allocated; a malformed source is left to
-  // translateSource below.
+  // before anything is allocated; a malformed source is left to translateSource
+  // below.
   size_t numLocations = engine.shape().numReportedLocations;
   if (numLocations > 1) {
     if (offsetTest == NULL) {
