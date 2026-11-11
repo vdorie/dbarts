@@ -545,7 +545,15 @@ rm(
   yFold,
   wFold,
   foldStandIns,
-  made
+  made,
+  verboseLine,
+  verboseLines,
+  dbartsLines,
+  conditions,
+  fracX,
+  fracY,
+  fracWarnings,
+  fracSigma
 )
 
 # ---- a training row's draw is one observation --------------------------------
