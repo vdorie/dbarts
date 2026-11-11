@@ -91,3 +91,34 @@ expect_identical(
   newFit(plain)$data@sigma,
   newFit(y ~ x, d)$data@sigma
 )
+
+# a sampler of several forests carries a calibration map of the response's
+# scale (anchor and unit); a new fit from its data derives it from the
+# response given, as a fresh fit does
+forest <- dbartsForests$forest
+severalOn <- function(data, ...) {
+  dbarts(
+    data,
+    ...,
+    forests = list(forest(), forest(basis = z)),
+    n.trees = 5L,
+    control = ctl,
+    seed = 3L
+  )
+}
+several <- severalOn(y ~ x, d)
+expect_false(is.null(several$data@forest.calibration))
+several$setResponse(10 * d$y)
+freshSeveral <- severalOn(y ~ x, transform(d, y = 10 * y))
+expect_false(
+  identical(
+    several$data@forest.calibration,
+    freshSeveral$data@forest.calibration
+  )
+)
+renewed <- severalOn(several$data)
+expect_identical(
+  renewed$data@forest.calibration,
+  freshSeveral$data@forest.calibration
+)
+expect_identical(draws(renewed), draws(freshSeveral))
