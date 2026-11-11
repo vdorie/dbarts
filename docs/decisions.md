@@ -6204,6 +6204,15 @@ Built (as it stood).
 See also: [dec-B750], [dec-B795].
 Record: root TODO, hazard-keep-training-default. Marked: ruled by the maintainer, 2026-11-11. [dec-B813]
 
+**A hazard fit keeps its trees by default: keepTrees = NULL lets the family decide**
+bart() defaults keepTrees = FALSE in every family, confirmed on memory grounds (dec-B104; prerc-surface-freeze D2), as 0.9-34 did. A hazard fit's training design is ragged, so its subjects' survival curves need the trees replayed: a default hazard fit refuses survivalProbabilities(fit), at the training subjects and at newdata alike, naming keepTrees = TRUE, while a default accelerated failure time fit gives its training curves from its stored draws. Measured (scratch/haztrees/report.md): at bart()'s defaults the trees take about 20 to 27 MB whatever the row count, about 10% of a 1,000-subject default hazard fit, 1% at 10,000 and 0.3% at 50,000, with no change in fit time; keeping trees keeps the sampler, and a fit saved without storeState() reloads but refuses tree-based calls, as in 0.9-34. The BART package's surv.bart always keeps its trees. The maintainer asked for expert opinions ("I don't know enough about hazard modeling to know how important that might be"); a survival methodologist, an applied causal-survival researcher and an R interface designer, each independently (scratch/hazexpert/), chose (b) at 75 to 80% confidence: users fit a survival model for its curves, mostly at chosen or counterfactual covariates, which need the trees; no peer tool's default fit is unable to give a curve; family-dependent defaults have precedent (ranger's min.node.size = NULL). Shown: (a) keepTrees = FALSE for hazard fits too, the refusal naming the fix; (b) keepTrees = NULL, the family deciding, TRUE for hazard and FALSE for every other family, recommended.
+The maintainer, 2026-11-11: "Ok, use your recommendation."
+The rule: bart()'s keepTrees defaults to NULL, read as TRUE for a hazard family and FALSE for every other family; keepSampler follows it as now; an explicit TRUE or FALSE is taken as given. Revises dec-B104 and prerc-surface-freeze D2 for hazard fits only.
+The alternative was one default value in every family, with the refusal naming keepTrees = TRUE. The cost is about 20 to 27 MB a hazard fit, about 10 lines of R, help and tests; no draws move. Two experts raised a save trap plain (b) widens (a default hazard fit saved without storeState() refuses tree-based calls after reload); storing the state at the end of a fit that keeps trees reopens dec-B104 and is a separate question (TODO saved-fit-state-at-fit-end).
+Not built.
+See also: [dec-B104], [dec-B474], [dec-B813], [dec-B613].
+Record: root TODO, hazard-keep-trees-default. Marked: ruled by the maintainer, 2026-11-11. [dec-B814]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

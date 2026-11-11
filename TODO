@@ -1707,6 +1707,22 @@ items
     n.max.predictions refusal and argument. Built on r-fixes-1111.
   hazard-keep-training-default: dec-B813 keeps hazard fits' training
     draws by default, as every family does. Nothing to build.
+  hazard-keep-trees-default: (dec-B814) bart()'s keepTrees defaults
+    to NULL, TRUE for a hazard family and FALSE otherwise; keepSampler
+    follows; help (bart.Rd usage and item, dbartsFamilies.Rd), the
+    refusal texts that name keepTrees = TRUE on hazard fits, pins that
+    survivalProbabilities(fit) and pdbart work on a default hazard fit
+    and that other families are unchanged. About 10 R lines; no draws
+    move; an R fix round. Not built.
+  saved-fit-state-at-fit-end: a question for the maintainer, raised by
+    two of the dec-B814 experts: when a fit keeps its trees, should
+    bart() store the sampler state at the end of the fit, so a fit
+    saved with saveRDS reloads whole (about 8 to 9 MB of file, 15 to
+    25 MB of memory, no measurable time; scratch/haztrees/report.md),
+    against the documented manual storeState() step of 0.9-34? It
+    reopens dec-B104 (eager capture) for every family that keeps
+    trees; a stale state after running the kept sampler further is
+    dec-B613's case. Not decided.
   fixes-2026-11-10-slices: the 2026-11-10 sitting's unbuilt fix items,
     queued after threaded-chains lands, in four slices (about 350
     lines): R fixes 2, no draws move (fit-weights-record,
