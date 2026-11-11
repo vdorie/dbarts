@@ -6,8 +6,7 @@ maintainer's rulings dec-B617 to dec-B626 and the convergence measure, then for 
 dec-B651, the real-data guard and the dataset rule, for its referee, then revised on that referee's report
 ([Amendments](#amendments)).
 Step 0 landed on main on 2026-11-11 (70f94bbbf) and so did the harness (6a73b59af, benchmarks/R/k-move-pricing*.R,
-with its smoke); step 1's run is read (the move passes) and step 2's first two looks are read; the real-data
-guard waits on the dataset census (dataset rule, section 5). The sequence is dec-B530's; every rule below is written before any fit of the step it reads.
+with its smoke); step 1 passed its gates and step 2 is in progress. The sequence is dec-B530's; every rule below is written before any fit of the step it reads.
 The rules state what a reading shows and recommend; the maintainer decides from a research report (dec-B624).
 
 agent: one opus implementer for step 0 (the move rebuilt on main), one opus review of it that runs the move's
@@ -1259,7 +1258,8 @@ Ruled, 2026-11-07. The numbers are kept so that the entries and this plan's text
   by dec-B625). Whatever a step shows, its results reach the maintainer as a research report (dec-B624).
 - **Call 6, where the move waits.** Settled by the standing rule that a feature merges complete (dec-B494): (a),
   the move stays on its rebuilt branch until pricing decides and lands once in the form decided, the bitwise
-  check at landing applying.
+  check at landing applying. The landing of step 0 on main overtook this call (the coordinator's, dec-A442);
+  pricing still decides the move's form and default before the release.
 - **Call 8, the September prior study's revisit under logistic.** (a) (dec-B634): step 2 reads k's
   rank-normalized split R-hat and bulk and tail effective draws from its move fits at the default length, against
   R-hat below 1.01 and at least 400 effective draws (Vehtari et al. 2021), in place of the earlier 1.05 and "in the

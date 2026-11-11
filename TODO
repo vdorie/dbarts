@@ -213,6 +213,11 @@ items
     check of the cgroup limit's message); print the figure exactly in
     whole MB or GB to three digits. A few lines and a pin on the
     message.
+  variance-forest-refusal-names: the variance forest's refusals of
+    its tree-prior knobs read "forest 'base' must be ..." (spec.R calls
+    validateForestTreePrior without a label); name the forest the user
+    wrote, as the other forests' refusals do (dec-B713). Found in the
+    review of the forest R fixes. Not built.
   hazard-test-null: bart(x, cbind(time, status), test = NULL,
     family = "hazard") is refused ("'data' must be of a vector type, was
     'NULL'") where a gaussian fit takes test = NULL as no test set, the
@@ -441,7 +446,13 @@ items
     published sampler comparisons measure it (dec-B622). Record
     docs/plans/binary-k-mixing-need.md, What the result leads to;
     move on main (collapsed-move-rebuild), plan
-    docs/plans/collapsed-scale-move.md.
+    docs/plans/collapsed-scale-move.md. The coordinator landed the move
+    before pricing decided (dec-A442): main's logistic fits run it by
+    default (collapsedRescaleForest true), nothing released. Pricing
+    still decides the move's form and its default before the release:
+    if it goes against the move, the switch goes off or the move
+    comes out before 1.0-0, so the release waits on pricing's verdict
+    on the default.
     Must be written before pricing starts. Proposed by the independent
     critique of the k study, none of them a ruling:
     - Proposal: Step 1, a prior tilted toward small k: only 5 of 1,040
@@ -1576,12 +1587,10 @@ items
     bank it and vectorize its log and exp. The timing of a
     vectorized pass is on the measurement list of
     docs/plans/k-move-pricing.md (step 2's timing) and in the plan
-    collapsed-scale-move.md's later work; the evaluator's share of a
-    sweep is measured (perf on the bench box, 1.1 to 5.1 percent of a
-    move sweep across the nine regimes, the move 1.4 to 5.7), the
-    vectorized pass itself not yet. Build option (c) of dec-B789
+    collapsed-scale-move.md's later work; pricing's report states
+    the evaluator's share of a sweep. Build option (c) of dec-B789
     (logistic drawn-k draws move by rounding and their baselines are
-    re-recorded once) only if pricing's report reads that share as
+    re-recorded once) only if that report reads the share as
     material. Not built.
   compiled-callback-helper-name: held for the maintainer (C142, dec-A438):
     the exported name and shape of the compiled-callback helper (one
@@ -1649,14 +1658,6 @@ items
     saved stan4bart fit needs nothing more, since it keeps each
     chain's trees and every parametric draw. It serves R-level
     multi-chain Gibbs loops, about 420 lines. Not built.
-  fma-reference-build: (dec-B786) shipped builds keep the compiler's
-    default flags; configure adds -ffp-contract=on only under
-    --enable-reference-build, and tests/cpp builds with it (on the
-    gate-trim branch). Narrow the Reproducibility contract in
-    docs/architecture.md to the reference build, tests/cpp and clang
-    builds, and run the R-level exact gates that could see contraction
-    only where the flag is set. An exact test never constrains
-    efficient computation. Not built.
   misc-makefile-echo: src/misc/Makefile's SIMD-object rules echo a
     compile line that is not the one run: no instruction-set flag,
     the linearAlgebra ones naming the .c as the output, the echo
