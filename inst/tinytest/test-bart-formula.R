@@ -53,7 +53,7 @@ expect_error(
 # a ':'/'*' term expands to a term.labels entry the model frame never
 # carries, dying inside makeModelMatrix with R's own "undefined columns
 # selected"; refused by name instead, naming what IS supported
-interactionReason <- "':' and '*' terms are not supported in 'formula'"
+interactionReason <- "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported in 'formula'"
 expect_error(
   dbarts::bart(
     y ~ x.1 * x.2,
@@ -145,17 +145,17 @@ quotedData[["c d"]] <- rnorm(30L)
 quotedData[["e f:g"]] <- rnorm(30L)
 expect_error(
   dbarts::dbartsData(y ~ `a b`:`c d`, quotedData),
-  "':' and '*' terms are not supported",
+  "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported",
   fixed = TRUE
 )
 expect_error(
   dbarts::dbartsData(y ~ `a b` * `c d`, quotedData),
-  "':' and '*' terms are not supported",
+  "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported",
   fixed = TRUE
 )
 expect_error(
   dbarts::dbartsData(y ~ z:`e f:g`, quotedData),
-  "':' and '*' terms are not supported",
+  "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported",
   fixed = TRUE
 )
 expect_identical(
@@ -185,12 +185,12 @@ multinomialInteraction <- function(formula) {
 }
 expect_error(
   multinomialInteraction(f ~ z:`a b`),
-  "':' and '*' terms are not supported",
+  "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported",
   fixed = TRUE
 )
 expect_error(
   multinomialInteraction(f ~ z * `a b`),
-  "':' and '*' terms are not supported",
+  "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported",
   fixed = TRUE
 )
 expect_inherits(multinomialInteraction(f ~ z + `a b`), "bartMultinomial")

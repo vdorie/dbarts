@@ -292,7 +292,7 @@ expect_true(
 )
 expect_identical(attr(summary(fCounted)$effects, "observations"), sum(counts))
 expect_true(any(grepl(
-  paste0("over ", sum(counts), " observations (", m, " rows)"),
+  paste0("over ", sum(counts), " observations (", m, " training rows)"),
   capture.output(print(summary(fCounted))),
   fixed = TRUE
 )))
@@ -340,3 +340,143 @@ expect_true(any(grepl(
   fixed = TRUE
 )))
 expect_false(any(grepl("taken from a column", summary(fLine)$forests)))
+
+# a binomial row counts at its trials times any frequency weight: the cbind
+# fit, its written-out Bernoulli twin and its count-weighted twin print the
+# same forest block, and the effect header counts the trials
+set.seed(20261114)
+mb <- 24L
+trialsB <- sample(3:30, mb, TRUE)
+xb1 <- runif(mb)
+xb2 <- runif(mb)
+zb <- runif(mb) * 3
+succB <- rbinom(mb, trialsB, plogis(-0.5 + xb1 + 0.4 * zb))
+cbindData <- data.frame(
+  s = succB,
+  f = trialsB - succB,
+  x1 = xb1,
+  x2 = xb2,
+  z = zb
+)
+bernoulli <- data.frame(
+  y = unlist(lapply(seq_len(mb), function(i) {
+    c(rep(1, succB[i]), rep(0, trialsB[i] - succB[i]))
+  })),
+  x1 = rep(xb1, trialsB),
+  x2 = rep(xb2, trialsB),
+  z = rep(zb, trialsB)
+)
+weighted <- rbind(
+  data.frame(y = 1, x1 = xb1, x2 = xb2, z = zb, n = succB),
+  data.frame(y = 0, x1 = xb1, x2 = xb2, z = zb, n = trialsB - succB)
+)
+weighted <- weighted[weighted$n > 0, ]
+fitBinomial <- function(formula, data, ...) {
+  do.call(
+    bart,
+    c(
+      list(
+        formula,
+        data = data,
+        family = "logistic",
+        n.chains = 1L,
+        n.samples = 100L,
+        n.burn = 50L,
+        n.trees = 20L,
+        n.threads = 1L,
+        seed = 1L,
+        verbose = FALSE,
+        keepTrees = TRUE
+      ),
+      list(...)
+    )
+  )
+}
+rhsB <- ~ forest(x1 + x2) + forest(x1 + x2, basis = z)
+fCbind <- fitBinomial(update(cbind(s, f) ~ ., rhsB), cbindData)
+fBernoulli <- fitBinomial(update(y ~ ., rhsB), bernoulli)
+fWeighted <- fitBinomial(
+  update(y ~ ., rhsB),
+  weighted,
+  weights = quote(n),
+  weights.type = "frequency"
+)
+forestsOf <- function(f) summary(f)$forests
+expect_identical(forestsOf(fCbind), forestsOf(fBernoulli))
+expect_identical(forestsOf(fCbind), forestsOf(fWeighted))
+expect_false(any(grepl("taken from a column", forestsOf(fCbind))))
+sumTrials <- sum(trialsB)
+expect_identical(
+  attr(summary(fCbind)$effects, "observations"),
+  as.double(sumTrials)
+)
+expect_identical(
+  attr(summary(fWeighted)$effects, "observations"),
+  as.double(sumTrials)
+)
+expect_true(any(grepl(
+  paste0("over ", sumTrials, " trials (", mb, " training rows)"),
+  capture.output(print(summary(fCbind))),
+  fixed = TRUE
+)))
+expect_true(any(grepl(
+  paste0("over ", sumTrials, " training rows"),
+  capture.output(print(summary(fBernoulli))),
+  fixed = TRUE
+)))
+# the effect average is the trials-weighted one, not the once-per-row one
+upB <- predict(
+  fCbind,
+  newdata = transform(cbindData, z = cbindData$z + 1),
+  type = "bart"
+)
+downB <- predict(fCbind, newdata = cbindData, type = "bart")
+effectB <- upB - downB
+perDraw <- function(weightsB) as.vector(effectB %*% weightsB) / sum(weightsB)
+expect_equal(
+  summary(fCbind)$effects$average,
+  median(perDraw(trialsB)),
+  tolerance = 1e-8
+)
+expect_true(abs(median(perDraw(trialsB)) - median(perDraw(rep(1, mb)))) > 1e-4)
+
+# the counted header keeps the row noun and the singular
+effectsHeader <- function(observations, row.name, rows, trials = FALSE) {
+  effects <- data.frame(
+    forest = 1L,
+    label = "a",
+    effect = "z",
+    average = 1,
+    average.q5 = 0,
+    average.q95 = 2,
+    spread = 1,
+    spread.q5 = 0,
+    spread.q95 = 2
+  )
+  attr(effects, "rows") <- rows
+  attr(effects, "observations") <- observations
+  attr(effects, "row.name") <- row.name
+  attr(effects, "trials") <- trials
+  attr(effects, "scale") <- "in the response's units"
+  dbarts:::forestEffectLines(effects)[1L]
+}
+expect_true(grepl(
+  "over 314 person-period observations (163 person-period rows)",
+  effectsHeader(314, "person-period rows", 163L),
+  fixed = TRUE
+))
+expect_true(grepl(
+  "over 5 observations (1 training row)",
+  effectsHeader(5, "training row", 1L),
+  fixed = TRUE
+))
+expect_true(grepl(
+  "over 1 observation (2 training rows)",
+  effectsHeader(1, "training rows", 2L),
+  fixed = TRUE
+))
+expect_true(grepl(
+  "over 1 trial (2 training rows)",
+  effectsHeader(1, "training rows", 2L, TRUE),
+  fixed = TRUE
+))

@@ -160,13 +160,13 @@ for (formula in list(
 )) {
   expect_error(
     dbartsData(formula, d, keep.data = FALSE),
-    "':' and '*' terms are not supported",
+    "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported",
     fixed = TRUE,
     info = deparse1(formula)
   )
   expect_error(
     fitBart(formula),
-    "':' and '*' terms are not supported",
+    "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported",
     fixed = TRUE,
     info = deparse1(formula)
   )

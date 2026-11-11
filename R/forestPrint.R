@@ -29,9 +29,9 @@ printedNumber <- function(value) {
 ## range over the rows in the likelihood, every row where none is in. The mean
 ## is zapped against the sd, so a column centered to rounding prints 0. A
 ## column is constant where its sd is under 1e-11 of its largest value, the
-## engine's bound. `counts`, where the weights are counts (countedWeights), are
-## the rows' multiplicities: the mean and sd are those of the rows written out,
-## the sd's divisor the sum of counts less one, as the engine reads the scale.
+## engine's bound. `counts` (rowCounts) are the rows' multiplicities: the mean
+## and sd are those of the rows written out, the sd's divisor the sum of counts
+## less one, as the engine reads the scale.
 printedColumn <- function(column, rowsIn, counts = NULL) {
   values <- as.double(column)
   if (length(counts) != length(values)) {
@@ -68,7 +68,7 @@ printedColumn <- function(column, rowsIn, counts = NULL) {
 ## FALSE): for a numeric basis printedColumn's numbers over the rows in the
 ## likelihood, for a factor its levels (a factor of no rows), NULL for a forest
 ## with none. printedForest reads either in place of the basis.
-storedBasisColumns <- function(bases, weights = NULL, counted = FALSE) {
+storedBasisColumns <- function(bases, weights = NULL, counts = NULL) {
   numRows <- max(0L, vapply(bases, NROW, 0L))
   rows <- rowsInLikelihood(if (length(weights) > 0L) weights, NULL, numRows)
   lapply(bases, function(basis) {
@@ -77,7 +77,7 @@ storedBasisColumns <- function(bases, weights = NULL, counted = FALSE) {
     } else if (is.factor(basis)) {
       basis[0L]
     } else {
-      printedColumn(basis, rows, if (counted) weights)
+      printedColumn(basis, rows, counts)
     }
   })
 }
@@ -238,7 +238,7 @@ forestPriorLines <- function(
   pointer = NULL,
   treeCounts = NULL,
   shares = NULL,
-  counted = FALSE
+  counts = NULL
 ) {
   if (
     !is.list(priors) ||
@@ -291,7 +291,7 @@ forestPriorLines <- function(
           full,
           labels[index],
           family,
-          if (counted) weights
+          counts
         )
       )
     },
@@ -411,6 +411,36 @@ countedWeights <- function(family, weightsType = NULL) {
   )
 }
 
+## What each row stands for, as the engine reads the rows' columns: its
+## weight where the weights are counts (`counted`), times its trials, the two
+## columns' sum, on a binomial response (`responseCounts`); NULL where every
+## row stands for itself.
+rowCounts <- function(weights, counted, responseCounts = NULL) {
+  binomial <- NCOL(responseCounts) == 2L
+  if (!binomial && !counted) {
+    return(NULL)
+  }
+  rows <- if (binomial) NROW(responseCounts) else length(weights)
+  counts <- if (counted && length(weights) == rows) {
+    as.double(weights)
+  } else {
+    rep_len(1, rows)
+  }
+  if (binomial) {
+    counts <- counts * as.double(rowSums(responseCounts))
+  }
+  counts
+}
+
+## rowCounts of a fit, from the weights and response it stores.
+fitRowCounts <- function(fit) {
+  rowCounts(
+    fit[["weights"]],
+    countedWeights(fit[["family"]], fit[["weights.type"]]),
+    if (identical(as.character(fit[["family"]])[1L], "logistic")) fit[["y"]]
+  )
+}
+
 ## The block of a fit, from what the fit stores: the short one of its synopsis,
 ## the full one of its summary.
 fitForestLines <- function(fit, full = FALSE) {
@@ -425,7 +455,7 @@ fitForestLines <- function(fit, full = FALSE) {
     full,
     "summary()",
     attr(fit, "forest.trees", exact = TRUE),
-    counted = countedWeights(fit[["family"]], fit[["weights.type"]])
+    counts = fitRowCounts(fit)
   )
 }
 
@@ -544,11 +574,9 @@ fitForestEffects <- function(fit) {
     if (length(fit[["active"]]) > 0L) fit[["active"]],
     dim(fits)[2L]
   )
-  counted <- countedWeights(fit[["family"]], fit[["weights.type"]])
-  counts <- if (counted && length(fit[["weights"]]) == dim(fits)[2L]) {
-    fit[["weights"]]
-  } else {
-    rep_len(1, dim(fits)[2L])
+  counts <- fitRowCounts(fit)
+  if (length(counts) != dim(fits)[2L]) {
+    counts <- rep_len(1, dim(fits)[2L])
   }
   rows <- lapply(has, function(k) {
     effects <- forestEffectDraws(
@@ -584,6 +612,8 @@ fitForestEffects <- function(fit) {
   attr(result, "rows") <- sum(rowsIn)
   # where rows carry counts, the observations they stand for
   attr(result, "observations") <- sum(counts[rowsIn])
+  attr(result, "trials") <- NCOL(fit[["y"]]) == 2L &&
+    identical(as.character(fit[["family"]])[1L], "logistic")
   attr(result, "row.name") <- paste0(
     if (startsWith(as.character(fit[["family"]])[1L], "hazard")) {
       "person-period row"
@@ -594,6 +624,20 @@ fitForestEffects <- function(fit) {
   )
   attr(result, "scale") <- effectScaleText(fit[["family"]])
   result
+}
+
+## The noun the effect header counts rows' multiplicities in: trials on a
+## binomial response, else observations, a hazard's person-period ones, in the
+## singular for a count of one.
+countedNoun <- function(effects, observations) {
+  noun <- if (isTRUE(attr(effects, "trials"))) {
+    "trial"
+  } else if (startsWith(attr(effects, "row.name"), "person-period")) {
+    "person-period observation"
+  } else {
+    "observation"
+  }
+  paste0(noun, if (observations != 1) "s")
 }
 
 ## The lines under the block that report fitForestEffects: what each number is
@@ -642,7 +686,16 @@ forestEffectLines <- function(effects) {
       attr(effects, "scale"),
       ", over ",
       if (observations != rows) {
-        paste0(printedNumber(observations), " observations (", rows, " rows)")
+        paste0(
+          printedNumber(observations),
+          " ",
+          countedNoun(effects, observations),
+          " (",
+          rows,
+          " ",
+          attr(effects, "row.name"),
+          ")"
+        )
       } else {
         paste0(rows, " ", attr(effects, "row.name"))
       },
@@ -677,6 +730,10 @@ samplerForestLines <- function(sampler, full = FALSE) {
     "$getLeafPrior()",
     vapply(records, function(record) as.integer(record@n.trees), 0L),
     vapply(records, methods::slot, 0, "share"),
-    countedWeights(sampler$model@family, sampler$model@weights.type)
+    rowCounts(
+      sampler$data@weights,
+      countedWeights(sampler$model@family, sampler$model@weights.type),
+      dataCounts(sampler$data)
+    )
   )
 }

@@ -51,8 +51,8 @@ na.keepPredictors(object, \dots)
   Every \code{predict} method on a fit (\code{\link{predict.bart}} and
   \code{\link{bart}}'s four own classes) and
   \code{\link{survivalProbabilities}} take an \code{na.action} for
-  \code{newdata}, defaulting to this function; \code{NULL} means the
-  default, and \code{getOption("na.action")} is never consulted.
+  \code{newdata}, defaulting to this function; \code{NULL} applies no
+  action, which on new data gives the default's result, and \code{getOption("na.action")} is never consulted.
 
   A missing value in \code{newdata} is \emph{routable} when its column can
   hold missing values: it had them in training or, on a sampler, has been

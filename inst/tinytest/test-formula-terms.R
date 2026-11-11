@@ -833,11 +833,11 @@ refuses(
 # an interaction is refused as it is among plain terms
 refuses(
   y ~ forest(x1:x2) + forest(x1, basis = ~z),
-  "':' and '*' terms are not supported in 'formula'"
+  "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported in 'formula'"
 )
 refuses(
   y ~ x1 + x2 + forest(x1 * x2, basis = ~z),
-  "':' and '*' terms are not supported in 'formula'"
+  "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not supported in 'formula'"
 )
 # one unnamed argument
 oneUnnamed <- paste0(

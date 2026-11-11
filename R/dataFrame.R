@@ -137,7 +137,7 @@ derivedRowNames <- function(frame, rows) {
 ## package functions, and otherwise the global one.
 frozenBuildEnvironment <- function(formula, expressions, dataNames, fallback) {
   names <- unique(unlist(
-    lapply(c(list(formula), expressions), all.names),
+    lapply(c(list(formula), expressions), namesRead),
     use.names = FALSE
   ))
   home <- environment(formula)
@@ -158,6 +158,36 @@ frozenBuildEnvironment <- function(formula, expressions, dataNames, fallback) {
     holdValue(held, name, value, copies)
   }
   held
+}
+
+## The names an expression may look up as variables, as all.names gives them
+## less the ones R never looks up: the name after `$` or `@` (a field) and both
+## sides of `::` and `:::` (a package and its object).
+namesRead <- function(expr) {
+  if (is.symbol(expr)) {
+    name <- as.character(expr)
+    return(if (nzchar(name)) name else character(0L))
+  }
+  if (!is.call(expr) && !is.expression(expr) && !is.pairlist(expr)) {
+    return(character(0L))
+  }
+  if (is.call(expr) && is.symbol(expr[[1L]])) {
+    head <- as.character(expr[[1L]])
+    if (head %in% c("::", ":::")) {
+      return(character(0L))
+    }
+    if (head %in% c("$", "@") && length(expr) == 3L) {
+      return(c(head, namesRead(expr[[2L]])))
+    }
+  }
+  found <- character(0L)
+  for (index in seq_along(expr)) {
+    # an empty argument, as in x[1, ], is no name
+    if (!identical(expr[[index]], quote(expr = ))) {
+      found <- c(found, namesRead(expr[[index]]))
+    }
+  }
+  found
 }
 
 ## Whether a function is a package's: a primitive, or one whose environment is
@@ -224,7 +254,7 @@ heldFunction <- function(fn, copies) {
   copies$from <- c(copies$from, list(fn))
   copies$to <- c(copies$to, list(copy))
   reads <- setdiff(
-    unique(c(all.names(body(fn)), unlist(lapply(formals(fn), all.names)))),
+    unique(c(namesRead(body(fn)), unlist(lapply(formals(fn), namesRead)))),
     names(formals(fn))
   )
   for (name in reads) {

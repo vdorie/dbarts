@@ -243,7 +243,9 @@
             response's scaling stays as set at creation when the response
             is swapped, as a conditional update inside a larger sampler
             needs. 0.9-34 re-derived it from each new continuous response;
-            \code{updateScale = TRUE} restores that.
+            \code{updateScale = TRUE} restores that. \code{$setData} given a
+            data object from \code{dbartsData()} keeps it too (see
+            USER-VISIBLE CHANGES).
             \code{$getSumsOfSquaredResiduals} returns the sum of squares
             itself rather than that sum divided by the response range.
       \item \code{names(fit)} no longer lists \code{yhat.test}, or, on a
@@ -608,7 +610,8 @@
       \item Draws a sampler has saved (\code{keepTrees}) keep their
             values when the response scale is re-derived: after
             \code{setResponse} or \code{setOffset} with
-            \code{updateScale = TRUE}, or \code{setData}, \code{predict}
+            \code{updateScale = TRUE}, or \code{setData} with
+            \code{updateScale = TRUE}, \code{predict}
             returns for them what it returned before the call. 0.9-34
             replayed saved trees on the scale in force, so they came back
             in the new response's units.

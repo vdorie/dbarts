@@ -441,6 +441,31 @@ oLocal <- localBuild()
 expect_true(length(serialize(oLocal, NULL)) < 1e6)
 expect_identical(unname(model.response(model.frame(oLocal))), log1p(d$y^2))
 
+# a held function holds the names it looks up as variables: not the field after
+# $ or @, nor either side of :: or :::, and a name it assigns after reading it
+# still holds the workspace's value
+local({
+  heldNames <- function(object, fn) {
+    held <- get(fn, environment(object@build$formula))
+    sort(ls(environment(held), all.names = TRUE))
+  }
+  df <- data.frame(unrelated = 1:3)
+  fit <- list(df = 2)
+  fieldFn <- function(v) fit$df + v
+  x <- 1
+  assignFn <- function(v) {
+    x <- x + v
+    x
+  }
+  qualifiedFn <- function(v) v + stats::sd(v) + base:::length(v)
+  expect_identical(heldNames(dbartsData(fieldFn(y) ~ x1, d), "fieldFn"), "fit")
+  expect_identical(heldNames(dbartsData(assignFn(y) ~ x1, d), "assignFn"), "x")
+  expect_identical(
+    heldNames(dbartsData(qualifiedFn(y) ~ x1, d), "qualifiedFn"),
+    character(0L)
+  )
+})
+
 # the sibling identity: a fit from the object is the fit from the formula ------
 
 sibling <- function(label, call, family = "auto", fit = TRUE) {

@@ -41,7 +41,9 @@
   are counts of identical rows (the count families' default, and gaussian with
   \code{weights.type = "frequency"}), the average and the sd across rows, as
   the forest line's column mean and sd, count each row at its count, as the
-  data written out row by row would.
+  data written out row by row would. A binomial response, written as two
+  columns, counts each row at its trials times any such weight, and the
+  header then reads \dQuote{over 371 trials (18 training rows)}.
 }
 \usage{
 \method{summary}{bart}(object, vars = c("sigma", "k", "leaf.prior.sd", "resid.df"), \dots)

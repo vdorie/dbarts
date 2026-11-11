@@ -1051,8 +1051,8 @@ refuseTestMissingness <- function(
 }
 
 ## The predict methods' 'na.action' (dec-B34): a function or its name, with
-## NULL meaning the default, as predict.lm reads it - the option is never
-## consulted.
+## NULL applying no action, which on new data gives the default's result - the
+## option is never consulted.
 resolvePredictNaAction <- function(na.action) {
   if (is.null(na.action)) {
     return(na.keepPredictors)
@@ -4647,9 +4647,9 @@ dbartsData <- function(
 refuseInteractionTerms <- function(modelTerms) {
   if (any(attr(modelTerms, "order") > 1L)) {
     stop(
-      "':' and '*' terms are not supported in 'formula'; write each ",
-      "predictor as its own term - poly(), ns(), log(), and offset() are ",
-      "supported",
+      "interaction terms (a:b, a*b, a/b, a %in% b, (a + b)^2) are not ",
+      "supported in 'formula'; write each predictor as its own term - ",
+      "poly(), ns(), log(), and offset() are supported",
       call. = FALSE
     )
   }

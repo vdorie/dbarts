@@ -709,7 +709,11 @@ packageBartResults <- function(
       result$basis.columns <- storedBasisColumns(
         storedForestBases(fit$data),
         fitWeights(fit),
-        countedWeights(fit$model@family, fit$model@weights.type)
+        rowCounts(
+          fitWeights(fit),
+          countedWeights(fit$model@family, fit$model@weights.type),
+          dataCounts(fit$data)
+        )
       )
     }
   }
