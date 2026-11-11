@@ -5986,6 +5986,15 @@ Not built.
 See also: [dec-B797], [dec-B796], [dec-B776].
 Record: root TODO, rhat-values-only; stan4bart's summary and help; dbarts R/diagnostics.R and its help. Marked: ruled by the maintainer, 2026-11-11. [dec-B800]
 
+**stan4bart's callback takes an R function or a pointer to a compiled function the user builds with Rcpp's tools; stan4bart compiles nothing**
+The maintainer asked for C++ callbacks, "ideally compiled in an R script" (dec-B783). The threaded-chains plan's last stan4bart slice (S4, not built) ships a C header describing one draw; its call A15 added a helper that compiles a body (compile_callback(body, length)) beside a pointer constructor (compiled_callback(ptr, length)), one letter apart, with no includes argument (C142 of dec-A438, held for the maintainer as an exported name). Shown: (a) one function taking a body or a pointer, with includes =, recommended; (b) the plan's two functions; (c) two functions with distinct names. The maintainer asked: "Do we need to compile the callback ourselves? Is there a standard way that we could be leveraging?" Answered: no; the standard is a package that accepts an external pointer to a function of a documented signature, built by the user with RcppXPtrUtils::cppXPtr (CRAN 0.1.3, 2025-07-21, imports only Rcpp; its checkXPtr lets the receiving package check the return and argument types) or the user's own sourceCpp; parallelDist (custom distances), r2sundials, GillespieSSA2 and four others take pointers this way, and deSolve takes a symbol from a user's library with the output count in nout =. The recommendation turned to: no helper; callback = takes an R function as now or such a pointer, checked against the header's signature, with the number of values it writes in one more argument. The cost: the user writes the full signature and their own try and catch, as every package in this pattern asks; stan4bart's catch stays as a safety net (dec-B581).
+The maintainer, 2026-11-11: "Yes, do that."
+The rule: stan4bart's callback = takes an R function (as since 0.0-13) or an external pointer to a compiled function of the signature in stan4bart's header, built with RcppXPtrUtils::cppXPtr or the user's own sourceCpp; stan4bart checks the pointer's types where the pointer records them, writes nothing to compile, and takes the number of values the function writes per draw in one further argument. Revises call A15 of the threaded-chains plan and settles C142 (dec-A438). The further argument's name is the maintainer's and comes with the slice's plan amendment.
+The alternative was a body-compiling helper. The cost is that a compiled callback's author writes its signature and exception guard.
+Not built.
+See also: [dec-B783], [dec-B581], [dec-A438].
+Record: root TODO, stan4bart-compiled-callback-pointer; docs/plans/threaded-chains.md, S4 and call A15, at its next amendment. Marked: ruled by the maintainer, 2026-11-11. [dec-B801]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
