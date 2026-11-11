@@ -171,6 +171,20 @@ expect_silent(capture.output(print(o@y)))
 expect_silent(capture.output(str(o)))
 expect_silent(capture.output(show(o)))
 
+# all.equal() on an object that keeps its frame: TRUE against itself and a
+# copy, and a difference in the data reported, as 0.9-34 did -------------------
+
+oEq <- dbartsData(y ~ x1 + x2, d)
+expect_true(all.equal(oEq, oEq))
+expect_true(all.equal(oEq, dbartsData(y ~ x1 + x2, d)))
+dEq <- d
+dEq$y[3L] <- dEq$y[3L] + 10
+expect_false(isTRUE(all.equal(oEq, dbartsData(y ~ x1 + x2, dEq))))
+expect_false(
+  isTRUE(all.equal(oEq, dbartsData(y ~ x1 + x2, d, weights = rep(1, n))))
+)
+rm(oEq, dEq)
+
 # model.frame() and nobs() ----------------------------------------------------
 
 offv <- d$w / 10

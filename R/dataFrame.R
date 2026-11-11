@@ -33,6 +33,19 @@ dim.dbartsStandIn <- dimnames.dbartsStandIn <- length.dbartsStandIn <-
                 cbind.dbartsStandIn <- rbind.dbartsStandIn <-
                   refuseStandInRead
 
+## Two stand-ins agree when they name the same slot; the values they stand for
+## are in the frame, which all.equal() on the object compares as a slot of its
+## own.
+all.equal.dbartsStandIn <- function(target, current, ...) {
+  if (
+    inherits(current, "dbartsStandIn") &&
+      identical(unclass(target), unclass(current))
+  ) {
+    return(TRUE)
+  }
+  "target, current are not the same data slot"
+}
+
 format.dbartsStandIn <- function(x, ...) {
   paste0("<'", unclass(x), "' is read with model.frame(o)>")
 }
