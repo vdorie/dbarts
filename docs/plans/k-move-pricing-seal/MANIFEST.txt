@@ -32,3 +32,7 @@ What each is:
   rounds 1 and 2 (7719f8793, ed9e2b4e8).
 - referee-sizing-round1.txt, referee-sizing-round2.txt: the referee of the sizing of R2 and R3, rounds 1 and 2
   (a7984db18, 36c75a02e). In round 1 seven non-ASCII symbols are spelled in ASCII (theta, beta, ~, +/-, -).
+
+The commits cited above (ed9e2b4e8, a7984db18, e2aee00c9, 59a3dc165, 7719f8793, 36c75a02e) are revisions of the
+plan before its rebase onto main; they are not ancestors of main and are kept at the origin branch
+archive/k-move-pricing-plan-revisions (tip 36c75a02e).

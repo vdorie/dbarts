@@ -5,7 +5,9 @@ decision (call 7); amended after its blind critique, and on 2026-11-07 for the
 maintainer's rulings dec-B617 to dec-B626 and the convergence measure, then for dec-B633 to dec-B635, then for
 dec-B651, the real-data guard and the dataset rule, for its referee, then revised on that referee's report
 ([Amendments](#amendments)).
-Nothing has run. The sequence is dec-B530's; every rule below is written before any fit of the step it reads.
+Step 0 landed on main on 2026-11-11 (70f94bbbf) and so did the harness (6a73b59af, benchmarks/R/k-move-pricing*.R,
+with its smoke); step 1's run is read (the move passes) and step 2's first two looks are read; the real-data
+guard waits on the dataset census (dataset rule, section 5). The sequence is dec-B530's; every rule below is written before any fit of the step it reads.
 The rules state what a reading shows and recommend; the maintainer decides from a research report (dec-B624).
 
 agent: one opus implementer for step 0 (the move rebuilt on main), one opus review of it that runs the move's
@@ -289,6 +291,9 @@ differ rerun step 2's first look on that regime.
   every timed segment of 100 sweeps, ten interleaved repetitions in alternating order. Person-period cells of
   hazard.logistic and a count-weighted cell are timed the same way, their timings entering the cost bar (dec-B619).
   The same timings give each library's seconds per sweep, which the convergence measure's readings in seconds use.
+  They also carry the share of a move sweep the likelihood evaluator takes (a call-graph profile of one move fit a
+  regime) and, if a vectorized pass is built for a shipped build, its timing beside the scalar loop's (dec-B789;
+  [Later work](collapsed-scale-move.md#later-work)).
 - **Measures.** For each class, the 90 percent equal-tailed interval's coverage of the truth, computed on the
   latent scale. Coverage is pooled over replications before the distance from 0.90 is taken, the distance on
   either side corrected for noise as dec-B455 defines it, and over-coverage counts as error. Every coverage

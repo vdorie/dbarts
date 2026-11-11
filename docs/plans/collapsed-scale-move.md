@@ -1,9 +1,8 @@
 # collapsed-scale-move: the collapsed rescaling move for a drawn k under logistic
 
-Status: BUILT ON A BRANCH for pricing, 2026-11-10: the logistic move rebuilt on main b2268c1c9 as step 0 of
-k-move-pricing.md (on branch k-move-pricing) (branch collapsed-move-rebuild), which decides whether it lands on
-(dec-B530, dec-B691); it stays a branch until pricing decides (that plan's call 6), and lands through that
-plan's "Gates at landing". Rechecked against main ([Recheck against main](#recheck-against-main)): the move
+Status: LANDED 2026-11-11 (70f94bbbf): the logistic move, rebuilt on main b2268c1c9 as step 0 of
+k-move-pricing.md (branch collapsed-move-rebuild), is on main with its engine toggle (collapsedRescaleForest)
+on; k-move-pricing.md prices it against a library with the toggle patched off (dec-B530, dec-B691). Rechecked against main ([Recheck against main](#recheck-against-main)): the move
 reaches the forests that share one prior total, goes ahead of the sweep's augmentation draw and draws no
 latents of its own, and reads no leaf scale. Every open call is answered ([Open calls](#open-calls)): the probit
 half is out (dec-B617), the sharers are in (dec-B618), no switch should pricing turn the move on, put to the
@@ -1168,3 +1167,13 @@ How many seeded expectations in the suite and in the consumers sit on a drawn-k 
 counted. stan4bart was read for its family and its `bart_args`, not built or run; bartCause, treatSens
 and bairrtt were not read again. No reference build, sanitizer, x86 run or `R CMD check` was made. The
 slices in flight beside this one on 2026-10-11 were not read for overlap.
+
+## Landing note
+
+Landed on main 2026-11-11 as the commits of the branch collapsed-move-rebuild, through 70f94bbbf. Built under
+dec-B530, dec-B617, dec-B618 and dec-B789; the calls made building it are dec-A442. The likelihood evaluator's
+row order is exact only in the reference build and tests/cpp (dec-B789, dec-B786); a cancel inside the
+augmentation draw that completes the move puts the move back (dec-A438, call 15). The engine reviews (LAND after
+fix rounds), tests/cpp plain and under ASan and UBSan, the exact gates in quick mode and the full run of
+the logistic arms, and the four snapshot files passed on the branch tip; uninterrupted draws are bitwise those
+of the pre-fix tip.

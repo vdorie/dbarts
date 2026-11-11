@@ -1,9 +1,8 @@
 # The collapsed rescaling move under logistic
 
-Status: BUILT ON A BRANCH for pricing, 2026-11-10 (collapsed-move-rebuild; plan
-[collapsed-scale-move.md](../plans/collapsed-scale-move.md), step 0 of k-move-pricing). This note holds the
-move's exactness derivation, checked by the engine review and by one independent referee before landing;
-the rest of the note (schedule, measurements, cost) is written at landing.
+Status: LANDED 2026-11-11 (70f94bbbf; plan [collapsed-scale-move.md](../plans/collapsed-scale-move.md), step 0
+of k-move-pricing). This note holds the move's exactness derivation, checked by the engine review and by one
+independent referee; the rest of the note (schedule, measurements, cost) waits on pricing's reading.
 
 ## Exactness
 

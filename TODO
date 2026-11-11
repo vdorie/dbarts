@@ -207,6 +207,12 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
+  hazard-memory-format: the hazard memory warning's byte formatter
+    (formatBytes) rounds to two significant digits, so a 512 MB cgroup
+    limit prints "this process may use 510 MB" (found in the container
+    check of the cgroup limit's message); print the figure exactly in
+    whole MB or GB to three digits. A few lines and a pin on the
+    message.
   hazard-test-null: bart(x, cbind(time, status), test = NULL,
     family = "hazard") is refused ("'data' must be of a vector type, was
     'NULL'") where a gaussian fit takes test = NULL as no test set, the
@@ -292,32 +298,6 @@ items
     among the arguments it refuses as set by bcf() itself, though
     dbartsData() has no such argument; a user passing it is refused
     either way (found reviewing basis-references part 1). A text edit.
-  door-keeps-data-sigma: (dec-B777, which revises dec-B774) dbarts(),
-    bart(), dbartsSpec() and rbart_vi given any data object calibrate
-    the response-based priors, the range and sigma (the count center
-    and the survival range likewise), from the data given unless
-    sigest is stated; predictor-derived records (cut points,
-    standardization) stay as they are (dec-B231). A sampler's own
-    setters and xbart are unchanged. Built on the branch doors-1111
-    with the agent calls of dec-A437; a fit rebuilt from a sampler's
-    data no longer repeats the sampler's sigma to the bit. Not built
-    on main.
-  hazard-basis-after-fit: under dec-B707 a hazard fit's basis has one
-    value per subject, but predict() takes person-period rows, so its
-    bases = is one value per period row, and survivalProbabilities(
-    newdata = ), one row per subject, refuses bases by name, so new
-    subjects' survival curves of a hazard fit with a basis forest, which
-    dec-B707 makes possible through bart()'s forest() term, have no way
-    to take one (found planning basis-references part 1, 2026-11-08). Whether
-    survivalProbabilities takes per-subject bases and predict keeps its
-    period rows. A decision first.
-  rbart-group-by-frame: rbart_vi(dbartsData(f, d), group.by = g) reads
-    the caller's g while rbart_vi(f, d, group.by = g) reads d$g first,
-    the shape the basis-references plan's draw move D1 fixes for a
-    basis (found by its critique; run 2026-11-08, 3 groups against 2).
-    rbart_vi is deprecated and goes in 1.1-0, so the choice is reading
-    group.by against the object's frame (draws move for that call) or a
-    help sentence. A decision first.
   basis-one-column-labels: a one-column character, logical or factor
     matrix given as a basis is read as its column, two levels, at every
     door; wider ones stay refused (dec-B662, VD 2026-11-07: "We can use
@@ -460,7 +440,7 @@ items
     (dec-B621), and how long each takes to converge is measured as
     published sampler comparisons measure it (dec-B622). Record
     docs/plans/binary-k-mixing-need.md, What the result leads to;
-    move on wt/collapsed-move-plan, plan
+    move on main (collapsed-move-rebuild), plan
     docs/plans/collapsed-scale-move.md.
     Must be written before pricing starts. Proposed by the independent
     critique of the k study, none of them a ruling:
@@ -516,7 +496,7 @@ items
     drawn k under chi(1.5, 2). Whether k must mix fast for intervals of
     f and effects is measured (docs/design/binary-k-mixing-need.md);
     the move's pricing is k-move-pricing. Plan
-    docs/plans/collapsed-scale-move.md on wt/collapsed-move-plan, its
+    docs/plans/collapsed-scale-move.md, its
     probit half, a switch and negative binomial still open calls.
     For negative binomial (its open call 4), the default study measured
     k's mixing under the move's scratch build on four real outcomes:
@@ -1492,23 +1472,8 @@ items
     silently, where bartCause now refuses it (dec-A274); and
     predict-newdata-weights carries dec-B698's missing-weight rule (a
     missing weight refused unless na.action says otherwise).
-  starting-sigma-count-floor: (dec-B737 and dec-B746, revising the
-    calls of dec-A298 and dec-A301) under count weights the starting
-    sigma's regression is defined by the distinct rows of positive
-    weight less the predictors, as under precision, otherwise the
-    stand-in, the sd of the rows written out; and the floor on the
-    starting sigma is relative to the estimate's own scale, about
-    1.5e-8 times the largest sqrt(w)|y| over the rows in under
-    precision weights and 1.5e-8 times the largest |y| otherwise, the
-    absolute 1.5e-8 only for an all-zero response. Both in the routine
-    every fitting function and xbart's folds share; about 7 lines, one
-    pin moved, new tests including a fold. The help of dbarts, bart
-    and xbart adds "counting each row once, not as often as its weight,
-    under weights read as counts" to the no-residual-degrees
-    sentence. Draws move for saturated count fits and for precision-weighted fits or responses
-    under 1 in absolute value that land on the floor. Not built.
   starting-sigma-fractional-counts: (found in the review of
-    starting-sigma-count-floor, not built) under fractional counts the
+    the count floor, dec-B737) under fractional counts the
     written-out denominator (weightedSd's total - 1, the dense
     routine's sum(w) - rank, the sparse routine's count - rank) takes
     floating-point rounding as data: rep(0.05, 20) sums to 1 + 2.2e-16
@@ -1526,17 +1491,6 @@ items
     the other doors use; three or more stay multinomial. About 10
     lines, a test and help; the dbartsData help is corrected beside it
     (a flat offset is taken with counts). Not built.
-  weighted-sigma-line-wording: agent fix from the 2026-11-10 sitting
-    (dec-A302, call C16 of dec-A438): the verbose, summary and xbart
-    fold lines no longer call the weighted stand-in "the weighted sd
-    of the response" (at weights 100 the old words print ten times
-    sd(y)); they word it by weights.type: precision, "the sd of a row
-    of weight 1 (the intercept-only weighted regression's sigma)";
-    count, "the sd of the response with each row written out as often
-    as its weight" (after dec-B737 is built); unit weights and the
-    unit unchanged; the record and its attribute stand. R strings, the
-    pins and one per count arm; the sitting's R fixes batch. Not
-    built.
   frame-object-single-copy: (dec-B754, option (c) of call 4 of
     dec-A364, not built) a formula-named workspace value is saved
     twice in a saved frame-keeping object (once in the held values,
@@ -1608,61 +1562,35 @@ items
     (a gate). A bridge cleanup slice after threaded-chains D2 lands
     (same files); it also carries the C9 wording of count-fallback-
     wording. Not built.
-  interaction-test-by-terms-order: (dec-B791, revising call 1 of
-    dec-A421) refuseInteractionTerms in R/data.R and its caller in
-    R/bart.R read attr(terms, "order") > 1 instead of hasTopLevelColon,
-    which and the comment above it are deleted; the pins stay; about 3
-    lines for 25, no draws move. The sitting's R fixes batch. Not
-    built.
-  hazard-memory-cgroup: (dec-B795, extending dec-B750) on Linux the
-    hazard memory warning also reads the process's cgroup memory limit
-    (v2 memory.max in the process's cgroup and its parents, v1
-    memory.limit_in_bytes) and compares the projection with the
-    smaller of that and the installed memory; R file reads, no
-    subprocess; the message says "this process may use N GB"; a test
-    hook points at a fake cgroup tree; the help sentence that says the
-    limit is not read is reversed. Verify once by hand in a Linux
-    container with a memory limit (the bench box). The sitting's R
-    fixes batch. Not built.
-  stan4bart-mixing-summary-flag: (dec-B797 revising dec-B776; dec-B796
-    for the sampler diagnostics) no end-of-fit mixing warning: fit$mixing
-    is kept, summary() flags an R-hat over 1.1 ("* over 1.1: the
-    chains disagree"), and the 0.0-14 NEWS item is rewritten;
-    verbose < 0 governs the sampler diagnostics only; mvbart's summary
-    gains each outcome's residual-sd and fit R-hats, flagged the same
-    way (C86); the short-run floor (C84) is moot. bartCause keeps
-    verbose = -1 unless the builder finds another diagnostic needing 0;
-    its tests muffle by the helper's pattern (dec-A433) until the
-    warning goes, then no muffle is needed. The stan4bart fixes batch
-    and the bartCause fixes batch. Not built.
+  stan4bart-mixing-summary-flag: (dec-B797 revising dec-B776) built;
+    one question stays open. dec-B797 reads the 1.1 bar as the one
+    dbarts' summary uses, but dbarts' summary prints "Note: some R-hat
+    values exceed 1.01; chains may not have converged." for the same
+    split rank-normalized statistic, so stan4bart's summary flags at
+    1.1 where dbarts' does at 1.01. A maintainer decision: keep 1.1,
+    or move stan4bart to 1.01 and the dbarts form.
   collapsed-move-vectorized-likelihood-timing: (dec-B789; the
     maintainer: "make sure we don't forget the vectorization timing")
-    time a vectorized likelihood pass (a banked sum and vectorized log
-    and exp) in the k-move pricing measurement, and build it (option
-    (c) of dec-B789) if the collapsed move's evaluator is a material
-    share of a sweep. Before the branch collapsed-move-rebuild lands,
-    its model.hpp comment and docs/plans/collapsed-scale-move.md say
-    the row order is exact only in the reference build and tests/cpp.
-    The measurement list of docs/plans/k-move-pricing.md is on the
-    branch k-move-pricing (not on main), so this item carries the
-    timing until that branch lands, when it is added there. Not
-    built.
+    the collapsed move's likelihood evaluator keeps its scalar row-order
+    sum only in the reference build and tests/cpp; a shipped build may
+    bank it and vectorize its log and exp. The timing of a
+    vectorized pass is on the measurement list of
+    docs/plans/k-move-pricing.md (step 2's timing) and in the plan
+    collapsed-scale-move.md's later work; the evaluator's share of a
+    sweep is measured (perf on the bench box, 1.1 to 5.1 percent of a
+    move sweep across the nine regimes, the move 1.4 to 5.7), the
+    vectorized pass itself not yet. Build option (c) of dec-B789
+    (logistic drawn-k draws move by rounding and their baselines are
+    re-recorded once) only if pricing's report reads that share as
+    material. Not built.
   compiled-callback-helper-name: held for the maintainer (C142, dec-A438):
     the exported name and shape of the compiled-callback helper (one
     function taking a body or a pointer, as sourceCpp takes a file or
     code; compile_callback and compiled_callback differ by one letter;
     no includes argument). Exported names are the maintainer's. Slice
     S4 of threaded-chains, not urgent. Not built.
-  agent-call-fixes-2026-11-10: the unbuilt fixes of dec-A438, by batch.
-    R fixes batch: C16 (above), C20 (all.equal on a frame-keeping data
-    object, a regression against 0.9-34), C21 (nobs counts positive
-    weights), C23 (forest(sd = normal()) inside forests= reads the
-    caller's normal), C24 (one forest spelling in refusals), C54
-    (model.frame names as lm's), C55 (sparse columns as terms).
-    stan4bart fixes batch: C74, C77, C78, C88, C97 help sentence, C86.
-    bartCause fixes batch: C36, C41, C42. Branches before they land:
-    C124 on k-move-pricing; C128 and C129 on sumeff; C135 and I173 to
-    I175 on threaded-chains. C92: the record is amended. Not built.
+  agent-call-fixes-2026-11-10: the unbuilt fixes of dec-A438: C135
+    and I173 to I175, on threaded-chains. Not built.
   stan4bart-shrinkage-probit-scale-help: (item 3 of the shrinkage
     dossier, dec-A436) the five new prior families (hs, hs_plus,
     lasso, laplace, product_normal) read their scales with the
@@ -1742,8 +1670,8 @@ items
     repeated defaults); about 900 lines, about 15 agent-hours; changes
     how the bridge asks what a sampler can do and touches the
     host-neutral plan's S3 header work. Plan first (planner and blind
-    critique); an engine slice, serial, after collapsed-move-rebuild
-    lands. Not built.
+    critique); an engine slice, serial, now that collapsed-move-rebuild
+    has landed. Not built.
   chain-split: (dec-B764, Q2 of the C++ quality review) split the
     chain class in stages after the move-settings and replay slices:
     per-concern headers, a calibration-map class owning its map,
@@ -1785,7 +1713,7 @@ items
     record stores inputs or a flag, never a precomputed constant. A
     tests/cpp check that each class's virtual answers match its row.
     About 400 lines with tests, 8 to 12 agent-hours. After the
-    collapsed-move rebuild lands and before the C creation entry and
+    collapsed-move rebuild (landed) and before the C creation entry and
     facts struct; planned together with sampler-core-and-capabilities
     under a blind critique; engine review with a same-machine timing
     before and after. Not built.
