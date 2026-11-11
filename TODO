@@ -1703,11 +1703,8 @@ items
     document the maintainer reads. stan4bart's older rngSeed item
     ("silently ignored", true only of development builds) goes, as
     dec-A455 says. Not done.
-  pdbart-max-predictions-cap-revisit: a question for the maintainer
-    left open by dec-B750: pdbart's n.max.predictions cap (default
-    5e9, dec-B220) against the rule that no cap comes from expected
-    dataset sizes (state the cost instead). A premise run, then the
-    question. About 10 lines if the cap goes. Not decided.
+  pdbart-max-predictions-cap-revisit: dec-B812 drops pdbart's
+    n.max.predictions refusal and argument. Built on r-fixes-1111.
   hazard-keep-training-default: a question for the maintainer left
     open by dec-B750: whether hazard fits keep training draws by
     default (keepTrainingFits; about 31 KB a row, nine tenths of it

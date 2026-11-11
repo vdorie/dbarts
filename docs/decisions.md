@@ -6186,6 +6186,15 @@ Not built: on threaded-chains before it lands.
 See also: [dec-B581], [dec-A453].
 Record: root TODO, threaded-chains-before-landing. Marked: ruled by the maintainer, 2026-11-11. [dec-B811]
 
+**pdbart on a hazard fit has no count cap: the help states the count and how to shrink it**
+dec-B220 had pdbart and pd2bart on a hazard fit count their work before starting - subjects x periods up to the largest requested time x draws x grid values - and refuse above 5e9, about ten minutes, raised by n.max.predictions. dec-B750 removed hazard()'s row cap under the maintainer's rule against caps from expected dataset sizes and left this one open. The cap guards time only: the replay runs in chunks of 5 million values, so memory stays bounded at any count, and the chunk loop runs in R, so an interrupt stops it within about a second; at the default grid a fit of about 320 subjects at three predictors reaches it. Neither the argument nor hazard pdbart was released; 0.9-34 had no hazard fits and its pdbart never checked size. Base R's predict, the BART package's survival predictions and pdp's partial run at any size. Shown: (a) keep the refusal and the argument; (b) drop both, the help stating the count formula, that the work grows with it and how to shrink it, recommended; (c) no refusal, a one-time message above a count naming the ways to shrink it.
+The maintainer, 2026-11-11: "(b)"
+The rule: pdbart and pd2bart on a hazard fit do not refuse on their count of predictions; n.max.predictions is removed; ?pdbart states the count, that the work grows with it, and the ways to shrink it. Revises dec-B220.
+The alternative was the refusal at 5e9 with the argument. The cost is about 10 lines removed and the tests of the refusal dropped; a long call is the user's to interrupt.
+Built (r-fixes-1111).
+See also: [dec-B220], [dec-B750].
+Record: root TODO, pdbart-max-predictions-cap-revisit. Marked: ruled by the maintainer, 2026-11-11. [dec-B812]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
