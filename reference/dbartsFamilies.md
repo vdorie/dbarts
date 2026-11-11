@@ -155,9 +155,11 @@ A list of functions:
   rows, the two figures and the ways out (a coarser `hazard(breaks = )`,
   `keepTrainingFits = FALSE` or fewer chains), and then runs; a
   sampler's `$setData` warns the same way. The memory read is the
-  machine's: a limit set by a container or a job scheduler (a Linux
-  cgroup's `memory.max`) is not read, so under one the warning may not
-  come. Where the machine's memory cannot be read there is no warning.
+  smaller of the machine's installed memory and, on Linux, the limit a
+  container or a job scheduler sets on the process (its cgroup's
+  `memory.max`, or `memory.limit_in_bytes` in version 1), and the
+  warning says “this process may use” that limit where it is the
+  smaller. Where neither can be read there is no warning.
 
 - `hurdle.lognormal(sigma = NULL)`:
 
