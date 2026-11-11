@@ -594,11 +594,13 @@ workers - after the cancel check. It receives a `ChainView` of that chain
 alone, whose two writes set the chain's offset with the response transform
 held and its sigma, so the code that runs the BART sampler inside a larger
 sampler changes conditioning state between sweeps without a round trip. The
-sweep's first draw is the augmentation variables, so every change made there
-reaches them, and `getLatents` called there returns the previous sweep's
-values; which changes are legal there is docs/design/bart-as-a-component.md's
-subject. A nonzero return stops the run as a per-draw callback's does, and an
-exception it throws leaves the run as a chain's does. The one bridge entry
+sweep draws nothing before the hook, and its first draws, the collapsed
+rescaling move where that applies and then the augmentation variables, read
+the state the hook leaves, so every change made there reaches them, and
+`getLatents` called there returns the previous sweep's values; which changes
+are legal there is docs/design/bart-as-a-component.md's subject. A nonzero
+return stops the run as a per-draw callback's does, and an exception it throws
+leaves the run as a chain's does. The one bridge entry
 that installs an R closure, `bartcore_runWithCallback`, adapts it through the
 hook's context, evaluates it under `R_ToplevelExec`, refuses more than one
 chain, so the closure runs on the calling thread and reaches the sampler
