@@ -1,0 +1,29 @@
+k-move-pricing: the guard's assignment and step 3's trigger, committed before any R2 reading, 2026-11-11
+
+Written by the harness on the bench box (harness at 1d256a2cb, libraries from c3166816d). No dataset's data,
+outcome or score is here: the assignment names only, and step 3's trigger, which is selected on step 2's simulated
+replications alone.
+
+Pre-fit check (dataset rule, section 4): 23 of the sealed list's 24 passed. Bone marrow transplant: children failed
+(its file holds 36 predictors against the listing's 38), so the census read on in draw order under the rule and two
+auditors (k-move-pricing-second-screen-census-2.txt): Mesothelioma failed its second screen; SECOM passed it and
+failed the pre-fit check (secom.data holds 590 features a line against the donors' 591); Vertebral Column's
+two-class file passed both and is the 24th passer.
+
+Assignment (guard assign; the rule's own code, sealedRng(20261108), one from each of 12 score blocks):
+- R2: jm1; breast_cancer; Diabetic_Retinopathy_Debrecen; seismic-bumps; spect; ozone-level-8hr; APSFailure;
+  Mammographic Mass; Vertebral Column; vote; NATICUSdroid; irish
+- R3: coil2000_insurance_policies; credit_card_clients_default; hepatitis; ilpd; Internet-Advertisements;
+  online_shoppers_intention; Parkinsons; polish_companies_bankruptcy; qsar-biodeg; skin-segmentation; Toxicity;
+  wilt
+
+Step 3 (step3 features on 1,295 step 2 replications, then step3 select 12): the trigger is the union candidate
+with t = 0.71 and e = 40, chosen by the plan's order among the 4 candidates that spare A (union t 0.70 and 0.71,
+e 40 and 80); it fires on 422 replications of B and 450 of A. No score or count candidate spares A.
+
+Files on the box (run directory), as written:
+- assignment.rds   md5 0506ad282d373ab83f35f0ce43495370
+  sha256 dc9ec09ceceb101ca9309de5325790f4d778d1caf7b3dac709ec0443f68bc319
+- step3/commit.rds md5 336f049a24d3ef1c48a5e3afbc36acc3
+  sha256 d402529edfa61706ae24fa70251aa0c636b8d1823e5a200a2a043e72ebbdddb5
+- step3/features.rds md5 b1572a9291064a27118e323ecbf346d1
