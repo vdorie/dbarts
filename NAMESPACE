@@ -11,6 +11,7 @@ export(dbartsDrawLatents, dbartsWorkingResponse)
 export(dbartsValidateComposition)
 export(pdbart, pd2bart)
 export(xbart)
+export(defaultNumThreads)
 export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame, makeTestModelMatrix)

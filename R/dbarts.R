@@ -702,7 +702,7 @@ dbartsControl <- function(
   n.burn = 200L,
   n.trees = NULL,
   n.chains = 4L,
-  n.threads = min(dbarts::guessNumCores(), n.chains),
+  n.threads = dbarts::defaultNumThreads(n.chains),
   n.thin = 1L,
   printEvery = 100L,
   printCutoffs = 0L,

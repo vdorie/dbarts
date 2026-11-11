@@ -629,6 +629,12 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{defaultNumThreads(n.tasks)} is the default \code{n.threads}
+            of \code{bart}, \code{dbartsControl}, \code{rbart_vi} and
+            \code{xbart}: \code{guessNumCores()}, no more than
+            \code{n.tasks} and, under \command{R CMD check}, no more than two
+            (the cap follows \env{_R_CHECK_LIMIT_CORES_}). A stated
+            \code{n.threads} is never capped.
       \item Every fit answers \code{sigma()}, the posterior mean of its
             residual sd (1 on a family with none), and \code{nobs()}, the
             rows in its likelihood, as an \code{lm} or \code{glm} fit does;
