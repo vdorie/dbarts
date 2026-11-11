@@ -8,7 +8,8 @@ agent: one opus implementer per repository line (dbarts D1 and D2, stan4bart S1)
 reviewer who runs mutants on D1, D2 and S1; a sonnet implementer and reviewer for D3, S2, S3, S4 and the
 bartCause slice B1, with an opus read of S4's header and its worker-side C++ before commit.
 rng: NEUTRAL for dbarts: with no hook registered every run takes the path it takes today and no baseline,
-snapshot or exact gate moves. SHIFTING for stan4bart fits of more than one chain (chain seeds are drawn in a new
+snapshot or exact gate moves; D3 changes thread counts only under R CMD check, and draws do not depend on the
+thread count. SHIFTING for stan4bart fits of more than one chain (chain seeds are drawn in a new
 order, the same at every thread count); a one-chain fit is expected to keep its draws bit for bit
 ([Draws at a fixed seed](#draws-at-a-fixed-seed)). Not posterior-changing anywhere: the Gibbs order inside a
 chain is today's.
@@ -166,7 +167,10 @@ it (call A13).
   positive. One status enum, `dbarts_chain_status`, generated from a list macro like the other four (call A7).
 - `dbarts_draw` gains `latents`: the chain's n augmentation values this draw's trees were drawn from, null
   where the family augments none (the values `dbarts_sampler_getLatents` reports after a run). It is a
-  pre-release append below the existing fields, so it moves no version constant but re-bakes the token.
+  pre-release field, so it goes above the 1.0-0 boundary marker, not below it, and moves no version constant.
+  It sits among the pointers, after `varcount` and before `sigma`, and joins
+  [`DBARTS_DRAW_POINTER_FIELDS`](../../src/C_interface.cpp). The token folds pointer fields by offset in
+  pointer units, which is one number everywhere only ahead of the four doubles. The token re-bakes.
   "The draw struct carries none" changes in the header and in architecture's
   [Callbacks and errors](../architecture.md#callbacks-and-errors) (call A8).
 - `dbarts_sampler_run`'s comment "A caller makes its changes between runs: this API has no hook inside a
@@ -252,8 +256,10 @@ one sonnet review.
   nothing per chunk beyond its own scratch for the draw callback (call A2). A WALNUTS exception, or a -1 from
   a view operation (a diverged parametric step's NaN), is caught; its message goes into the chain's slot and
   the function returns nonzero. Everything the two functions touch is owned by the external-pointer object,
-  never by a `.Call` frame, so an interrupt's jump strands nothing. Runs keep `numBurnIn = 0`, so the warmup
-  trace keeps recording; dbarts burn-in would end it. `C_stan4bart_run` loses its dead `"stan"` and `"bart"`
+  never by a `.Call` frame, so an interrupt's jump strands nothing. Runs keep `numBurnIn = 0`, and the Gibbs
+  coupling depends on it: the draw callback never sees a sweep dbarts discards as burn-in, so under dbarts
+  burn-in the BART draws would silently stop reaching the parametric part (and the warmup trace would stop
+  recording). stan4bart's warmup is its own phase, recorded, never dbarts' burn-in. `C_stan4bart_run` loses its dead `"stan"` and `"bart"`
   result types. The adaptation, eval-count and initial-summary entries loop over the chains.
 - Chunks: a phase runs in one dbarts run unless something stops it sooner. With verbose above 1, chunks end
   every `refresh` iterations, where `iter i / N` prints; with an R callback, every 100 iterations or at
@@ -307,6 +313,8 @@ one sonnet review.
     signature is `typedef int (*stan4bart_callback)(void* context, const stan4bart_draw* draw, double* result,
     size_t resultLength)`. Under R headers the header also gives a macro that builds the external pointer with
     `R_MakeExternalPtrFn` and tags it with the major version, since a function pointer is not a `void*`.
+    The pointer is valid only while the user's `sourceCpp` library stays loaded, so the help says to create
+    it right before the fit and not to keep it across sessions.
   - The user writes the function in an R script with `Rcpp::sourceCpp(code = )` and
     `// [[Rcpp::depends(stan4bart)]]`, exports a function returning that pointer, and passes `callback =
     compiled_callback(ptr, length = 1)`. stan4bart refuses a pointer whose tag's major differs.
@@ -367,11 +375,12 @@ changes stan4bart's draws: the same tier on stan4bart's side. D3, S2, S3, S4 and
 | tests/cpp: chain c's offset write leaves every other chain's working response and fits bit for bit | D1 | equal |
 | tests/cpp: `DrawInfo` latents for probit equal the sampler's latents after a one-sweep run | D1 | equal |
 | bench-sampler.R compare, D1 against main, no hook (maintainer-run) | D1 | within the compare's noise |
+| the draw callback's own cost: a one-chain probit sampler at n = 5000, sweeps timed with and without a no-op draw callback, same machine, alternating | D2 | recorded; if above the timing's noise, D2 adds a registration option that skips the log-likelihood scratch, settled in D2's review (call A16) |
 | test-capi.R plus capi/consumer.c: a compiled hook and draw callback through the flat API doing the toy Gibbs step; chunked against one-sweep flat runs with `dbarts_sampler_setOffset` or setSigma between, at one chain (where the two routes are the same model) | D2 | bitwise equal |
 | the same, 4 chains at 1 and 2 threads | D2 | bitwise equal |
 | consumer: NaN offset, sigma 0, a pinned-sigma sampler (probit); registration on a fixed-conduit sampler | D2 | -1, -1, 0 with the chain unchanged; registration 0 and nothing registered; nothing raised |
 | a C++ consumer compiled in test-capi.R whose hook and draw callback throw, inline and at 2 threads, on all three CI systems | D2 | an R error carrying the what(), both hooks; the sampler runs on (call A6) |
-| consumer: a hook returning nonzero; an interrupt injected through dbarts' count hooks at 2 chains and 2 threads | D2 | normal return with the context's reason; the interrupt condition, then a run equal to an uninterrupted one |
+| consumer: a hook returning nonzero; an interrupt injected through dbarts' count hooks at 2 chains and 2 threads, in one-sweep runs so a poll lands inside every run | D2 | normal return with the context's reason; the interrupt condition, then a run equal to an uninterrupted one |
 | sampler-wide `setOffset` after chain offsets; `updateScale = TRUE` while chains differ | D2 | every chain back on the shared offset; a refusal naming the cause |
 | `capi_hash` expectations, including a probe that a changed view-op or hook-typedef parameter moves the token; the header compiles as C99 `-pedantic` | D2 | the token moved; clean |
 | ThreadSanitizer: tests/cpp built with `-fsanitize=thread`, running the threaded-hook tests | D1, CI | no report (call 12) |
@@ -384,9 +393,10 @@ changes stan4bart's draws: the same tier on stan4bart's side. D3, S2, S3, S4 and
 | stan4bart: `stan4bart.chunk` = 1 against a whole phase, with and without `verbose = 2`, continuous and binary | S1 | bitwise equal |
 | stan4bart: `keep_fits = FALSE` | S1 | the one stored draw equal to the last draw of a `keep_fits = TRUE` fit |
 | stan4bart: a forced parametric failure on chain 2 | S1 | one R error naming chain 2; no warning; no rerun |
-| stan4bart: test-24's interrupt through dbarts' count hooks, extended to chains = 2, cores = 2 | S1 | R's interrupt condition; a fresh fit equal to one taken before |
+| stan4bart: test-24's interrupt through dbarts' count hooks, extended to chains = 2, cores = 2, with `stan4bart.chunk = 1`: on the worker path the hooks count main-thread polls (one at each run's entry, then one per 100 ms), so one-sweep runs make the injected poll land inside the fit however fast it is; the checks do not depend on the iteration it lands in | S1 | R's interrupt condition; a fresh fit equal to one taken before |
 | stan4bart: 20 seeds, a continuous and a binary fit, against 89af617 | S1 | posterior means of fixed effects, sigma, random-effect sd and the BART fit mean agree under the threshold the equivalence harnesses' statistical mode uses; a fit time at n = 500 and 5000 recorded, no bar |
-| stan4bart mutants: every chain given the first parametric seed; the draw callback's offset subtraction using the next group's offset; the hand-off moved after the next parametric step | S1 | caught by the pairwise, the one-chain and the chunk gates |
+| stan4bart: a one-chain, `cores = 1` binary fit at n = 5000 against 89af617, alternating runs on one machine | S1 | no slowdown above noise; the draw callback computes every carried channel at each kept draw, the log-likelihood with a `pnorm` per row included, where today's loop asked for neither |
+| stan4bart mutants: every chain given the first parametric seed; the draw callback's offset subtraction using the next group's offset; the hand-off moved after the next parametric step; the warmup run made with `numBurnIn = warmup` | S1 | caught by the pairwise, the one-chain and the chunk gates |
 | stan4bart: R-loaded ThreadSanitizer (or ASan) run of test-01 and test-02 at cores = 2, macOS or the bench box | S1, local | no report |
 | stan4bart: audit of the parametric code and its headers for mutable statics, `Rprintf` and R API on the hook's and the draw callback's paths | S1, review | none, or each removed |
 | stan4bart: predict, extract (all types), fitted, saveRDS round trip, `getBartSampler` rebuild | S2 | equal to the stored blocks to 1e-10, as test-19 does today |
@@ -541,6 +551,12 @@ A15. **A body-only helper for the compiled callback** (`compile_callback(body, l
     example. Alternative: the header and a documented template only. Recommended: build it. A user's
     exception then never crosses a library boundary, which makes call A6's doubt moot for this path. Marked
     for close-out.
+A16. **The log-likelihood scratch, measured before any option is added.** A registered draw callback receives
+    the log-likelihood at every kept draw, so stan4bart pays for one it never reads. D2 times it, and only a
+    cost above noise adds a registration option to skip it (a flag on a new registration entry, not a change
+    to `dbarts_sampler_setDrawCallback`). The dbarts branch is still open when S1's end-to-end timing runs, so
+    a cost found there lands in dbarts before the merge. Alternative: add the option now, unmeasured. That
+    puts surface in the header that may buy nothing.
 
 ## Risks and the objections answered
 
