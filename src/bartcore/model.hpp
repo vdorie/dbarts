@@ -5121,10 +5121,12 @@ public:
   /// factor * scaled[i] + unscaled[i] + offset_i, \p unscaled null where
   /// nothing is held beside the scaled fits. Neither the offset nor
   /// \p unscaled is scaled. A row is in unless a mask, a count of 0 or, on a
-  /// binomial response, no trials leave it out. The sum is one scalar
-  /// accumulation in row order, which is part of the draw of whatever reads
-  /// it: it is not to be split into banks or vectorized. NaN for a family
-  /// that defines none, which no caller reaches.
+  /// binomial response, no trials leave it out. The sum is part of the draw
+  /// of whatever reads it, so in the reference build and the component
+  /// tests, where draws are compared bit for bit, it stays one scalar
+  /// accumulation in row order; a shipped build may split it into banks or
+  /// vectorize it. NaN for a family that defines none, which no caller
+  /// reaches.
   virtual double logLikelihoodAtScaledFits(const double* /*scaled*/,
                                            const double* /*unscaled*/,
                                            double /*factor*/) const {

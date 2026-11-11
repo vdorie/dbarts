@@ -288,9 +288,11 @@ before the tree loop, on one forest, and redrew the latents itself.
   Threads: the move runs inside its chain's sweep with no shared scratch (the evaluator is a fused loop over
   the chain's own arrays, and the sharers' split fills buffers the chain owns), so n.threads 1 and 2 draw
   bitwise the same.
-- The likelihood sum is a plain scalar loop in row order in both the shipped and the reference build. It
-  must not be vectorized or reassociated: the sum's order is part of the draw, and the equivalence
-  baselines are reference-build values the shipped build reproduces bitwise today.
+- The likelihood sum's order is part of the draw. In the reference build (`--enable-reference-build`) and
+  tests/cpp, where the exact gates and the equivalence baselines compare draws bit for bit, it stays a plain
+  scalar loop in row order. A shipped build may vectorize or reorder it later (dec-B786; the maintainer's
+  ruling of 2026-11-10 on the rebuild's call 4): it is a plain loop there today too, and no code holds it
+  to row order outside those builds. [Later work](#later-work) times a vectorized pass.
 - A cancel cannot land between the move and the latent draw that completes it: on a sweep the move opened
   the augmentation draw arms no cancel ([Where it runs](#where-it-runs)), so a canceled run never leaves the
   leaves scaled and the latents stale.
@@ -389,9 +391,10 @@ the branch:
   `drawForestRescale`'s `alphaOut`.
 - [`ResponseModel`](../../src/bartcore/model.hpp) gains
   `virtual double logLikelihoodAtScaledFits(const double* scaled, const double* unscaled, double factor) const`:
-  the sum over the rows in the likelihood, in row order, of the row's log-likelihood at
-  factor * scaled_i + unscaled_i + o_i, `unscaled` null on a single forest and the other forests'
-  contribution for the sharers. `LogisticResponse`'s uses the per-row term of its `computeLogLikelihood`,
+  the sum over the rows in the likelihood (in row order where draws are compared bit for bit,
+  [State, chains and threads](#state-chains-and-threads)) of the row's log-likelihood at
+  factor * scaled_i + unscaled_i + o_i, `unscaled` null on a single forest and the other forests' contribution
+  for the sharers. `LogisticResponse`'s uses the per-row term of its `computeLogLikelihood`,
   extracted into one private helper both call (count weights as multipliers, a binomial row's trials and log
   choose constant). The two agree to rounding and not bit for bit: the compiler may fuse the factor's multiply
   into the add that follows it (ran at R's flags on arm64), so tests/cpp compares within 1e-14 relative. The
@@ -775,8 +778,8 @@ Each must fail a named test or gate:
     terms: tests/cpp 1's grid.
 21. A log p(0) that is not finite handed to the slice step: tests/cpp 5's last case.
 
-Read, not run: the likelihood sum stays a scalar loop in row order, and the move's refresh sits outside the
-armed cancel window.
+Read, not run: the likelihood sum stays a scalar loop in row order in the reference build and tests/cpp, and
+the move's refresh sits outside the armed cancel window.
 
 ## Budget and stops
 
@@ -1014,6 +1017,13 @@ first put:
    - Including it now: about 250 more planned lines (the evaluator, an exact negative binomial frozen-tree
      posterior for the gate, a census arm, the nbinom equivalence scenario re-recorded) and an unmeasured
      cost whose latent redraw grows with the counts.
+
+## Later work
+
+- A vectorized likelihood pass, timed in the k-move pricing measurement: the evaluator's sum banked and its
+  log and exp vectorized, in a shipped build only (the reference build and tests/cpp keep the scalar sum in
+  row order). If the evaluator is a material share of a sweep, build it (the maintainer, 2026-11-10: "make
+  sure we don't forget the vectorization timing").
 
 ## Recheck against main
 
