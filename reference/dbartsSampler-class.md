@@ -392,9 +392,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   each left at `NULL`, a value `newData` records (its `cutPoints`,
   `response.range` and `standardization` slots, see
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md))
-  is used and one it does not record is derived from it. A cut count or
-  quantile rule `newData` states wins over the sampler's (see `n.cuts`
-  and `useQuantiles` on
+  is used, a cut grid or standardization it does not record is derived
+  from it, and a response range it does not record is the sampler's own,
+  kept as `setResponse` keeps it. A cut count or quantile rule `newData`
+  states wins over the sampler's (see `n.cuts` and `useQuantiles` on
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
   and the sampler derives by what it takes from then on, in this call
   and in any later refresh; an object carrying `cutPoints` brings the
@@ -413,20 +414,22 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   values and keeps the cut points and the record; and a data object made
   by
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
-  records none and derives every one, as before. Draws the sampler has
-  saved (`keepTrees`) stay the functions they were, so `predict` returns
-  the same values for them before and after the call. To that end a
-  `linear` leaf's coefficients, saved and current, are rewritten into
-  the center and scale the call derives or takes for its leaf
-  covariates, and every saved draw into the response scale it derives or
-  takes; a value kept, or taken equal to the one in force, rewrites
-  nothing. A row whose leaf covariate is missing is read at that
-  covariate's center, so what a linear leaf predicts for it follows the
-  center to the new data's. A standardization the call derives is read
-  over the new data's rows in the likelihood, those of positive weight;
-  where fewer than two rows are in (subjects, for a hazard fit, whose
-  data hold each subject's rows together, at periods 1, 2, 3 and on in
-  order, as
+  records none: it derives the cut points and the standardization, as
+  before, and keeps the sampler's response range, where 0.9-34 derived
+  the scale again from the new response; `updateScale = TRUE` derives
+  it. Draws the sampler has saved (`keepTrees`) stay the functions they
+  were, so `predict` returns the same values for them before and after
+  the call. To that end a `linear` leaf's coefficients, saved and
+  current, are rewritten into the center and scale the call derives or
+  takes for its leaf covariates, and every saved draw into the response
+  scale it derives or takes; a value kept, or taken equal to the one in
+  force, rewrites nothing. A row whose leaf covariate is missing is read
+  at that covariate's center, so what a linear leaf predicts for it
+  follows the center to the new data's. A standardization the call
+  derives is read over the new data's rows in the likelihood, those of
+  positive weight; where fewer than two rows are in (subjects, for a
+  hazard fit, whose data hold each subject's rows together, at periods
+  1, 2, 3 and on in order, as
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   expands them, data laid out otherwise being refused), or the call
   reads the response's scale from every row because those rows hold
@@ -693,13 +696,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   its meaning in response units across the swap. `setData` carries that
   restatement too wherever the scale moves. On `setData` the argument
   defaults to `NULL`, which takes the `response.range` the new data
-  object records and otherwise derives the scale; `TRUE` derives it from
-  the new data, over its rows in the likelihood as creation would, and
-  `FALSE` keeps the sampler's, the new response going in under it with
-  no draw rewritten. A sampler made by hand from another's parts takes
-  the record in the same way. Where rows are out and the rows in hold
-  fewer than two distinct values of the response, a `setData` that
-  derives the scale takes every row, under a warning of class
+  object records and otherwise keeps the sampler's, as `setResponse`
+  does (0.9-34 derived it again); `TRUE` derives it from the new data,
+  over its rows in the likelihood as creation would, and `FALSE` keeps
+  the sampler's, the new response going in under it with no draw
+  rewritten. A sampler made by hand from another's parts takes the
+  record in the same way. Where rows are out and the rows in hold fewer
+  than two distinct values of the response, a `setData` that derives the
+  scale takes every row, under a warning of class
   `dbartsScaleFallbackWarning`; `setResponse`, `setOffset`, `setWeights`
   and `setActiveRows` with `updateScale = TRUE` instead keep the scale
   and the center in force, as with `updateScale = FALSE`, and warn with

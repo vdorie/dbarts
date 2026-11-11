@@ -337,9 +337,10 @@ calibrates to the new response, as a fresh fit does, and
 `sampler$copy()` is the way to the same model again. A data object made
 afresh from the same rows derives its own. No door states a response
 range: the records are read only from a sampler's own data. A sampler's
-`setData` does the same unless its `updateCutPoints`, `updateScale` or
-`updateStandardization` says to derive a value or to keep the sampler's
-(see
+`setData` does the same, except that it keeps its own response range
+where the object records none, unless its `updateCutPoints`,
+`updateScale` or `updateStandardization` says to derive a value or to
+keep the sampler's (see
 [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
 so `sampler$setData(sampler$data)`, the object handed back whole, keeps
 them. [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)
@@ -556,7 +557,7 @@ data
 #> Slot "build":
 #> $formula
 #> y ~ x + g
-#> <environment: 0x59a5eae5bc88>
+#> <environment: 0x6293b9a7e6b8>
 #> 
 #> $weights
 #> NULL
