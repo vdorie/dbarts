@@ -1374,35 +1374,49 @@ errorOptionOnly <- function(run) {
 abortOnly <- function(run) {
   withRestarts(run(), abort = function() "abort")
 }
-out <- unhandledRun(function() sampler$run(10L, 1L), abortOnly)
-expect_equal(out$taken, "abort")
-# options("interrupt") as a function stands in for options("error"), as in R
-expect_equal(unname(out$calls), c(0L, 1L))
-expect_equal(out$messages, "")
-out <- errorOptionOnly(function() sampler$run(10L, 1L))
-expect_equal(out$taken, "abort")
-expect_true(out$ran)
-# a browser or tryRestart restart is taken in preference to the abort outside
-out <- unhandledRun(
-  function() sampler$run(10L, 1L),
-  function(run) {
-    withRestarts(
-      withRestarts(run(), browser = function() "browser"),
-      abort = function() "abort"
-    )
-  }
-)
-expect_equal(out$taken, "browser")
-out <- unhandledRun(
-  function() sampler$run(10L, 1L),
-  function(run) {
-    withRestarts(
-      withRestarts(run(), tryRestart = function() "tryRestart"),
-      abort = function() "abort"
-    )
-  }
-)
-expect_equal(out$taken, "tryRestart")
+# A PSOCK worker (parallel:::workCommand) runs each job inside
+# tryCatch(interrupt = ), which takes an interrupt nothing nearer handles and
+# drops the job without a result, so the master waits forever. The arms that
+# leave the interrupt unhandled on purpose run only outside a worker.
+inParallelWorker <- any(vapply(
+  sys.calls(),
+  function(call) {
+    head <- call[[1L]]
+    is.name(head) && identical(as.character(head), "workCommand")
+  },
+  NA
+))
+if (!inParallelWorker) {
+  out <- unhandledRun(function() sampler$run(10L, 1L), abortOnly)
+  expect_equal(out$taken, "abort")
+  # options("interrupt") as a function stands in for options("error"), as in R
+  expect_equal(unname(out$calls), c(0L, 1L))
+  expect_equal(out$messages, "")
+  out <- errorOptionOnly(function() sampler$run(10L, 1L))
+  expect_equal(out$taken, "abort")
+  expect_true(out$ran)
+  # a browser or tryRestart restart is taken in preference to the abort outside
+  out <- unhandledRun(
+    function() sampler$run(10L, 1L),
+    function(run) {
+      withRestarts(
+        withRestarts(run(), browser = function() "browser"),
+        abort = function() "abort"
+      )
+    }
+  )
+  expect_equal(out$taken, "browser")
+  out <- unhandledRun(
+    function() sampler$run(10L, 1L),
+    function(run) {
+      withRestarts(
+        withRestarts(run(), tryRestart = function() "tryRestart"),
+        abort = function() "abort"
+      )
+    }
+  )
+  expect_equal(out$taken, "tryRestart")
+}
 # handled: no blank line, no option called
 out <- unhandledRun(
   function() sampler$run(10L, 1L),
