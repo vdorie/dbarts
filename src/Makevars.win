@@ -18,9 +18,12 @@ endif
 # before R CMD INSTALL defines the same macro the autoconf flag defines
 # elsewhere, for the bridge below and for the sub-make that builds the
 # kernels. The checked-in config *.win headers stay untouched, so the macro is
-# recorded on tools/check-win-drift.R's expected-absent table.
+# recorded on tools/check-win-drift.R's expected-absent table. The reference
+# build also fuses multiply-adds within one expression only, as configure.ac
+# arranges elsewhere; the Rtools compilers all accept the flag.
 ifdef DBARTS_REFERENCE_BUILD
   REFERENCE_BUILD_FLAG=-DDBARTS_REFERENCE_BUILD
+  FP_CONTRACT_FLAG=-ffp-contract=on
 endif
 
 INST_DIR=../inst
@@ -32,6 +35,8 @@ PTHREAD_LIBS=$(SHLIB_PTHREAD_FLAGS)
 CXX_STD = CXX20
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS) $(REFERENCE_BUILD_FLAG)
+PKG_CFLAGS=$(FP_CONTRACT_FLAG)
+PKG_CXXFLAGS=$(FP_CONTRACT_FLAG)
 PKG_LIBS= external.a misc.a rc.a $(PTHREAD_LIBS)
 
 # as in Makevars.in: an empty ARFLAGS would run ar with no operation, so
@@ -62,7 +67,8 @@ sublibs:
 	   PTHREAD_CPPFLAGS="$(PTHREAD_CPPFLAGS)" INST_DIR="$(INST_DIR)" \
            SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
            NEON_FLAG="$(NEON_FLAG)" \
-           CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
+           CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS) $(FP_CONTRACT_FLAG)" \
+           CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS) $(FP_CONTRACT_FLAG)" \
            CPPFLAGS="$(CPPFLAGS) $(REFERENCE_BUILD_FLAG)" AR="$(AR)" ARFLAGS="$(PKG_ARFLAGS)" RANLIB="$(RANLIB)") \
            || exit 1; \
 	done

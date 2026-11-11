@@ -7,7 +7,11 @@
 # holding such a value must exit unless mode is "reference". compiled.isa
 # names the instruction sets the binary carries and simd.level is the dispatch
 # level chosen at load, the same integer
-# C_dbarts_getMaxSIMDInstructionSet returns.
+# C_dbarts_getMaxSIMDInstructionSet returns. fp.contract is the multiply-add
+# contraction the object was compiled under: "on" (within one expression; the
+# reference build and clang), "off" (no fused multiply-add on the target) or
+# "fast" (GCC's default). A test that compares two code paths bitwise holds
+# only where it is not "fast".
 #
 # Unexported on purpose: a development and test hook, not package API.
 buildInfo <- function() {

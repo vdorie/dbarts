@@ -23,15 +23,16 @@ AC_DEFINE_UNQUOTED(XINT_TYPE, uint16_t, [Define to the integer type used to repr
 # The reference build keeps the draw-path kernels scalar and fixed-order, so
 # its draws stay bitwise reproducible should the shipped build ever vectorize
 # those reductions. None does today, so the two builds compile the same
-# kernels. The recorded equivalence baselines and the seed-locked snapshot
-# tests are keyed to the reference build and run there. Default off. The
+# kernels; they differ only in multiply-add contraction (below). The recorded
+# equivalence baselines and the seed-locked snapshot tests are keyed to the
+# reference build and run there. Default off. The
 # macro has to reach both the bridge (src/config.hpp) and the kernels
 # (src/misc/config.h), which one AC_DEFINE does because both are
 # AC_CONFIG_HEADERS above. Windows has no configure: src/Makevars.win defines
 # the same macro from an environment variable of the same name.
 AC_ARG_ENABLE([reference-build],
   [AS_HELP_STRING([--enable-reference-build],
-    [compile the scalar, fixed-order draw-path kernels, whose draws are bitwise reproducible (default: no)])],
+    [compile the scalar, fixed-order draw-path kernels with -ffp-contract=on, whose draws are bitwise reproducible (default: no)])],
   [], [enable_reference_build=no])
 AS_IF([test "x$enable_reference_build" != xno],
   [AC_DEFINE([DBARTS_REFERENCE_BUILD], [1],
@@ -93,6 +94,23 @@ AC_CANONICAL_HOST
 AX_COMPILER_VENDOR
 AC_SUBST(COMPILER_VENDOR, $ax_cv_c_compiler_vendor)
 AX_COMPILER_EXT
+
+# The reference build fuses multiply-adds within one expression only, clang's
+# default and the rule the engine's arithmetic is written for; GCC's default
+# fuses across statements and decides per copy of an inline function, so two
+# code paths sharing arithmetic can round differently. Shipped builds keep the
+# compiler's default. buildInfo() reports the rule as "on" for every reference
+# build, so a compiler that rejects the flag cannot build one.
+AS_IF([test "x$enable_reference_build" != xno], [
+  AX_CHECK_COMPILE_FLAG([-ffp-contract=on], [FP_CONTRACT_CFLAG=-ffp-contract=on],
+    [AC_MSG_ERROR([--enable-reference-build needs a C compiler that accepts -ffp-contract=on])])
+  AC_LANG_PUSH(C++)
+  AX_CHECK_COMPILE_FLAG([-ffp-contract=on], [FP_CONTRACT_CXXFLAG=-ffp-contract=on],
+    [AC_MSG_ERROR([--enable-reference-build needs a C++ compiler that accepts -ffp-contract=on])])
+  AC_LANG_POP(C++)
+])
+AC_SUBST(FP_CONTRACT_CFLAG)
+AC_SUBST(FP_CONTRACT_CXXFLAG)
 
 # Checks for libraries.
 AX_PTHREAD

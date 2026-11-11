@@ -195,6 +195,13 @@ static SEXP getMaxSIMDInstructionSet() {
 /// anything but the macro. simd.level is misc_simd_getMaxSIMDInstructionSet(),
 /// which is both the level misc_simd_init() installed at load and the value
 /// the R-level SIMD tests already dispatch on - one source of truth, not two.
+/// fp.contract is the multiply-add contraction this object was compiled
+/// under: "on" (within one expression only) for the reference build, which
+/// configure refuses without -ffp-contract=on, and for clang without
+/// -ffast-math, whose default that is; "off" when the target has no fused
+/// multiply-add; "fast" otherwise (GCC's default, across statements and per
+/// copy of an inline function), where two code paths sharing arithmetic may
+/// differ in the last bit.
 static SEXP buildInfo(void) {
   const char* isaNames[8];
   int numISA = 0;
@@ -220,7 +227,16 @@ static SEXP buildInfo(void) {
   const char* mode = "shipped";
 #endif
 
-  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 3));
+#if defined(DBARTS_REFERENCE_BUILD) || \
+  (defined(__clang__) && !defined(__FAST_MATH__))
+  const char* fpContract = "on";
+#elif !defined(__FP_FAST_FMA)
+  const char* fpContract = "off";
+#else
+  const char* fpContract = "fast";
+#endif
+
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 4));
   SET_VECTOR_ELT(resultExpr, 0, Rf_mkString(mode));
 
   SEXP isaExpr = PROTECT(Rf_allocVector(STRSXP, numISA));
@@ -232,10 +248,13 @@ static SEXP buildInfo(void) {
                  Rf_ScalarInteger(
                    static_cast<int>(misc_simd_getMaxSIMDInstructionSet())));
 
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_VECTOR_ELT(resultExpr, 3, Rf_mkString(fpContract));
+
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 4));
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("mode"));
   SET_STRING_ELT(namesExpr, 1, Rf_mkChar("compiled.isa"));
   SET_STRING_ELT(namesExpr, 2, Rf_mkChar("simd.level"));
+  SET_STRING_ELT(namesExpr, 3, Rf_mkChar("fp.contract"));
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
 
   UNPROTECT(3);

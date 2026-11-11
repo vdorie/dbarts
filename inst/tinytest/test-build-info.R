@@ -7,9 +7,16 @@
 info <- dbarts:::buildInfo()
 
 expect_true(is.list(info))
-expect_identical(names(info), c("mode", "compiled.isa", "simd.level"))
+expect_identical(
+  names(info),
+  c("mode", "compiled.isa", "simd.level", "fp.contract")
+)
 expect_true(is.character(info$mode) && length(info$mode) == 1L)
 expect_true(info$mode %in% c("reference", "shipped"))
+expect_true(info$fp.contract %in% c("on", "off", "fast"))
+if (identical(info$mode, "reference")) {
+  expect_identical(info$fp.contract, "on")
+}
 expect_true(is.character(info$compiled.isa))
 expect_identical(
   info$simd.level,

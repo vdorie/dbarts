@@ -635,6 +635,8 @@ PTHREAD_CXX
 PTHREAD_CC
 ax_pthread_config
 SED
+FP_CONTRACT_CXXFLAG
+FP_CONTRACT_CFLAG
 NEON_FLAG
 AVX2_FLAG
 AVX_FLAG
@@ -1344,8 +1346,9 @@ Optional Features:
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-reference-build
-                          compile the scalar, fixed-order draw-path kernels,
-                          whose draws are bitwise reproducible (default: no)
+                          compile the scalar, fixed-order draw-path kernels
+                          with -ffp-contract=on, whose draws are bitwise
+                          reproducible (default: no)
   --enable-match-bayes-tree
                           removed for 1.0-0; dbarts no longer builds a
                           BayesTree-matching stream
@@ -3127,8 +3130,9 @@ printf '%s\n' "#define XINT_TYPE uint16_t" >>confdefs.h
 # The reference build keeps the draw-path kernels scalar and fixed-order, so
 # its draws stay bitwise reproducible should the shipped build ever vectorize
 # those reductions. None does today, so the two builds compile the same
-# kernels. The recorded equivalence baselines and the seed-locked snapshot
-# tests are keyed to the reference build and run there. Default off. The
+# kernels; they differ only in multiply-add contraction (below). The recorded
+# equivalence baselines and the seed-locked snapshot tests are keyed to the
+# reference build and run there. Default off. The
 # macro has to reach both the bridge (src/config.hpp) and the kernels
 # (src/misc/config.h), which one AC_DEFINE does because both are
 # AC_CONFIG_HEADERS above. Windows has no configure: src/Makevars.win defines
@@ -5504,6 +5508,114 @@ printf '%s\n' "#define COMPILER_SUPPORTS_NEON 1" >>confdefs.h
 
   ;;
   esac
+
+
+# The reference build fuses multiply-adds within one expression only, clang's
+# default and the rule the engine's arithmetic is written for; GCC's default
+# fuses across statements and decides per copy of an inline function, so two
+# code paths sharing arithmetic can round differently. Shipped builds keep the
+# compiler's default. buildInfo() reports the rule as "on" for every reference
+# build, so a compiler that rejects the flag cannot build one.
+if test "x$enable_reference_build" != xno
+then :
+
+  { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -ffp-contract=on" >&5
+printf %s "checking whether C compiler accepts -ffp-contract=on... " >&6; }
+if test ${ax_cv_check_cflags___ffp_contract_on+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e)
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -ffp-contract=on"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  ax_cv_check_cflags___ffp_contract_on=yes
+else case e in #(
+  e) ax_cv_check_cflags___ffp_contract_on=no ;;
+esac
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags ;;
+esac
+fi
+{ printf '%s\n' "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___ffp_contract_on" >&5
+printf '%s\n' "$ax_cv_check_cflags___ffp_contract_on" >&6; }
+if test "x$ax_cv_check_cflags___ffp_contract_on" = xyes
+then :
+  FP_CONTRACT_CFLAG=-ffp-contract=on
+else case e in #(
+  e) as_fn_error $? "--enable-reference-build needs a C compiler that accepts -ffp-contract=on" "$LINENO" 5 ;;
+esac
+fi
+
+  ac_ext=cpp
+ac_cpp='$CXXCPP $CPPFLAGS'
+ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+
+  { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking whether C++ compiler accepts -ffp-contract=on" >&5
+printf %s "checking whether C++ compiler accepts -ffp-contract=on... " >&6; }
+if test ${ax_cv_check_cxxflags___ffp_contract_on+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e)
+  ax_check_save_flags=$CXXFLAGS
+  CXXFLAGS="$CXXFLAGS  -ffp-contract=on"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_compile "$LINENO"
+then :
+  ax_cv_check_cxxflags___ffp_contract_on=yes
+else case e in #(
+  e) ax_cv_check_cxxflags___ffp_contract_on=no ;;
+esac
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  CXXFLAGS=$ax_check_save_flags ;;
+esac
+fi
+{ printf '%s\n' "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cxxflags___ffp_contract_on" >&5
+printf '%s\n' "$ax_cv_check_cxxflags___ffp_contract_on" >&6; }
+if test "x$ax_cv_check_cxxflags___ffp_contract_on" = xyes
+then :
+  FP_CONTRACT_CXXFLAG=-ffp-contract=on
+else case e in #(
+  e) as_fn_error $? "--enable-reference-build needs a C++ compiler that accepts -ffp-contract=on" "$LINENO" 5 ;;
+esac
+fi
+
+  ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
+
+fi
+
 
 
 # Checks for libraries.
