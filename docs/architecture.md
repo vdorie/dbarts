@@ -285,8 +285,9 @@ their acceptance ratios, as free functions templated on
 moves.hpp, called from `Chain`) is the per-iteration, per-tree entry: it
 draws a step type (`StepType::birth/death/swap/change/perturb/ruleGibbs`) and
 dispatches to the corresponding move function. Swap, perturb and rule_gibbs
-all ship at probability 0. Swap - at production forest sizes it is nearly
-all no-op - is the only move that rotates a child's rule up the tree, so a
+all ship at probability 0. Swap - most of its proposals are invalid and never reach
+the acceptance step, and dropping it changed little at forests of 75 trees
+and more - is the only move that rotates a child's rule up the tree, so a
 single-tree fit wanting to cross between rootings sets it positive through
 `dbartsControl(proposal.probs = )`. Perturb moves one interior node's
 ordinal cut by a single grid position, keeping its split variable and the

@@ -358,9 +358,15 @@
             \code{proposal.probs} defaults to \code{c(birth_death = 0.6,
             swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth =
             0.5)} rather than \code{c(birth_death = 0.5, swap = 0.1, change
-            = 0.4, birth = 0.5)}. At usual forest sizes swap almost never
-            changes anything, and dropping it costs nothing measurable in
-            accuracy, coverage or mixing. A single-tree fit
+            = 0.4, birth = 0.5)}. On five simulated designs and on four
+            benchmark datasets and two designs after Tan, Ronen, Saarinen
+            and Yu (2024), with forests of 75 and 200 trees, dropping swap
+            changed the coverage of 95 percent intervals by less than 0.011
+            and RMSE by less than 9 percent in every setting, and on
+            average by less than about 0.001 and 0.6 percent. Averaged over
+            settings it cost nothing in R-hat or effective sample size
+            (within 3 percent for the latter); one setting lost 15 percent
+            of effective sample size. A single-tree fit
             (\code{n.trees = 1}) should still set it positive.
             \code{bartBT} keeps 0.9-34's mixture.
       \item The default prior on \code{k} for a binary response, on
