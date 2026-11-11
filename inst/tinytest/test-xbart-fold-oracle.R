@@ -655,6 +655,7 @@ expect_equal(
   )),
   1L
 )
-expect_equal(sum(grepl("is the sd of the response", wideMessages)), 1L)
+# and that line is the only one naming a stand-in
+expect_equal(sum(grepl("the sd of the response", wideMessages)), 1L)
 rm(xWide, yWide, xbartWide, wideMessages)
 rm(foldDraws, foldY, changedY, original, changed, holdsRowOne, trainsOnRowOne)
