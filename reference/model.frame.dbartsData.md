@@ -53,20 +53,24 @@ formula did), a factor predictor as a factor over its declared levels, a
 matrix term such as `poly(x, 2)` or `scale(x)` as one matrix column
 again, named as the formula wrote it, with the column names the term
 gave, and a column the block holds sparse as a sparse vector, sparse
-factor or sparse matrix. The columns come in the formula's order, and a
-column no term of the formula names (a hazard sampler's `period`) after
-them. The block holds no more than the values, so a rejoined matrix has
-none of the attributes [`poly()`](https://rdrr.io/r/stats/poly.html) or
+factor or sparse matrix. The columns come in the formula's order, those
+the block holds sparse after the others, and a column no term of the
+formula names (a hazard sampler's `period`) after them. The block holds
+no more than the values, so a rejoined matrix has none of the attributes
+[`poly()`](https://rdrr.io/r/stats/poly.html) or
 [`scale()`](https://rdrr.io/r/base/scale.html) give it (their class,
 coefficients and centers); the terms record carries them in its
-`predvars`, as `lm`'s does. That record is the formula's, the sparse
-columns riding beside it; with no formula (the matrix interface), or
-where a hazard sampler added its `period`, the frame has none and
-`model.response` does not read it: its first column is the response.
+`predvars`, as `lm`'s does. That record is the formula's, each sparse
+column listed as a term after the others, so that `lm` on the frame
+stops at it as it does on the frame a formula and data give; with no
+formula (the matrix interface), or where a hazard sampler added its
+`period`, the frame has none and `model.response` does not read it: its
+first column is the response.
 
-`nobs` counts every row in, as the build counted them, evaluating
-nothing again, rows of weight 0 included, which a BART fit holds in its
-trees; `nobs` of an `lm` fit leaves them out.
+`nobs` counts the rows in with a positive weight, as the build counted
+them, evaluating nothing again, as `nobs` of a fit and of an `lm` fit
+do; rows of weight 0 stay in the object, and a BART fit holds them in
+its trees.
 
 ## Value
 

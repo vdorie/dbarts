@@ -138,8 +138,9 @@ warning or the slot's name; [`attr()`](https://rdrr.io/r/base/attr.html)
 of one gives `NULL`, and a `weights` or `offset` that was not given is
 `NULL`. Read the data with
 [`model.frame`](https://rdrr.io/r/stats/model.frame.html)`(object)` and
-[`nobs`](https://rdrr.io/r/stats/nobs.html)`(object)`. Every refusal and
-warning of the build is given at the build.
+[`nobs`](https://rdrr.io/r/stats/nobs.html)`(object)`, which counts the
+rows in the likelihood (those with a positive weight), as it does for a
+fit. Every refusal and warning of the build is given at the build.
 
 A sampler, and
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)'s
@@ -555,7 +556,7 @@ data
 #> Slot "build":
 #> $formula
 #> y ~ x + g
-#> <environment: 0x64be33fc77a0>
+#> <environment: 0x5cb9b3232bd0>
 #> 
 #> $weights
 #> NULL
@@ -631,6 +632,9 @@ data
 #> 
 #> 
 #> $nobs
+#> [1] 60
+#> 
+#> $nobs.likelihood
 #> [1] 60
 #> 
 #> 
