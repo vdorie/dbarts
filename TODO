@@ -1700,7 +1700,34 @@ items
     things ... before any release we'll want to make sure it is
     actually helpful") prune the NEWS of dbarts, stan4bart and
     bartCause to what helps their users, and read the result as a
-    document the maintainer reads. Not done.
+    document the maintainer reads. stan4bart's older rngSeed item
+    ("silently ignored", true only of development builds) goes, as
+    dec-A455 says. Not done.
+  pdbart-max-predictions-cap-revisit: a question for the maintainer
+    left open by dec-B750: pdbart's n.max.predictions cap (default
+    5e9, dec-B220) against the rule that no cap comes from expected
+    dataset sizes (state the cost instead). A premise run, then the
+    question. About 10 lines if the cap goes. Not decided.
+  hazard-keep-training-default: a question for the maintainer left
+    open by dec-B750: whether hazard fits keep training draws by
+    default (keepTrainingFits; about 31 KB a row, nine tenths of it
+    the kept draws). A premise run, then the question. Not decided.
+  fixes-2026-11-10-slices: the 2026-11-10 sitting's unbuilt fix items,
+    queued after threaded-chains lands, in four slices (about 350
+    lines): R fixes 2, no draws move (fit-weights-record,
+    two-count-columns-auto, binomial-setter-zero-trial-warning,
+    held-forest-level-order, data-frame-response-every-family,
+    old-object-print-every-door); draws move, with the exact gates
+    (prior-predictive-training-rows, count-trials-at-new-rows,
+    keepfits-false-predict-new-rows); setters
+    (setmodel-records-every-statement, binomial-trials-with-response-data,
+    setstate-field-mirrors-engine); engine
+    (leaf-covariate-moments-one-function, count-time-warning). Each
+    item keeps its own entry above. Not built.
+  ledger-not-built-flags: 56 B entries of 2026-11-08 to 2026-11-10
+    still read "Not built" though built or superseded (list in
+    scratch/fu1111/stale-not-built.txt); one records pass sets each to
+    "Built (dec-A...)" or "Superseded by dec-B...". Not done.
   threaded-chains-before-landing: dbarts on branch threaded-chains,
     before it lands. (1) DBARTS_DRAW_ALL names exactly the channels of
     the installed header (dec-B810, revising dec-A453 call 5): defined
@@ -1723,8 +1750,14 @@ items
     round 2, call 1, ratified), with the fresh engine review that
     round still owes. (5) The plan's treatSens item and
     treatsens-cibart-chains name the question whether grid cells as
-    chains share one response range (the pass on dec-A453 call 9). Not
-    built.
+    chains share one response range (the pass on dec-A453 call 9). (6)
+    The speed gates the plan owes: the bench-sampler compare of D1
+    against main and stan4bart S1's timing row (dec-A455 "Not run"),
+    on dbarts-bench. (7) docs/architecture.md's "One sweep" gains the
+    collapsed scale move (dec-A456). (8) At S2 planning the plan
+    records S1's plan errors and the rule that a sweep hook is
+    registered only after the creation draw (registering it before
+    crashes; dec-A455). Not built.
   stan4bart-callback-chain-iteration: (dec-B807, revising dec-A455
     call 4) stan4bart's R callback is passed chain and iteration when
     its formals name them, so 0.0-13's three-argument callbacks run
