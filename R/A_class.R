@@ -389,7 +389,8 @@ methods::setClass(
   )
 )
 
-## the thread defaults are guessNumCores() capped to the chain count, which
+## the thread defaults are defaultNumThreads(): the core count, capped at the
+## chain count (none for xbart) and at two under R CMD check's variable, which
 ## is NA when the cores cannot be counted; a default that is NA is one thread
 ## (dec-B306). `unstated` is missing(n.threads) read in the door's own body;
 ## an NA that is stated is left for the refusal below.

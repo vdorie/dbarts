@@ -20,7 +20,7 @@ capped <- function(n) {
 }
 tryCatch(
   {
-    for (value in c(NA, "", "false")) {
+    for (value in c(NA, "", "false", "FALSE")) {
       if (is.na(value)) {
         Sys.unsetenv("_R_CHECK_LIMIT_CORES_")
       } else {
@@ -30,7 +30,7 @@ tryCatch(
       expect_identical(dbarts::defaultNumThreads(), tasks(Inf))
     }
     expect_identical(dbarts::defaultNumThreads(1L), tasks(1L))
-    for (value in c("TRUE", "warn", "true")) {
+    for (value in c("TRUE", "warn", "true", "WARN")) {
       Sys.setenv("_R_CHECK_LIMIT_CORES_" = value)
       expect_identical(dbarts::defaultNumThreads(100L), capped(100L))
       expect_identical(dbarts::defaultNumThreads(), capped(Inf))

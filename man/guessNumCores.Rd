@@ -21,7 +21,7 @@ defaultNumThreads(n.tasks = Inf)
 \details{
   Because of different definitions of cores used by different manufacturers, the distinction between logical and physical cores is not universally recognized. This function will attempt to use operating system definitions when available, which should usually match the CPU itself.
 
-  \code{defaultNumThreads} returns \code{guessNumCores()}, or \code{n.tasks} if that is smaller. When the environment variable \env{_R_CHECK_LIMIT_CORES_} is set to anything but \code{""} or \code{"false"}, as \command{R CMD check} sets it, the result is at most two. This cap applies to the default alone: an \code{n.threads} or \code{mc.cores} that is stated is never changed. \code{guessNumCores} is unaffected by the variable.
+  \code{defaultNumThreads} returns \code{guessNumCores()}, or \code{n.tasks} if that is smaller. When the environment variable \env{_R_CHECK_LIMIT_CORES_} is set to anything but \code{""} or \code{"false"} in any case, as \command{R CMD check} sets it, the result is at most two. This cap applies to the default alone: an \code{n.threads} or \code{mc.cores} that is stated is never changed. \code{guessNumCores} is unaffected by the variable.
 }
 \value{
   An integer, or \code{NA} if no clear answer was obtained. The fitting functions take their default \code{n.threads} from this value, and where it is \code{NA} the default is one thread, with no message; an \code{n.threads} that is stated as \code{NA} is refused. \code{defaultNumThreads} returns an integer, \code{NA} where \code{guessNumCores()} is.

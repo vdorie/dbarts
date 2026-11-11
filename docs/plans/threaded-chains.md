@@ -232,7 +232,7 @@ setter. Its operations are never resolved through `DBARTS_USE_STUBS`, whose firs
 ### Default thread count under R CMD check (D3)
 
 dbarts exports one small function, `defaultNumThreads(n.tasks)`. It returns `min(guessNumCores(), n.tasks)`,
-capped at 2 when `_R_CHECK_LIMIT_CORES_` is set and not `"false"`, and NA when the cores cannot be counted, so
+capped at 2 when `_R_CHECK_LIMIT_CORES_` is set and not `"false"` in any case, and NA when the cores cannot be counted, so
 dec-B306's one-thread fallback stays where it is. The thread defaults of `bart()`, `bart2()`, `rbart_vi()` and
 `dbartsControl()` (`n.tasks = n.chains`) and `xbart()` (`n.tasks = Inf`) call it. stan4bart's default calls it
 through dbarts' exported surface, not an internal: `getOption("mc.cores")` when set, else
@@ -400,7 +400,7 @@ changes stan4bart's draws: the same tier on stan4bart's side. D3, S2, S3, S4 and
 | `capi_hash` expectations, including a probe that a changed view-op or hook-typedef parameter moves the token; the header compiles as C99 `-pedantic` | D2 | the token moved; clean |
 | ThreadSanitizer: tests/cpp built with `-fsanitize=thread`, running the threaded-hook tests | D1, CI | no report (call 12) |
 | mutants: the hook fired after the augmentation draw; the hook skipped on workers; the view writing chain 0; latents of the wrong chain in the draw | D1, D2 | each caught by a gate above |
-| `defaultNumThreads` with `_R_CHECK_LIMIT_CORES_` unset, `"false"`, `"TRUE"`, `"warn"`; an explicit `n.threads` and `mc.cores` under it | D3 | the machine's count, the same, 2, 2; the explicit values untouched |
+| `defaultNumThreads` with `_R_CHECK_LIMIT_CORES_` unset, `"false"`, `"FALSE"`, `"TRUE"`, `"warn"`, `"WARN"`; an explicit `n.threads` and `mc.cores` under it | D3 | the machine's count, the same twice, then 2 three times; the explicit values untouched |
 | stan4bart: chains = 1, seeded, continuous and binary, against a 89af617 install | S1 | bitwise equal (see above) |
 | stan4bart: chains = 3, `cores` = 1 and 2 (4 locally) | S1 | bitwise equal `bart_train`, `stan`, `sigma` |
 | stan4bart: chain 1 of chains = 4 against chains = 1, a fixed seed, at cores = 1 and 2 | S1 | bitwise equal |

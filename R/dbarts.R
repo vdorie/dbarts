@@ -640,7 +640,8 @@ hazardPredictorNames <- function(x) {
 ## function's own defaults are what apply, not A_class.R's prototype;
 ## only `binary` and `call`, which this constructor never sets, fall
 ## through to it. n.threads is deliberately one of the explicit ones:
-## this default is guessNumCores() capped to n.chains, or one where that is NA
+## this default is defaultNumThreads(n.chains), the core count capped at the
+## chains and at two under R CMD check's variable, or one where that is NA
 ## (dec-B115 -
 ## within-chain threading does not ship, so a budget above n.chains buys
 ## tree sampling nothing and is worth warning about, not defaulting to),
