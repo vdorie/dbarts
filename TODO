@@ -1713,7 +1713,7 @@ items
     refusal texts that name keepTrees = TRUE on hazard fits, pins that
     survivalProbabilities(fit) and pdbart work on a default hazard fit
     and that other families are unchanged. About 10 R lines; no draws
-    move; an R fix round. Not built.
+    move; an R fix round. Built (19bc05ba2).
   saved-fit-state-at-fit-end: a question for the maintainer, raised by
     two of the dec-B814 experts: when a fit keeps its trees, should
     bart() store the sampler state at the end of the fit, so a fit
