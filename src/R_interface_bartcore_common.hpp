@@ -600,8 +600,8 @@ void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
 /// Errors on a sampler of a family with a response scale whose chains hold
 /// offsets a sweep hook wrote (SamplerBase::chainsHoldOwnOffsets), asked to
 /// re-derive the response transform (any updateScale but an explicit FALSE),
-/// which is read from the sampler-wide offset those chains no longer draw
-/// against. Raised before anything is
+/// which would be re-derived from each chain's own offset, one no copy or
+/// stored state carries. Raised before anything is
 /// installed. A sampler-wide offset swap at updateScale true is not refused:
 /// it hands every chain one offset. caller labels the error.
 void refuseChainOffsetRederivation(const bartcore::SamplerBase& sampler,
