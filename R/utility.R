@@ -1220,7 +1220,7 @@ residualStandardError <- function(y, x, weights, offset, frequency = FALSE) {
     total <- sum(weights)
     df <- total - fit$rank
     defined <- fit$df.residual > 0 &&
-      exceedsCountRounding(df, total, length(weights))
+      exceedsCountRounding(df, total, sum(weights > 0))
     return(if (defined) sqrt(rss / df) else NaN)
   }
   sqrt(rss / fit$df.residual)

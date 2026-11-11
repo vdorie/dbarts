@@ -925,27 +925,37 @@ xbart <- function(
   )))
   if (numSigmaFallbacks > 0L) {
     # the weighted and the unweighted stand-in, each with the units that took
-    # it; under counts a unit's stand-in is unweighted where its training
-    # rows' counts total at most 1, so the two can mix in one run
+    # it: a fold of weights all 1, or under counts one whose training rows'
+    # counts total at most 1, takes the unweighted one, so the two can mix
     byCount <- identical(weightsType, "frequency")
+    words <- c(standInWords(TRUE, byCount), standInWords(FALSE, byCount))
     numTaken <- c(
       numWeightedFallbacks,
       numSigmaFallbacks - numWeightedFallbacks
     )
-    taken <- numTaken > 0L
+    units <- paste0(" of ", numUnits, " (replication, fold) units")
+    stated <- if (all(numTaken > 0L)) {
+      paste0(
+        ", in ",
+        numTaken[1L],
+        units,
+        ", ",
+        words[1L],
+        " and, in ",
+        numTaken[2L],
+        ", ",
+        words[2L]
+      )
+    } else {
+      taken <- numTaken > 0L
+      paste0(" ", words[taken], " in ", numTaken[taken], units)
+    }
     announceStartingSigma(
       verbose,
-      "starting sigma is ",
-      paste0(
-        c(standInWords(TRUE, byCount), standInWords(FALSE, byCount))[taken],
-        " in ",
-        numTaken[taken],
-        collapse = " and "
-      ),
-      " of ",
-      numUnits,
-      " (replication, fold) units: the linear model leaves no residual ",
-      "degrees of freedom in their training rows; supply 'sigest' to set it"
+      "starting sigma is",
+      stated,
+      ": the linear model leaves no residual degrees of freedom in their ",
+      "training rows; supply 'sigest' to set it"
     )
   }
   numResults <- ncol(unitLoss)

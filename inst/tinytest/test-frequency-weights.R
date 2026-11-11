@@ -576,46 +576,60 @@ expect_equal(
   1L
 )
 # folds can take both stand-ins in one run: eight rows and six coefficients,
-# four rows counted 2 and four counted 0.2, which this seed puts in different
-# folds. The fold training on the counts of 2 is saturated on its distinct
-# rows and takes them written out; the one training on the counts totaling
-# 0.8 takes them counted once, and the line says each
+# four rows counted 0.2 and four counted 2. A fold training on the counts of
+# 2 is saturated on its distinct rows and takes them written out; one
+# training on the counts totaling 0.8 takes them counted once. Over two
+# replications this seed gives three of the first and one of the second, and
+# the line counts each
 set.seed(1)
 mixX <- matrix(rnorm(40), 8)
 mixY <- rnorm(8)
-oneLines <- character()
-invisible(utils::capture.output(withCallingHandlers(
-  xbart(
-    mixX,
-    mixY,
+mixLine <- function(...) {
+  lines <- character()
+  invisible(utils::capture.output(withCallingHandlers(
+    xbart(
+      mixX,
+      mixY,
+      ...,
+      n.reps = 2L,
+      n.test = 2L,
+      n.samples = 2L,
+      n.burn = 2L,
+      n.trees = 2L,
+      n.threads = 1L,
+      verbose = TRUE
+    ),
+    message = function(m) {
+      lines <<- c(lines, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  )))
+  grep("(replication, fold) units", lines, fixed = TRUE, value = TRUE)
+}
+expect_identical(
+  mixLine(
     weights = c(rep(0.2, 4), rep(2, 4)),
     weights.type = "frequency",
-    n.reps = 1L,
-    n.test = 2L,
-    n.samples = 2L,
-    n.burn = 2L,
-    n.trees = 2L,
-    n.threads = 1L,
-    seed = 29L,
-    verbose = TRUE
+    seed = 29L
   ),
-  message = function(m) {
-    oneLines <<- c(oneLines, conditionMessage(m))
-    invokeRestart("muffleMessage")
-  }
-)))
-expect_equal(
-  sum(grepl(
-    paste0(
-      "starting sigma is the sd of the response with each row written out ",
-      "as often as its weight in 1 and ",
-      oneWords,
-      " in 1 of 2 (replication, fold) units"
-    ),
-    oneLines,
-    fixed = TRUE
-  )),
-  1L
+  paste0(
+    "starting sigma is, in 3 of 4 (replication, fold) units, the sd of the ",
+    "response with each row written out as often as its weight and, in 1, ",
+    oneWords,
+    ": the linear model leaves no residual degrees of freedom in their ",
+    "training rows; supply 'sigest' to set it\n"
+  )
+)
+# and under precision weights a fold whose weights are all 1 takes the sd of
+# the response, beside folds that take the weighted one
+expect_identical(
+  mixLine(weights = c(rep(1, 4), rep(2, 4)), seed = 7L),
+  paste0(
+    "starting sigma is, in 3 of 4 (replication, fold) units, the sd of a row ",
+    "of weight 1 (the intercept-only weighted regression's sigma) and, in 1, ",
+    "the sd of the response: the linear model leaves no residual degrees of ",
+    "freedom in their training rows; supply 'sigest' to set it\n"
+  )
 )
 # the tolerance is the rounding of the counts' sum and no more: twenty counts
 # totaling 1 + 1e-9 are more than one observation, and the rows written out
@@ -652,6 +666,7 @@ expect_false(dbarts:::isWeightedStandIn(
 bigCounts <- c(2^-16 + 4.4e-11, rep(2^-16, bigN - 1))
 bigX <- matrix(seq_len(bigN) %% 7, bigN)
 bigY <- seq_len(bigN) %% 5
+bigDesign <- dbarts:::startingSigmaDesign(bigX, "sparse", NULL)
 expect_true(is.nan(dbarts:::residualStandardError(
   bigY,
   bigX,
@@ -661,11 +676,30 @@ expect_true(is.nan(dbarts:::residualStandardError(
 )))
 expect_true(is.na(dbarts:::sparseResidualStandardError(
   bigY,
-  dbarts:::startingSigmaDesign(bigX, "sparse", NULL),
+  bigDesign,
   bigCounts,
   NULL,
   frequency = TRUE
 )))
+# the count is of the rows of positive weight, which a row of weight 0 does
+# not add to: 2^17 rows, counts 1, 1 and 5e-11 on three rows off a line and
+# zeros elsewhere, whose total is past rank 2 by 5e-11, more than 2^16 eps
+# times it, so both routines take the regression
+nposCounts <- numeric(bigN)
+nposCounts[c(1L, 5L, 9L)] <- c(1, 1, 5e-11)
+nposDense <- dbarts:::residualStandardError(bigY, bigX, nposCounts, NULL, TRUE)
+expect_true(is.finite(nposDense))
+expect_equal(
+  nposDense,
+  dbarts:::sparseResidualStandardError(
+    bigY,
+    bigDesign,
+    nposCounts,
+    NULL,
+    frequency = TRUE
+  ),
+  tolerance = 1e-6
+)
 # a regression whose counts total its rank up to rounding is saturated, as
 # one totaling it exactly is: three coefficients and sixteen rows counted
 # 3/16, totaling 3, 3 + 2^-50 and 3 + 3e-11, so the rows written out stand
@@ -861,12 +895,16 @@ rm(
   satCounts,
   mixX,
   mixY,
+  mixLine,
+  nposCounts,
+  nposDense,
   nearCounts,
   nearCenter,
   bigN,
   bigCounts,
   bigX,
   bigY,
+  bigDesign,
   counts,
   center,
   total
