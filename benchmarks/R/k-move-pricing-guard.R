@@ -429,8 +429,10 @@ fetchPasser <- function(p) {
   )
 }
 
-# foreign::read.arff refuses ARFF's integer type; the header is rewritten to
-# numeric (same values) in a temporary copy, the archived file untouched.
+# foreign::read.arff refuses ARFF's integer type and reads a backslash-escaped
+# quote as a field's end, so a temporary copy gives integer attributes as
+# numeric (same values) and escaped quotes doubled, as read.table reads them;
+# the archived file is untouched.
 readArff <- function(path) {
   lines <- readLines(path, warn = FALSE)
   d <- grep("^[[:space:]]*@data", lines, ignore.case = TRUE)[1L]
@@ -445,6 +447,9 @@ readArff <- function(path) {
     ignore.case = TRUE,
     perl = TRUE
   )
+  body <- seq.int(d, length(lines))
+  lines[body] <- gsub("\\'", "''", lines[body], fixed = TRUE)
+  lines[body] <- gsub("\\\"", "\"\"", lines[body], fixed = TRUE)
   tmp <- tempfile(fileext = ".arff")
   on.exit(unlink(tmp))
   writeLines(lines, tmp)
