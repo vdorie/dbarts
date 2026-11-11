@@ -1151,6 +1151,118 @@ double runCollapsedStateTests(const char* label, ConstantLeafSampler& sampler,
   return ks;
 }
 
+/// What a sweep's start holds that a canceled sweep must give back: every
+/// forest's leaves, totalFits, accumulated factor and k, and the response's
+/// latents, precisions and working response. A row out of the likelihood
+/// (a precision of 0) records its working response as 0: no draw reads it,
+/// and a restore rebuilds it from the latents where it may have held a cold
+/// start's value.
+struct Standing {
+  std::vector<double> forests, response;
+
+  explicit Standing(Chain<ConstantGaussianLeaf>& chain) {
+    for (size_t f = 0; f < chain.numForests(); ++f) {
+      for (size_t t = 0; t < chain.numTreesInForest(f); ++t) {
+        const std::vector<double>& mu = TestPeer::forestMuByTree(chain, f, t);
+        forests.insert(forests.end(), mu.begin(), mu.end());
+      }
+      const std::vector<double>& total = TestPeer::totalFitsInForest(chain, f);
+      forests.insert(forests.end(), total.begin(), total.end());
+      forests.push_back(TestPeer::forestTotalFitsScale(chain, f));
+      forests.push_back(TestPeer::forestKAt(chain, f));
+    }
+    const double* latents = TestPeer::latents(chain);
+    const double* weights = TestPeer::workingWeights(chain);
+    const double* working = TestPeer::workingResponse(chain);
+    response.insert(response.end(), latents, latents + rescaleN);
+    response.insert(response.end(), weights, weights + rescaleN);
+    for (size_t i = 0; i < rescaleN; ++i)
+      response.push_back(weights[i] != 0.0 ? working[i] : 0.0);
+  }
+};
+
+/// Whether a and b hold the same bits.
+bool sameBits(const std::vector<double>& a, const std::vector<double>& b) {
+  return a.size() == b.size() &&
+         std::memcmp(a.data(), b.data(), a.size() * sizeof(double)) == 0;
+}
+
+/// Test 10 on one fixture. Per seed, from firstSeed, a sampler and a twin
+/// built by make on that seed run five sweeps alike. On a move sweep, where
+/// the twin's next sweep opens with the move, the sampler's next sweep is
+/// canceled at its augmentation draw's first poll and must stand where it
+/// began, bit for bit; the twin's draw shows the sweep moved and that the
+/// first rows were redrawn before the poll. On a still sweep both first take
+/// the move and its draw by hand, so the chain holds a past move, and where
+/// the twin's next sweep does not move the canceled sweep must leave every
+/// forest as it began: the draw's own rows stand as a refresh stopped at a
+/// fixed fit leaves them. Seeds on until one serves.
+template <typename Make>
+void checkCancelPutsBack(const char* label, std::uint32_t firstSeed,
+                         bool stillSweep, Make make) {
+  bool served = false;
+  for (std::uint32_t seed = firstSeed; seed < firstSeed + 60u && !served;
+       ++seed) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* twinRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed);
+    ext_rng_setSeed(twinRng, seed);
+    std::unique_ptr<ConstantLeafSampler> swept = make(&rng);
+    std::unique_ptr<ConstantLeafSampler> twin = make(&twinRng);
+    Results none;
+    swept->run(5, 0, none);
+    twin->run(5, 0, none);
+    Chain<ConstantGaussianLeaf>& chain = swept->chain(0);
+    Chain<ConstantGaussianLeaf>& twinChain = twin->chain(0);
+    bool primed = true;
+    if (stillSweep)
+      for (Chain<ConstantGaussianLeaf>* c : {&chain, &twinChain}) {
+        primed = TestPeer::drawCollapsedRescale(*c, nullptr) && primed;
+        TestPeer::drawAugmentation(*c);
+      }
+    Standing start(chain);
+    if (primed &&
+        TestPeer::maybeDrawCollapsedRescale(twinChain) != stillSweep) {
+      served = true;
+      bool drawReaches = true;
+      if (!stillSweep) {
+        TestPeer::drawAugmentation(twinChain);
+        Standing moved(twinChain);
+        size_t numRedrawn = 0;
+        for (size_t i = 0; i < 60; ++i)
+          if (moved.response[i] != start.response[i]) ++numRedrawn;
+        drawReaches = numRedrawn > 0 && !sameBits(moved.forests, start.forests);
+      }
+      int calls = 0;
+      std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
+      bool stopped = chain.run(1, 0, none, nullptr, 0, &cancel);
+      Standing after(chain);
+      bool putBack = sameBits(after.forests, start.forests) &&
+                     (stillSweep || sameBits(after.response, start.response));
+      char what[240];
+      std::snprintf(what, sizeof what,
+                    stillSweep
+                      ? "%s: a cancel inside the draw of a sweep that did not "
+                        "move, after a move, leaves every forest as the sweep "
+                        "began, bit for bit (seed %u)"
+                      : "%s: a cancel inside the draw of a sweep that moved "
+                        "puts the sweep back, bit for bit (seed %u)",
+                    label, seed);
+      check(stopped && calls == 2 && drawReaches && putBack, what);
+      swept->run(1, 0, none);
+      checkLabeled(TestPeer::forestKAt(chain, 0) > 0.0, label,
+                   "the chain runs on after the cancel");
+    }
+    swept.reset();
+    twin.reset();
+    ext_rng_destroy(rng);
+    ext_rng_destroy(twinRng);
+  }
+  checkLabeled(served, label,
+               stillSweep ? "some seed's sweep keeps still after a move"
+                          : "some seed's sweep takes the move");
+}
+
 void runCollapsedRescaleTests() {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng, 20261011u);
@@ -1443,76 +1555,65 @@ void runCollapsedRescaleTests() {
   check(openingsAgree && numOpeningsMoved > 0 && numOpeningsStill > 0, what);
 
   // 10. A cancel inside the augmentation draw of a sweep the move opened puts
-  // the move and the draw back: the leaves, k, the cache and its accumulated
-  // factor, the latents, the working response and the precisions are the
-  // sweep's start bit for bit. Binomial rows of 400 trials put the draw's
-  // first poll, the cancel's second call, past a hundred and fifty redrawn
-  // rows; a twin on the same seed shows the sweep moves and its draw changes
-  // the rows the cancel reaches. Seeds on until a sweep moves.
-  std::vector<double> trials400(rescaleN, 400.0), successes(rescaleN);
+  // the move and the draw back (checkCancelPutsBack), on three fixtures:
+  // binomial rows of 600 trials, every fifth a row of no trials and the mask
+  // leaving out every fifth, so the precisions are served composed; binary
+  // rows of count 1000 under forests sharing one prior total beside a factor
+  // forest; and the binomial rows again on a sweep that does not move after
+  // one that did. Each puts the draw's first poll, the cancel's second call,
+  // past the first sixty rows.
+  std::vector<double> trials600(rescaleN), successes(rescaleN);
   for (size_t i = 0; i < rescaleN; ++i) {
+    trials600[i] = i % 5 == 1 ? 0.0 : 600.0;
     double eta = 1.5 * std::sin(3.0 * data.x[i]) + data.x[i + rescaleN] - 0.5;
-    successes[i] = std::round(400.0 / (1.0 + std::exp(-eta)));
+    successes[i] = std::round(trials600[i] / (1.0 + std::exp(-eta)));
   }
-  auto standing = [](Chain<ConstantGaussianLeaf>& chain) {
-    std::vector<double> v;
-    for (size_t t = 0; t < rescaleTrees; ++t)
-      v.insert(v.end(), TestPeer::muByTree(chain, t).begin(),
-               TestPeer::muByTree(chain, t).end());
-    const std::vector<double>& total = TestPeer::totalFitsInForest(chain, 0);
-    v.insert(v.end(), total.begin(), total.end());
-    for (const double* p : {TestPeer::latents(chain),
-                            TestPeer::workingResponse(chain),
-                            TestPeer::workingWeights(chain)})
-      v.insert(v.end(), p, p + rescaleN);
-    v.push_back(TestPeer::totalFitsScale(chain));
-    v.push_back(TestPeer::forestK(chain));
-    return v;
+  auto makeBinomial = [&](ext_rng** rngs) {
+    std::unique_ptr<ConstantLeafSampler> made = makeRescaleSampler(
+      data.x, successes, nullptr, trials600.data(), nullptr, family, true,
+      true, true, rngs);
+    made->setActiveRows(data.mask.data());
+    return made;
   };
-  bool cancelSeen = false;
-  for (std::uint32_t seed = 71u; seed < 111u && !cancelSeen; ++seed) {
-    ext_rng* sweepRng =
-      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng* twinRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng_setSeed(sweepRng, seed);
-    ext_rng_setSeed(twinRng, seed);
-    std::unique_ptr<ConstantLeafSampler> swept = makeRescaleSampler(
-      data.x, successes, nullptr, trials400.data(), nullptr, family, true,
-      true, true, &sweepRng);
-    std::unique_ptr<ConstantLeafSampler> twin = makeRescaleSampler(
-      data.x, successes, nullptr, trials400.data(), nullptr, family, true,
-      true, true, &twinRng);
-    swept->run(5, 0, results);
-    twin->run(5, 0, results);
-    Chain<ConstantGaussianLeaf>& chain = swept->chain(0);
-    Chain<ConstantGaussianLeaf>& twinChain = twin->chain(0);
-    std::vector<double> start = standing(chain);
-    double kStart = TestPeer::forestK(chain);
-    if (TestPeer::maybeDrawCollapsedRescale(twinChain)) {
-      cancelSeen = true;
-      TestPeer::drawAugmentation(twinChain);
-      bool drawReaches = TestPeer::forestK(twinChain) != kStart;
-      for (size_t i = 0; i < 150; ++i)
-        drawReaches = drawReaches &&
-          TestPeer::latents(twinChain)[i] != TestPeer::latents(chain)[i];
-      int calls = 0;
-      std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
-      bool stopped = chain.run(1, 0, results, nullptr, 0, &cancel);
-      std::snprintf(what, sizeof what,
-                    "%s: a cancel inside the draw of a sweep that moved puts "
-                    "the sweep back bit for bit (seed %u)", link, seed);
-      check(stopped && calls == 2 && drawReaches && standing(chain) == start,
-            what);
-      swept->run(1, 0, results);
-      checkLabeled(TestPeer::forestK(chain) > 0.0, link,
-                   "the chain runs on after the cancel");
-    }
-    swept.reset();
-    twin.reset();
-    ext_rng_destroy(sweepRng);
-    ext_rng_destroy(twinRng);
+  std::snprintf(label, sizeof label, "%s, binomial under a mask", link);
+  checkCancelPutsBack(label, 71u, false, makeBinomial);
+  std::snprintf(label, sizeof label, "%s, a still sweep", link);
+  checkCancelPutsBack(label, 131u, true, makeBinomial);
+
+  std::vector<double> counts1000(rescaleN, 1000.0), levels(2 * rescaleN);
+  for (size_t i = 0; i < rescaleN; ++i) {
+    double level = data.x[i + 2 * rescaleN] > 0.5 ? 1.0 : 0.0;
+    levels[2 * i] = 1.0 - level;
+    levels[2 * i + 1] = level;
   }
-  checkLabeled(cancelSeen, link, "some seed's sweep takes the move");
+  auto makeShared = [&](ext_rng** rngs) {
+    SamplerOptions options;
+    options.nodeScale = 3.0;
+    options.updateK = true;
+    options.kHyperprior.degreesOfFreedom = 1.5;
+    options.kHyperprior.scale = 2.0;
+    AmplitudeSpec spec;
+    spec.family = family;
+    spec.forests.resize(3);
+    spec.forests[0].forest.numTrees = 4;
+    spec.forests[1].forest.numTrees = 3;
+    spec.forests[2].forest.numTrees = 2;
+    spec.forests[2].kind = ForestKind::levels;
+    spec.forests[2].basis = levels.data();
+    spec.forests[2].numBasisColumns = 2;
+    return std::make_unique<ConstantLeafSampler>(
+      data.x.data(), data.y.data(), rescaleN, rescaleP, counts1000.data(),
+      data.offset.data(), 1.0, 3.0, 0.37804942330213542, options, spec, rngs);
+  };
+  {
+    ext_rng* probe = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(probe, 1u);
+    checkLabeled(TestPeer::sharers(makeShared(&probe)->chain(0)).size() == 2,
+                 link, "the shared fixture's first two forests share a total");
+    ext_rng_destroy(probe);
+  }
+  std::snprintf(label, sizeof label, "%s, sharers", link);
+  checkCancelPutsBack(label, 301u, false, makeShared);
 
   // 7. Every chain.
   checkActsOnEveryChain("the collapsed move", 21u, 50,

@@ -8886,10 +8886,13 @@ private:
 
   /// Puts back, bit for bit, what keepCollapsedUndo kept: the orbit
   /// forests' leaves, totalFits, accumulated factors and k, and the latents,
-  /// the working response rebuilt from them. Between the two, only the move
-  /// and the augmentation draw may run, so every tree keeps its nodes.
+  /// the working response rebuilt from them. Called only on a sweep the move
+  /// took; between the two, only the move and the augmentation draw may run,
+  /// so every tree keeps its nodes.
   void undoCollapsedRescale() {
     const CollapsedUndo& undo = collapsedUndo_;
+    assert(undo.ks.size() == orbitForests().size() &&
+           undo.latents.size() == data_.numObservations);
     const double* leaves = undo.leaves.data();
     const double* totals = undo.totalFits.data();
     std::size_t g = 0;
@@ -8906,6 +8909,7 @@ private:
       forest.totalFitsScale = undo.totalFitsScales[g];
       forest.k = undo.ks[g++];
     }
+    assert(leaves == undo.leaves.data() + undo.leaves.size());
     response_->restoreLatents(undo.latents.data());
   }
 
@@ -9897,8 +9901,8 @@ private:
   // what the collapsed move and the augmentation draw that completes it
   // change, as keepCollapsedUndo found them: per orbit forest, in
   // orbitForests order, every tree's leaves, totalFits, the accumulated
-  // factor and k; and the latents. Written by every move; read only by
-  // undoCollapsedRescale
+  // factor and k; and the latents. Written by every collapsed move; read
+  // only by undoCollapsedRescale
   struct CollapsedUndo {
     std::vector<double> leaves, totalFits, totalFitsScales, ks, latents;
   } collapsedUndo_;

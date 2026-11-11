@@ -514,6 +514,11 @@ struct TestPeer {
   static double& totalFitsScale(Chain<L, R>& chain) {
     return chain.forests_[0].totalFitsScale;
   }
+  /// Forest f's accumulated in-place factor on totalFits.
+  template <IntegrableLeafModel L, typename R>
+  static double forestTotalFitsScale(const Chain<L, R>& chain, std::size_t f) {
+    return chain.forests_[f].totalFitsScale;
+  }
   /// The chain's generator, so a test can read the stream a kernel left.
   template <IntegrableLeafModel L, typename R>
   static ext_rng* rng(Chain<L, R>& chain) {

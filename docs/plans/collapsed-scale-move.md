@@ -296,8 +296,8 @@ before the tree loop, on one forest, and redrew the latents itself.
   bitwise the same.
 - The likelihood sum's order is part of the draw. In the reference build (`--enable-reference-build`) and
   tests/cpp, where the exact gates and the equivalence baselines compare draws bit for bit, it stays a plain
-  scalar loop in row order. A shipped build may vectorize or reorder it later (dec-B786; the maintainer's
-  ruling of 2026-11-10 on the rebuild's call 4): it is a plain loop there today too, and no code holds it
+  scalar loop in row order. A shipped build may vectorize or reorder it later (dec-B786, and dec-B789, the
+  maintainer's ruling of 2026-11-10 on the rebuild's call 4): it is a plain loop there today too, and no code holds it
   to row order outside those builds. [Later work](#later-work) times a vectorized pass.
 - A cancel inside the latent draw that completes the move puts the move and the draw back whole
   ([Where it runs](#where-it-runs)), so a canceled run never leaves the leaves scaled and the latents stale.
@@ -513,11 +513,13 @@ destroyed: the k-internal slice's leak-sanitizer leg found four that were not.
    ([`assertForestCachesMatchLeaves`](../../src/bartcore/chain.hpp)) silent.
 9. Every row inactive: the move runs, its v1 passes test 2's KS against the target with no likelihood
    term (k's prior along the orbit, N = 5e4), and no latent changes.
-10. A cancel inside the augmentation draw of a sweep the move opened: on a binomial fixture of 400 trials
-    per row, the draw's first poll stops it past 150 redrawn rows; the leaves, k, `totalFits` and its
-    accumulated factor, the latents, the working response and the precisions equal the sweep's start bit
-    for bit, a twin on the same seed showing the sweep moved and its draw changed those rows; the chain
-    runs on.
+10. A cancel inside the augmentation draw of a sweep the move opened (`checkCancelPutsBack`): the draw's
+    first poll stops it past the first sixty rows, and every forest's leaves, `totalFits`, accumulated
+    factor and k, the latents, the precisions and the working response of the rows in equal the sweep's
+    start bit for bit (memcmp), a twin on the same seed showing the sweep moved and its draw changed those
+    rows; the chain runs on. On a binomial fixture with rows of no trials under a mask, so the precisions
+    are served composed; on forests sharing one prior total beside a factor forest; and on a sweep that
+    does not move after a move, where every forest must stand as that sweep began.
 
 tinytest, a new file inst/tinytest/test-collapsed-rescale.R, both links unless said:
 - Per chain, on any number of threads: a two-chain drawn-k fit draws identically at n.threads 1 and 2.
@@ -791,8 +793,10 @@ Each must fail a named test or gate:
 21. A log p(0) that is not finite handed to the slice step: tests/cpp 5's last case.
 
 22. A cancel inside the draw that completes the move, with the latents not put back, with the leaves and k
-    not put back, or with the draw unpolled on a sweep the move opened: tests/cpp 10 (each ran, each
-    fails it).
+    not put back, with the draw unpolled on a sweep the move opened, with only the first sharer put back,
+    with the latents' restore not recomposing the precisions, or with the undo run on a sweep the move
+    did not take: tests/cpp 10 (each ran, each fails it; the last, with no move before it, fails the
+    undo's assert on the size of what was kept).
 
 Read, not run: the likelihood sum stays a scalar loop in row order in the reference build and tests/cpp.
 

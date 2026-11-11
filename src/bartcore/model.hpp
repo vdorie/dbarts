@@ -5116,7 +5116,7 @@ public:
   }
 
   /// The log-likelihood of the training response along a forest's scale
-  /// orbit: the sum, over the rows in the likelihood and in row order, of
+  /// orbit: the sum, over the rows in the likelihood, of
   /// computeLogLikelihood's term at location
   /// factor * scaled[i] + unscaled[i] + offset_i, \p unscaled null where
   /// nothing is held beside the scaled fits. Neither the offset nor
