@@ -9,8 +9,8 @@ reviewer who runs mutants on D1, D2 and S1; a sonnet implementer and reviewer fo
 bartCause slice B1, with an opus read of S4's header and its worker-side C++ before commit.
 rng: NEUTRAL for dbarts: with no hook registered every run takes the path it takes today and no baseline,
 snapshot or exact gate moves; D3 changes thread counts only under R CMD check, and draws do not depend on the
-thread count. SHIFTING for stan4bart fits of more than one chain (chain seeds are drawn in a new
-order, the same at every thread count); a one-chain fit is expected to keep its draws bit for bit
+thread count. SHIFTING for chains 2 and on of a stan4bart fit (each chain's seeds derive from the seed and
+the chain number, the same at every thread count; chain 1 is the one-chain fit); a one-chain fit is expected to keep its draws bit for bit
 ([Draws at a fixed seed](#draws-at-a-fixed-seed)). Not posterior-changing anywhere: the Gibbs order inside a
 chain is today's.
 window: before the 1.0-0 release (scheduled by the maintainer 2026-11-11). The dbarts branch stays open until
@@ -153,18 +153,25 @@ it (call A13).
   and is not part of a saved state or a copy (call A9).
 - The hook fires before every sweep of every chain, on the thread that owns the chain: a worker, or the calling
   thread when the run is inline. It gets the 0-based sweep index within this run and the burn-in flag.
-  0 continues. Nonzero stops the run: every chain stops at its next sweep boundary, the run's results are
+  0 continues. Nonzero stops the run, a positive value as a deliberate stop and a negative one as the hook's
+  failure, the sign rule both callbacks follow (dec-B581): every chain stops at its next sweep boundary, the run's results are
   discarded and its saved trees dropped, exactly as a draw callback's stop. `dbarts_sampler_run` then returns
   normally, and the caller reads why from its own context (call A5).
 - The contract the header states: no R call of any kind (allocation, printing, errors, RNG, interrupt checks)
   on any path, inline included, so one rule holds at every thread count. The hook may touch only its own
   chain, through the view, and must not call any `dbarts_sampler_*` entry on this sampler; a debug build
-  asserts that (call 12). Exceptions follow the draw callback's rule, one rule for both hooks (call A6).
+  asserts that (call 12). No C++ exception may escape either hook (call A6).
 - `setOffset(view, offset)`: n finite values copied into that chain's buffer, with the transform held, never
-  re-derived (no updateScale argument). Returns 1 on a write and -1, touching nothing, on a non-finite value.
-  Registration has already ruled out a sampler where the write is never legal. `setSigma(view, sigma)`: 1 on a
-  write; 0 where sigma is pinned, as `dbarts_sampler_setSigma` decides; -1 on a value that is not finite and
-  positive. One status enum, `dbarts_chain_status`, generated from a list macro like the other four (call A7).
+  re-derived (no updateScale argument). Returns `DBARTS_OK` (0) on a write and `DBARTS_INVALID_ARGUMENT` (-2),
+  touching nothing, on a non-finite value. Registration has already ruled out a sampler where the write is
+  never legal. `setSigma(view, sigma)`: `DBARTS_OK` on a write; `DBARTS_UNSUPPORTED` (-1) where the model fixes
+  sigma, as `dbarts_sampler_setSigma` decides; `DBARTS_INVALID_ARGUMENT` on a value that is not finite and
+  positive. The names and values are the host-neutral plan's statuses, from `DBARTS_STATUS_LIST` (call A7).
+- `dbarts_sampler_setDrawCallback` takes the channels the callback reads, `unsigned int channels`: one
+  `dbarts_draw_channel` flag per pointer channel of `dbarts_draw` (the variance pair one flag), or
+  `DBARTS_DRAW_ALL`. A run computes the channels it stores and the named ones; one neither stored nor named
+  is NULL and not computed, the log-likelihood pass included. The flags fold into the token, and the R route
+  passes `DBARTS_DRAW_ALL` (ruled 2026-11-10; call A16).
 - `dbarts_draw` gains `latents`: the chain's n augmentation values this draw's trees were drawn from, null
   where the family augments none (the values `dbarts_sampler_getLatents` reports after a run). It is a
   pre-release field, so it goes above the 1.0-0 boundary marker, not below it, and moves no version constant.
@@ -275,9 +282,13 @@ one sonnet review.
   is dbarts': polled every 100 ms, it stops the workers at their next sweep boundary and raises R's interrupt
   condition after the join. Latency is at most one sweep plus one parametric step. dbarts' slow-count warning
   comes once per fit rather than once per chain's sampler: a NEWS line.
-- Seeds (call 2): after `set.seed(seed)` (or R's stream as it stands when `seed` is NA), stan4bart draws the C
-  parametric seeds with one `sample.int(.Machine$integer.max, chains)` and then builds the sampler, which
-  draws the C BART chain seeds from R's stream in chain order. `.Random.seed` is put back afterwards only when
+- Seeds (call 2): each chain's seeds, parametric and BART, derive from the user's seed and the chain number
+  alone, so chain 1 of a multi-chain fit equals the one-chain fit at the same seed, as in dbarts' `bart()`
+  and today's stan4bart. After `set.seed(seed)` (or R's stream as it stands when `seed` is NA), stan4bart
+  draws a fixed number of values whatever `chains` is, chain 1's parametric seed first, as today's one-chain
+  order does, and derives chain c's parametric seed from them and c; the sampler's chain seeds come from its
+  own generator given one of them, which by dbarts' rule gives each chain a seed set by that value and the
+  chain's index. S1 settles the derivation within that rule. `.Random.seed` is put back afterwards only when
   `seed` was given, as now; an unseeded fit advances R's stream, so two in a row differ. Every generator is a
   chain's own and the hook touches only its chain, so draws do not depend on `cores`.
 - The cluster code goes: `makeCluster`, `clusterMap`, `clusterExport`, the FORK fallback, both fallback
@@ -349,8 +360,8 @@ most 2.
   inside a group. So a one-chain fit is expected to reproduce stan4bart main 89af617 bit for bit, and S1 gates
   on it. If something else moves it, the implementer names the cause and the reviewer judges. The equality
   would not come back by accident.
-- stan4bart, more than one chain: every seeded draw moves once, at `cores = 1` and at `cores > 1` alike. From
-  then on, `cores` = 1, 2 and 4 give bitwise-identical fits.
+- stan4bart, more than one chain: chains 2 to C move once, at `cores = 1` and at `cores > 1` alike; chain 1
+  equals the one-chain fit at the same seed. From then on, `cores` = 1, 2 and 4 give bitwise-identical fits.
 - A correctness fix, by the code: today `bart_args = list(seed = s)` gives every chain's own sampler the same
   control seed, so every chain draws the same BART stream. The chains were not independent. In one sampler the
   seed generator gives each chain its own seed, which is what `seed` means in dbarts (a one-chain run with
@@ -375,12 +386,13 @@ changes stan4bart's draws: the same tier on stan4bart's side. D3, S2, S3, S4 and
 | tests/cpp: chain c's offset write leaves every other chain's working response and fits bit for bit | D1 | equal |
 | tests/cpp: `DrawInfo` latents for probit equal the sampler's latents after a one-sweep run | D1 | equal |
 | bench-sampler.R compare, D1 against main, no hook (maintainer-run) | D1 | within the compare's noise |
-| the draw callback's own cost: a one-chain probit sampler at n = 5000, sweeps timed with and without a no-op draw callback, same machine, alternating | D2 | recorded; if above the timing's noise, D2 adds a registration option that skips the log-likelihood scratch, settled in D2's review (call A16) |
+| the draw callback's own cost: a one-chain probit sampler at n = 5000, sweeps timed with no callback and with a no-op one naming train alone, same machine, alternating | D2 | recorded (call A16) |
+| consumer: the recording callback registered for each channel flag alone, results NULL; every array stored and no channel named; every channel named | D2 | the named channel where the fit carries it and no other, its draw the every-channel one; the stored channels; today's channels |
 | test-capi.R plus capi/consumer.c: a compiled hook and draw callback through the flat API doing the toy Gibbs step; chunked against one-sweep flat runs with `dbarts_sampler_setOffset` or setSigma between, at one chain (where the two routes are the same model) | D2 | bitwise equal |
 | the same, 4 chains at 1 and 2 threads | D2 | bitwise equal |
-| consumer: NaN offset, sigma 0, a pinned-sigma sampler (probit); registration on a fixed-conduit sampler | D2 | -1, -1, 0 with the chain unchanged; registration 0 and nothing registered; nothing raised |
-| a C++ consumer compiled in test-capi.R whose hook and draw callback throw, inline and at 2 threads, on all three CI systems | D2 | an R error carrying the what(), both hooks; the sampler runs on (call A6) |
-| consumer: a hook returning nonzero; an interrupt injected through dbarts' count hooks at 2 chains and 2 threads, in one-sweep runs so a poll lands inside every run | D2 | normal return with the context's reason; the interrupt condition, then a run equal to an uninterrupted one |
+| consumer: NaN offset, sigma 0, a pinned-sigma sampler (probit); registration on a fixed-conduit sampler | D2 | -2, -2, -1 with the chain unchanged; registration 0 and nothing registered; nothing raised |
+| a C++ consumer compiled in test-capi.R whose hook and draw callback throw, inline and at 2 threads, on all three CI systems | D2 | the safety net: an R error carrying the what(), both hooks; the sampler runs on (call A6) |
+| consumer: a hook returning 1 and -1, a draw callback returning -1; an interrupt injected through dbarts' count hooks at 2 chains and 2 threads, in one-sweep runs so a poll lands inside every run | D2 | normal return with the context's reason; the interrupt condition, then a run equal to an uninterrupted one |
 | sampler-wide `setOffset` after chain offsets; `updateScale = TRUE` while chains differ | D2 | every chain back on the shared offset; a refusal naming the cause |
 | `capi_hash` expectations, including a probe that a changed view-op or hook-typedef parameter moves the token; the header compiles as C99 `-pedantic` | D2 | the token moved; clean |
 | ThreadSanitizer: tests/cpp built with `-fsanitize=thread`, running the threaded-hook tests | D1, CI | no report (call 12) |
@@ -388,6 +400,7 @@ changes stan4bart's draws: the same tier on stan4bart's side. D3, S2, S3, S4 and
 | `defaultNumThreads` with `_R_CHECK_LIMIT_CORES_` unset, `"false"`, `"TRUE"`, `"warn"`; an explicit `n.threads` and `mc.cores` under it | D3 | the machine's count, the same, 2, 2; the explicit values untouched |
 | stan4bart: chains = 1, seeded, continuous and binary, against a 89af617 install | S1 | bitwise equal (see above) |
 | stan4bart: chains = 3, `cores` = 1 and 2 (4 locally) | S1 | bitwise equal `bart_train`, `stan`, `sigma` |
+| stan4bart: chain 1 of chains = 4 against chains = 1, a fixed seed, at cores = 1 and 2 | S1 | bitwise equal |
 | stan4bart: chains = 3 seeded; every pair of chains | S1 | differ in `stan`, `sigma` and `bart_train` |
 | stan4bart: two unseeded fits in a row | S1 | differ |
 | stan4bart: `stan4bart.chunk` = 1 against a whole phase, with and without `verbose = 2`, continuous and binary | S1 | bitwise equal |
@@ -466,24 +479,18 @@ state, since each chain's state records its sigma, so only the offset was in que
 
 For the maintainer; the design fits either answer.
 
-**Conditional: the exception rule for compiled hooks.** One rule covers both hooks: the draw callback's
-shipped text, under which an exception thrown out of the hook is caught at the call and raised as an R error
-(call A6). D2's throwing C++ consumer tests that across two shared libraries on all three CI systems. If it
-fails anywhere (Windows is the doubt), the choice comes here:
-- (a) change both hooks' text to `noexcept` by contract, with dbarts still catching where it can. Every
-  compiled consumer then catches its own exceptions, as stan4bart does. A consumer that relied on the
-  promise crashes on the systems where unwinding fails.
-- (b) keep the promise and document the systems where it does not hold.
-- Recommendation, should it arise: (a).
+None. The exception rule for compiled hooks, once conditional here, is settled by dec-B581 (call A6).
 
 ## Agent calls
 
 Made here, for the close-out (dec-B629). Each names its alternative.
 
-2. **Seed rule.** One rule at every `cores`: parametric seeds, then the sampler's chain seeds, from R's
-   stream after `set.seed(seed)`. Alternative: keep today's `cores > 1` draws, which would need a dbarts
+2. **Seed rule.** One rule at every `cores`: each chain's parametric and BART seeds derive from the user's seed
+   and the chain number alone (pass-2 finding C135), so chain 1 of C chains is the one-chain fit. Rejected
+   draft: C parametric seeds, then the sampler's C chain seeds, from one running stream, under which chain 1
+   depends on C. Alternative: keep today's `cores > 1` draws, which would need a dbarts
    creation entry taking per-chain seeds (an R surface change) and would still move `cores = 1`. One-chain
-   fits keep their draws; multi-chain fits move once. `bart_args$seed` stops giving every chain one BART
+   fits keep their draws; chains 2 and on of a multi-chain fit move once. `bart_args$seed` stops giving every chain one BART
    stream.
 5. **Progress.** One main-thread line per `refresh` between chunks. Alternative: bart()'s per-chain lines
    through dbarts' queued sink, whose counts are per run and so read wrong under chunks, and which needs a
@@ -520,12 +527,16 @@ A4. **Function pointers in the view** rather than two named entries in the list.
 A5. **Stop protocol.** Nonzero return and the caller's own context carry the reason, as the draw callback does.
     Alternative: a message buffer in the view that dbarts raises. That would put stan4bart's error text into
     dbarts' raise and still need a status.
-A6. **One exception rule for both hooks**: the draw callback's shipped one, caught at the call and raised as an
-    R error, tested across libraries in D2. stan4bart catches its own anyway, to name the chain. Alternative:
-    `noexcept` by contract for both, which changes the draw callback's text and goes to the maintainer (the
-    conditional open call).
-A7. **A three-valued status** (1, 0, -1). Alternative: reuse the capability 0/1 and raise on bad values, which
-    is not allowed on a worker.
+A6. **No exception escapes either hook**, by dec-B581's rule: a consumer catches its own in its wrapper, keeps
+    it, returns a negative value and re-raises after the run returns. dbarts still catches one at the call on
+    every thread as a safety net, tested across libraries in D2, and the header says the net is no portable
+    contract across separately built C++ runtimes (Windows DLLs). stan4bart's slices follow the rule.
+    Alternative: the net as the contract, which fails where unwinding does not cross libraries.
+A7. **The host-neutral statuses** (dec-B119, dec-B571, dec-B572): 0 `DBARTS_OK`, -1 `DBARTS_UNSUPPORTED`, -2
+    `DBARTS_INVALID_ARGUMENT`, defined now from `DBARTS_STATUS_LIST` with that plan's names and values; the
+    host-neutral work adds its other codes to the same list. Alternative: a separate three-valued chain status,
+    which the host-neutral header would carry beside its own; or the capability 0/1 with a raise on bad
+    values, which is not allowed on a worker.
 A8. **Latents in `dbarts_draw`.** Alternative: keep a `getLatents` on the view and hand a binary fit's latents
     over at the next group's hook. That splits the hand-off across two calls and, at a run's last draw,
     pushes it past the adaptation freeze at the warmup boundary, out of today's order.
@@ -551,12 +562,11 @@ A15. **A body-only helper for the compiled callback** (`compile_callback(body, l
     example. Alternative: the header and a documented template only. Recommended: build it. A user's
     exception then never crosses a library boundary, which makes call A6's doubt moot for this path. Marked
     for close-out.
-A16. **The log-likelihood scratch, measured before any option is added.** A registered draw callback receives
-    the log-likelihood at every kept draw, so stan4bart pays for one it never reads. D2 times it, and only a
-    cost above noise adds a registration option to skip it (a flag on a new registration entry, not a change
-    to `dbarts_sampler_setDrawCallback`). The dbarts branch is still open when S1's end-to-end timing runs, so
-    a cost found there lands in dbarts before the merge. Alternative: add the option now, unmeasured. That
-    puts surface in the header that may buy nothing.
+A16. **The callback names the channels it reads** (ruled 2026-11-10, "Use your recommendation for this item"):
+    `dbarts_sampler_setDrawCallback` takes a channel mask, so stan4bart, which reads train and the latents,
+    pays for no log-likelihood or test pass it never reads. The scalars are always filled, being free and
+    having no NULL. Alternative, the plan's first course: time the log-likelihood scratch and add a second
+    registration entry only for a cost above noise.
 
 ## Risks and the objections answered
 
@@ -588,7 +598,7 @@ A16. **The log-likelihood scratch, measured before any option is added.** A regi
 ## Later items
 
 - **Route (a) off-main-thread entries**, built only when a consumer needs them: a run taking a caller's stop
-  poll and returning a status, status forms of setOffset and setSigma, and a main-thread call for the deferred
+  poll and returning a status, and a main-thread call for the deferred
   slow-count warning. The first candidate is treatSens with `trt.model = bart()`, whose two samplers advance in
   lockstep and so cannot share one sampler's chains. A TODO entry, not built here.
 - **treatSens' default treatment models** (`probitEM()`, `probit()`) as a later consumer of this hook. By the

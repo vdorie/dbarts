@@ -610,23 +610,43 @@ with an error; one that keeps both is legal, as between sweeps. No function
 in dbarts calls it; it is kept as the entry host packages build on when they
 move work into per-sweep callbacks, for example to keep memory down.
 
+The C API's sweep hook, registered through `dbarts_sampler_setSweepHook`,
+fires on runs through `dbarts_sampler_run` only. The bridge's
+`ShippedSweepHook` holds it with one offset buffer per chain, allocated at
+registration, and hands the compiled function a `dbarts_chain_view` filled
+on the chain's own thread, whose operations, function pointers rather than
+entries of the API list, copy into that chain's buffer or set its sigma and
+return a status, since nothing on a worker may raise. The engine tracks the
+sampler-wide offset each install hands every chain
+(`Sampler::chainsHoldOwnOffsets`, `Sampler::restoreSharedOffset`): a
+sampler-wide `setOffset` or `setData` puts every chain back on it, clearing
+the hook restores it, and a re-derivation of the response transform while a
+chain holds its own is refused, since it would read one transform from
+several offsets. A copy, a stored state and the R object's data carry the
+sampler-wide offset only.
+
 **Per-draw callback.** A compiled function of the shipped
 `dbarts_draw_callback` type, registered through
 `dbarts_sampler_setDrawCallback` in the C API or passed from R as the
 `callback` argument of `bart` and the sampler's `run`. It fires once per kept
 draw, on the thread running that chain - a worker thread when chains run in
-parallel - and sees every channel the fit carries for that draw, whether or
-not the run stores it: `Sampler::run` gives each channel the caller leaves
-unstored one draw of scratch per chain, and the log-likelihood is computed
-for the callback whether or not the run keeps it. `dbarts_draw` carries no
-latents, and its sigma is NaN on a sampler with a variance forest, which
-reports the variance channels instead. A nonzero return stops the run
+parallel - and sees each channel the fit carries that the run stores or the
+registration names (`DrawHook::channels`; the R route names every one):
+`Sampler::run` gives each named channel the caller leaves unstored one draw
+of scratch per chain, and a channel neither stored nor named is null and not
+computed, the log-likelihood included. `dbarts_draw` carries the
+chain's latents, null where the family augments none, and its sigma is NaN
+on a sampler with a variance forest, which reports the variance channels
+instead. A nonzero return stops the run, a positive one deliberately and a
+negative one as the callback's failure
 (docs/design/per-draw-callbacks.md).
 
 **Errors.** The engine reports every error as a C++ exception. Every `.Call`
 entry is registered through one guard (`GuardedEntry`) that catches it,
 leaves the handler, and only then raises the R error, so no R longjmp
-crosses an engine frame and no exception reaches R's own frames.
+crosses an engine frame and no exception reaches R's own frames. Every flat
+C API entry is registered the same way, through `GuardedApiEntry`, whose
+error names the entry, so no exception reaches a consumer's frames.
 `unwindProtect` runs its closure under the same conversion, since
 `R_UnwindProtect` is a C frame of its own. An entry that must act between
 the failure and the raise (hand back R's stream, release a sampler left
@@ -634,9 +654,12 @@ part-way, word the message) catches for itself first. A per-draw callback
 may itself raise an R error only when its run is inline on the thread that
 entered it: there the call is made under `R_UnwindProtect`, which turns the
 jump into a C++ unwind through the engine's frames, and the entry resumes
-the jump once they are gone. A C++ exception the callback throws is held
-until `R_UnwindProtect`'s own frame has returned and then rethrown along the
-same path. On a worker thread the callback must not raise; it returns
+the jump once they are gone. A callback lets no C++ exception escape: it
+catches its own, returns a negative value and re-raises after the run. One
+that escapes all the same is caught at the call on every thread, a safety
+net rather than a contract across separately built C++ runtimes, and on the
+inline path held until `R_UnwindProtect`'s own frame has returned and then
+rethrown along the same path. On a worker thread the callback must not raise; it returns
 nonzero instead. A run that stops early - an error, an interrupt, a nonzero
 return, a sweep closure's stop - does not advance the sample cursor and
 drops the saved trees it wrote: the store keeps the earlier runs' draws in

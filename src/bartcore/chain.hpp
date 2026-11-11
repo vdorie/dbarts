@@ -696,15 +696,15 @@ struct CarriedChannels {
 /// Engine-internal and host-agnostic: it is a plain POD over plain arrays, and
 /// the entry point that has a host converts it to whatever that host declares.
 ///
-/// Every channel the fit carries is non-null, whether or not the caller
-/// stores it: Sampler::run gives an observer one-draw scratch for each one the
-/// caller's Results leaves null. A channel pointer is null wherever the fit
-/// does not carry the channel AND wherever the coupling declares it undefined
-/// (testFitsAreDefined, logLikelihoodIsDefined), which the Results slab
-/// NaN-fills instead: the observer has no other channel in which to tell
-/// absent from present-but-NaN. A scalar is NaN where it is inapplicable to
-/// the fit: sigma on a sampler with a variance forest, which has no single
-/// residual scale.
+/// Every channel the fit carries is non-null when the caller stores it or the
+/// observer names it (DrawHook::channels): Sampler::run gives an observer
+/// one-draw scratch for each named one the caller's Results leaves null. A
+/// channel pointer is null wherever the fit does not carry the channel AND
+/// wherever the coupling declares it undefined (testFitsAreDefined,
+/// logLikelihoodIsDefined), which the Results slab NaN-fills instead: the
+/// observer has no other channel in which to tell absent from present-but-NaN.
+/// A scalar is NaN where it is inapplicable to the fit: sigma on a sampler with
+/// a variance forest, which has no single residual scale.
 ///
 /// Pointer validity is the call and no longer. A kept channel points into the
 /// caller's numSamples-deep slab and outlives the call, but a channel whose
@@ -759,14 +759,36 @@ struct DrawInfo {
 /// runs on a worker thread whenever chains do.
 using DrawCallback = int (*)(void* context, const DrawInfo* draw);
 
+/// The pointer channels of DrawInfo an observer reads, one bit each, as
+/// DrawHook::channels. drawVariance names the pair varianceFits and
+/// varianceTestFits; the scalars are always filled.
+enum DrawChannel : unsigned int {
+  drawTrain = 1u << 0,
+  drawTest = 1u << 1,
+  drawVariance = 1u << 2,
+  drawForestFits = 1u << 3,
+  drawGlue = 1u << 4,
+  drawSplitProbabilities = 1u << 5,
+  drawLogLikelihood = 1u << 6,
+  drawOrdinalThresholds = 1u << 7,
+  drawVariableCounts = 1u << 8,
+  drawLatents = 1u << 9,
+  drawAllChannels = ~0u
+};
+
 /// A draw observer with the context handed back to it. Calls for different
 /// chains may run CONCURRENTLY and the engine takes no lock: a hook touching
 /// shared state owns its own synchronization. A lock here would make every
 /// chain wait on the slowest hook, which is the cost the whole mechanism
 /// exists to avoid. Calls within a chain are ordered by drawIndex.
+///
+/// channels names the DrawChannel bits the observer reads. A run computes the
+/// channels its Results store and the ones named; one neither stored nor named
+/// is null in DrawInfo and not computed.
 struct DrawHook {
   DrawCallback fn = nullptr;
   void* context = nullptr;
+  unsigned int channels = drawAllChannels;
 };
 
 /// The heteroscedastic variance ensemble (HBART): a second forest of
@@ -3030,7 +3052,7 @@ public:
         // settled before the call, so every channel it views is this draw's
         if (onDraw != nullptr && onDraw->fn != nullptr) {
           DrawInfo draw;
-          fillDraw(draw, results, sampleNum, chainIndex);
+          fillDraw(draw, results, sampleNum, chainIndex, onDraw->channels);
           if (onDraw->fn(onDraw->context, &draw) != 0) return true;
         }
       }
@@ -9594,8 +9616,10 @@ private:
   /// shape being part of the caller's returned object while the observer has
   /// only the pointer to read absence from. Every offset reads the same stride
   /// field storeSample's write did, so the two cannot address different slots.
+  /// The latents, which no slab holds, are handed over when channels names
+  /// them.
   void fillDraw(DrawInfo& draw, const Results& results, size_t sampleNum,
-                size_t chainIndex) {
+                size_t chainIndex, unsigned int channels) {
     size_t n = data_.numObservations;
     size_t nTest = data_.numTestObservations;
     size_t numLocations = combiner_ ? combiner_->numReportedLocations() : 1;
@@ -9664,7 +9688,10 @@ private:
       ? response_->shape() : std::numeric_limits<double>::quiet_NaN();
     draw.residualDf = response_->carriesResidualDf()
       ? response_->residualDf() : std::numeric_limits<double>::quiet_NaN();
-    draw.latents = response_->latents();
+    // the chain's own buffer rather than a slab, so the observer's naming
+    // alone decides it
+    draw.latents =
+      (channels & drawLatents) != 0 ? response_->latents() : nullptr;
   }
 
   void storeSample(Results& results, size_t sampleNum) {

@@ -392,9 +392,11 @@ typedef struct {
 
 // One {name, &function} row per DBARTS_C_API_LIST entry; the header's stubs and
 // dbarts's binding asserts expand the same list, so this table cannot drift from
-// the declared surface.
+// the declared surface. Each is registered under its exception guard
+// (GuardedApiEntry), so no entry, the ones added later included, lets an
+// exception into a consumer's frames.
 #define DBARTS_API_REGISTER(_R_, _N_, _P_, _A_) \
-  {#_N_, (DL_FUNC) &_N_},
+  {#_N_, (DL_FUNC) &bartcore_bridge::GuardedApiEntry<&_N_, #_N_>::call},
 
 static C_CallMethodDef C_callMethods[] = {
   // the flat C API (inst/include/dbarts/dbarts.h), registered under the

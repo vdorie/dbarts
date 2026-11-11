@@ -200,7 +200,24 @@ reproducibility - within-host across any SIMD dispatch only.
 
 ## 5. The sweep-boundary hooks that exist
 
-Two ship, and neither is a mid-sweep hook.
+Two ship, `dbarts_sampler_setSweepHook` and `bartcore_runWithCallback`, and
+neither is a mid-sweep hook; `dbarts_sampler_setCallback`, the flat API's
+first, is retired.
+
+`dbarts_sampler_setSweepHook` ([`dbarts_sampler_setSweepHook`](../../inst/include/dbarts/dbarts.h))
+registers a compiled `dbarts_sweep_hook` that fires before every sweep of
+every chain of a `dbarts_sampler_run`, on the thread that owns the chain,
+with that chain's `dbarts_chain_view`. Its two operations set the chain's own
+offset, the response transform held, and its sigma, and are the only
+mutations legal inside a run: they reach that chain alone, allocate nothing
+and call no R API, and a refused value answers a status rather than an
+error. The chains' own offsets are the larger sampler's state, written again
+before each sweep; a copy, a stored state and `sampler$data` carry the
+sampler-wide offset, which a sampler-wide `setOffset` or a clear of the hook
+reinstalls in every chain. While chains hold their own, a re-derivation of
+the transform (`updateScale = TRUE` on the response, the weights or the
+mask) is refused. A nonzero return stops the run as a draw callback's does,
+and like a draw callback the hook lets no C++ exception escape.
 
 `dbarts_sampler_setCallback` (retired: [`dbarts_sampler_setCallback`](../../inst/include/dbarts/dbarts.h)) takes
 `(userData, sampler, chainIndex, sweepIndex, isBurnIn)` and returns 0 to stop

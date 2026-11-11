@@ -165,6 +165,12 @@ public:
                                          bool updateScale) = 0;
   virtual ResponseUpdateResult setResponse(const double* y,
                                            bool updateScale) = 0;
+  /// Whether a chain holds an offset its sweep hook wrote
+  /// (Sampler::chainsHoldOwnOffsets).
+  virtual bool chainsHoldOwnOffsets() const = 0;
+  /// Puts every chain back on the sampler-wide offset
+  /// (Sampler::restoreSharedOffset).
+  virtual void restoreSharedOffset() = 0;
   virtual void setWeights(const double* weights) = 0;
   /// The case weights in force, borrowed, null for none.
   virtual const double* weights() const = 0;
@@ -623,6 +629,10 @@ public:
                                    bool updateScale) override {
     return impl_.setResponse(y, updateScale);
   }
+  bool chainsHoldOwnOffsets() const override {
+    return impl_.chainsHoldOwnOffsets();
+  }
+  void restoreSharedOffset() override { impl_.restoreSharedOffset(); }
   void setWeights(const double* weights) override {
     impl_.setWeights(weights);
   }

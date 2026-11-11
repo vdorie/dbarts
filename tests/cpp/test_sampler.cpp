@@ -4,6 +4,8 @@
 
 #include <chrono>
 
+#include "R_interface_bartcore_common.hpp"  // ShippedSweepHook
+
 static void testViewSamplerMatchesFull() {
   const size_t n = 300, p = 4;
   std::vector<double> x(n * p), y(n);
@@ -17202,6 +17204,17 @@ int toyGibbsSweep(void* context, ChainView& chain, size_t c, size_t, bool) {
   if (gibbs.setsSigma) chain.setSigma(sigma);
   return 0;
 }
+/// The same step through the flat API's chain view, which stops the run on
+/// any status but the one the family warrants: a write, or a pinned sigma.
+int toyGibbsViewSweep(void* context, dbarts_chain_view* view, size_t, int) {
+  ToyGibbs& gibbs = *static_cast<ToyGibbs*>(context);
+  size_t c = view->chainIndex;
+  if (!gibbs.hasDraw[c]) return 0;
+  double sigma = gibbs.step(c);
+  int sigmaStatus = gibbs.setsSigma ? DBARTS_OK : DBARTS_UNSUPPORTED;
+  return view->setOffset(view, gibbs.offset[c].data()) != DBARTS_OK ||
+         view->setSigma(view, sigma) != sigmaStatus;
+}
 }  // namespace
 
 /// The toy Gibbs step made inside one run through the sweep hook equals the
@@ -17260,6 +17273,29 @@ static void testSweepHookMatchesOneSweepRuns() {
             (std::string("sweep hook (") + label + ", " +
              std::to_string(numThreads) +
              " threads): every channel equals the one-sweep runs'").c_str());
+
+      // and through the flat API's shipped hook, each chain's view writing
+      // the chain's own buffer
+      HookSampler viewFixture(data, family, numThreads);
+      ToyGibbs viewGibbs(gaussian);
+      bartcore_bridge::ShippedSweepHook shipped;
+      shipped.set(&toyGibbsViewSweep, &viewGibbs, HookData::numChains,
+                  HookData::n);
+      HookChannels viaView(numSweeps);
+      Results viewResults = viaView.results();
+      canceled = viewFixture.sampler->run(
+        0, numSweeps, viewResults, {},
+        shipped.engineHook(HookData::numChains, HookData::n, !gaussian),
+        DrawHook{&toyGibbsDraw, &viewGibbs});
+      bool ownBuffers = true;
+      for (size_t c = 0; c < HookData::numChains; ++c)
+        ownBuffers &= viewFixture.sampler->chain(c).offset() ==
+                      shipped.chainOffsets[c].data();
+      check(!canceled && ownBuffers && viaView == reference,
+            (std::string("sweep hook view (") + label + ", " +
+             std::to_string(numThreads) +
+             " threads): every channel equals the one-sweep runs', each "
+             "chain on its own buffer").c_str());
     }
   }
   printf("ok: a sweep hook equals one-sweep runs at 1 to 4 threads\n");
@@ -17468,18 +17504,47 @@ static void testSweepHookChainIsolation() {
   check(!write.sawIdle.load(),
         "sweep hook isolation: the sampler reads as running inside the hook, "
         "on a worker");
+
+  // the write is chain 2's own until the sampler-wide offset is restored,
+  // which equals a sampler-wide install of the offset in force
+  HookSampler reinstalled(data, ResponseFamily::gaussian, 2);
+  HookChannels discarded(numSweeps);
+  Results d = discarded.results();
+  write.sampler = reinstalled.sampler.get();
+  reinstalled.sampler->run(0, numSweeps, d, {},
+                           SweepHook{&oneChainOffsetSweep, &write});
+  check(hooked.sampler->chainsHoldOwnOffsets() &&
+          !plain.sampler->chainsHoldOwnOffsets(),
+        "sweep hook isolation: the hooked sampler's chains hold their own "
+        "offsets, the plain one's do not");
+  hooked.sampler->restoreSharedOffset();
+  reinstalled.sampler->setOffset(nullptr, false);
+  HookChannels restored(2), installed(2);
+  Results r = restored.results(), i = installed.results();
+  hooked.sampler->run(0, 2, r);
+  reinstalled.sampler->run(0, 2, i);
+  check(!hooked.sampler->chainsHoldOwnOffsets() &&
+          restored.train == installed.train &&
+          restored.sigma == installed.sigma,
+        "sweep hook isolation: restoring the sampler-wide offset equals "
+        "installing it");
   printf("ok: a sweep hook's write reaches its chain alone\n");
 }
 
 namespace {
-/// Each chain's draw latents, copied at its last draw.
+/// Each chain's draw latents, copied at its last draw, and the draws that
+/// carried train and the log-likelihood.
 struct LatentCopy {
   std::vector<std::vector<double>> latents =
     std::vector<std::vector<double>>(HookData::numChains);
-  std::atomic<int> nullDraws{0};
+  std::atomic<int> nullDraws{0}, trainDraws{0}, logLikelihoodDraws{0};
 };
 int latentCopyDraw(void* context, const DrawInfo* draw) {
   LatentCopy& copy = *static_cast<LatentCopy*>(context);
+  if (draw->train != nullptr)
+    copy.trainDraws.fetch_add(1, std::memory_order_relaxed);
+  if (draw->logLikelihood != nullptr)
+    copy.logLikelihoodDraws.fetch_add(1, std::memory_order_relaxed);
   if (draw->latents == nullptr) {
     copy.nullDraws.fetch_add(1, std::memory_order_relaxed);
     return 0;
@@ -17509,9 +17574,26 @@ static void testDrawInfoLatents() {
                           live);
       if (c > 0) distinct &= copy.latents[c] != copy.latents[0];
     }
-    check(equal && distinct,
+    check(equal && distinct &&
+            copy.logLikelihoodDraws.load() ==
+              static_cast<int>(HookData::numChains),
           "draw latents: each chain's draw carries the latents the sampler "
           "reports for that chain");
+  }
+  {
+    // an observer naming train alone gets neither the log-likelihood, which
+    // then has no scratch to be computed into, nor the latents
+    HookSampler fixture(data, ResponseFamily::probit, 2);
+    Results none;
+    LatentCopy copy;
+    fixture.sampler->run(0, 1, none, {}, SweepHook(),
+                         DrawHook{&latentCopyDraw, &copy, drawTrain});
+    int chains = static_cast<int>(HookData::numChains);
+    check(copy.trainDraws.load() == chains &&
+            copy.logLikelihoodDraws.load() == 0 &&
+            copy.nullDraws.load() == chains,
+          "draw channels: an observer gets the channels it names and no "
+          "other");
   }
   {
     HookSampler fixture(data, ResponseFamily::gaussian, 2);

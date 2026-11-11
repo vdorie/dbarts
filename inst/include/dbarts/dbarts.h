@@ -86,9 +86,11 @@
 ///   dbarts_sampler_sampleTreesFromPrior) draw from the sampler's own
 ///   per-chain generators, never from R's stream, so they need no
 ///   GetRNGstate/PutRNGstate bracket; they must be called from the main R
-///   thread. dbarts_sampler_predict is main-R-thread-only for a separate
-///   reason: it is R_alloc-backed internally, and R_alloc is unsafe off that
-///   thread.
+///   thread, as must every entry here. The one exception is a chain view's
+///   operations (dbarts_chain_view), which are called from whatever thread
+///   runs the sweep hook they are handed to. dbarts_sampler_predict is
+///   main-R-thread-only for a separate reason: it is R_alloc-backed
+///   internally, and R_alloc is unsafe off that thread.
 /// - THE HANDLE. There is no creation entry here: a dbarts_sampler* is the
 ///   address stored in an R dbartsSampler object's external pointer, which a
 ///   consumer builds from R and reads with R_ExternalPtrAddr in its own
@@ -149,21 +151,22 @@
 /// literal, usable from C.
 ///
 /// It folds, in fixed order: the stringized DBARTS_C_API_LIST signatures
-/// (return types, names, parameter lists), the four ABI enums' enumerator
-/// names and values, and the LAYOUT of every struct that crosses the ABI -
-/// dbarts_results, dbarts_predictor_source, dbarts_draw - as the compiler
-/// reports it: each struct's size, and each field's name paired with its
-/// offset, both in pointer units so the token is one number on every supported
-/// platform. dbarts_draw is the exception that rule needs: it is the one
-/// struct carrying by-value doubles, whose offset in pointer units is not the
-/// same number everywhere, so it folds its FIELD COUNT in place of its size
-/// and folds those doubles by name, declaration position and width instead of
-/// by offset. So a field appended, removed, reordered or retyped to a different
-/// width, a renamed field, and a renumbered or added enumerator all move it.
-/// What it still does not see is an in-place
-/// type swap of the SAME width (double* -> int64_t* under an unchanged name),
-/// which moves no offset and no name; that residue is announced to consumers
-/// by hand.
+/// (return types, names, parameter lists), the six ABI enums' enumerator names
+/// and values and the text of DBARTS_DRAW_ALL, the stringized signatures of the
+/// two callback types and of the chain view's operations, and the LAYOUT of
+/// every struct that crosses the ABI - dbarts_results, dbarts_predictor_source,
+/// dbarts_draw, dbarts_chain_view - as the compiler reports it: each struct's
+/// size, and each field's name paired with its offset, both in pointer units so
+/// the token is one number on every supported platform. dbarts_draw is the
+/// exception that rule needs: it is the one struct carrying by-value doubles,
+/// whose offset in pointer units is not the same number everywhere, so it folds
+/// its FIELD COUNT in place of its size and folds those doubles by name,
+/// declaration position and width instead of by offset. So a field appended,
+/// removed, reordered or retyped to a different width, a renamed field, and a
+/// renumbered or added enumerator all move it. What it still does not see is an
+/// in-place type swap of a struct field of the SAME width (double* -> int64_t*
+/// under an unchanged name), which moves no offset and no name; that residue is
+/// announced to consumers by hand.
 ///
 /// dbarts_apiHash() == DBARTS_C_API_HASH is an OPT-IN exact-ABI check beside
 /// the major/minor handshake the stubs always enforce: while the version
@@ -186,7 +189,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0xa84b67742536fbc4ULL
+#  define DBARTS_C_API_HASH 0x7220b30db0d94fd4ULL
 #endif
 
 #ifdef __cplusplus
@@ -303,19 +306,20 @@ typedef struct dbarts_results_t {
 /// simply reads the prefix it knows. Fields append monotonically below the
 /// marked boundary and never reorder.
 ///
-/// PRESENCE AND ABSENCE. Every channel the fit carries is non-NULL, whether or
-/// not the caller stores it: one the caller does not store, results NULL
-/// included, is computed into per-chain scratch for the callback, the
-/// log-likelihood among them. A channel pointer is NULL wherever the fit does
-/// not carry that channel (the variance pair off a heteroscedastic model, the
-/// forest pair and glue off a multi-forest coupling, ordinalThresholds off
-/// ordinal, splitProbabilities off DART) and wherever the model cannot define
-/// it for this draw - the test blend of a coupling with no test treatment
-/// vector, the log-likelihood of one whose blended location the response
-/// cannot score. A scalar that does not apply is NaN, since a double has no
-/// absent value: sigma on a sampler with a variance forest, whose varianceFits
-/// is the residual scale row by row. So a callback tests the channel, never
-/// the family.
+/// PRESENCE AND ABSENCE. A channel the fit carries is non-NULL when the caller
+/// stores it or names it at registration (dbarts_draw_channel): one named and
+/// not stored, results NULL included, is computed into per-chain scratch for
+/// the callback, and one neither named nor stored is NULL and not computed at
+/// all, the log-likelihood pass included. A channel pointer is NULL wherever
+/// the fit does not carry that channel (the variance pair off a heteroscedastic
+/// model, the forest pair and glue off a multi-forest coupling,
+/// ordinalThresholds off ordinal, splitProbabilities off DART, latents off a
+/// family that augments nothing) and wherever the model cannot define it for
+/// this draw - the test blend of a coupling with no test treatment vector, the
+/// log-likelihood of one whose blended location the response cannot score. A
+/// scalar that does not apply is NaN, since a double has no absent value: sigma
+/// on a sampler with a variance forest, whose varianceFits is the residual
+/// scale row by row. So a callback tests the channel, never the family.
 ///
 /// LAYOUT, observation fastest throughout: train is numObservations x
 /// numFittedValuesPerObservation (F, as
@@ -325,7 +329,8 @@ typedef struct dbarts_results_t {
 /// numTestObservations, forestFits numObservations x numForests forest-major,
 /// glue the ragged per-forest amplitude vector numAmplitudes long and
 /// forest-major, splitProbabilities numPredictors, ordinalThresholds
-/// numOrdinalThresholds, and varcount numPredictors x numVariableCountForests
+/// numOrdinalThresholds, latents numObservations, and varcount numPredictors x
+/// numVariableCountForests
 /// forest-major within the draw (V slabs, as
 /// dbarts_sampler_numVariableCountForests reports, on either route). Both
 /// indices are 0-based, and drawIndex
@@ -358,6 +363,10 @@ typedef struct dbarts_draw_t {
   const double* logLikelihood;
   const double* ordinalThresholds;
   const uint32_t* varcount;
+  /// the augmentation values this draw's trees were drawn from, as
+  /// dbarts_sampler_getLatents reports them; NULL where the family augments
+  /// none
+  const double* latents;
   double sigma;   ///< NaN on a sampler with a variance forest
   double k;
   double shape;   ///< NaN off a count (nbinom) response
@@ -377,15 +386,16 @@ typedef struct dbarts_draw_t {
 /// burn-in never reaches it. It observes: nothing in the draw may be written
 /// through, and no sampler state may be mutated from inside it.
 ///
-/// RETURN. 0 continues. NONZERO ABORTS the run: every chain stops at its next
-/// sweep boundary, the caller discards the results, and the run drops the
-/// saved trees it wrote, exactly as on the interrupt path: the store serves
-/// the earlier runs' draws the stopped one did not overwrite, oldest first,
-/// and dbarts_sampler_numSavedSamples counts them. dbarts_sampler_run reports
-/// no status, so
-/// a callback that wants to say WHY records it in its own context and the
-/// caller reads that after the run; a callback that merely disagrees with a
-/// draw records and returns 0.
+/// RETURN. 0 continues. A positive value is a deliberate stop and a negative
+/// value the callback's failure; the run treats the two alike, and either
+/// NONZERO value ABORTS it: every chain stops at its next sweep boundary, the
+/// caller discards the results, and the run drops the saved trees it wrote,
+/// exactly as on the interrupt path: the store serves the earlier runs' draws
+/// the stopped one did not overwrite, oldest first, and
+/// dbarts_sampler_numSavedSamples counts them. dbarts_sampler_run reports no
+/// status, so a callback that wants to say WHY records it in its own context
+/// and the caller reads that after the run; a callback that merely disagrees
+/// with a draw records and returns 0.
 ///
 /// CONCURRENCY. Calls for different chains may run CONCURRENTLY, on whichever
 /// worker thread owns each chain, and the engine takes NO lock around the
@@ -411,10 +421,17 @@ typedef struct dbarts_draw_t {
 /// dbarts_sampler_numChains). That raise is the one R call the ban above
 /// admits, its own allocation included, and it must be R's error jump: a
 /// longjmp to a setjmp of the caller's own abandons the context R establishes
-/// around this call and leaves R reading a dead one. A C++ EXCEPTION thrown
-/// out of the callback is caught at the call instead and handed back to R as
-/// an error carrying its what(), so a C++ caller may refuse in its own idiom
-/// (Rcpp::stop and the like) and the run ends exactly as a raise ends it.
+/// around this call and leaves R reading a dead one.
+///
+/// NO C++ EXCEPTION MAY ESCAPE THE CALLBACK, on any thread: a C++ consumer
+/// catches its own (Rcpp::stop's included) in its wrapper, keeps it in its
+/// context, returns a negative value and re-raises after dbarts_sampler_run
+/// returns. dbarts still catches one at the call as a safety net and hands it
+/// back to R as an error carrying its what(), the run ending as a raise ends
+/// it, but that net is no portable contract between libraries: across
+/// separately built C++ runtimes (Windows DLLs, say) an exception need not
+/// unwind through dbarts' frames at all.
+///
 /// The call into the callback is made under
 /// R_UnwindProtect, so the jump becomes a C++ unwind AT THE CALLBACK:
 /// the run stops there and every frame between the callback and this entry,
@@ -433,14 +450,20 @@ typedef struct dbarts_draw_t {
 /// context the main thread established, on a stack that is not the main
 /// thread's - so a callback that cannot know which run it is in records the
 /// disagreement and returns nonzero instead.
-typedef int (*dbarts_draw_callback)(void* context, const dbarts_draw* draw);
+///
+/// The typedef is generated from a one-entry list, as the sweep hook's is,
+/// whose text the compile-time token folds, so a changed parameter moves it.
+#define DBARTS_DRAW_CALLBACK_TYPE(X) \
+  X(int, dbarts_draw_callback, (void* context, const dbarts_draw* draw))
+#define DBARTS_FUNCTION_TYPEDEF(ret, name, params) typedef ret (*name) params;
+DBARTS_DRAW_CALLBACK_TYPE(DBARTS_FUNCTION_TYPEDEF)
 
 /// A predictor column's type. Ordinal columns are cut on their values;
 /// categorical ones carry 0-based category codes and split by subset mask;
 /// ordered-factor ones carry 0-based level codes whose order is meaningful,
 /// so they are cut on those codes rather than masked.
 ///
-/// All four ABI enums are generated from a list macro, which is also what
+/// All six ABI enums are generated from a list macro, which is also what
 /// the compile-time token folds: an enumerator ADDED to the enum body
 /// directly would be invisible to a hand-kept fold, while one added to the
 /// list cannot be. DBARTS_ENUMERATOR is the shared body emitter, #undef'd
@@ -607,7 +630,111 @@ typedef enum { DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR) } dbarts_family;
   X(DBARTS_SWAP_DONE, 1) \
   X(DBARTS_SWAP_SCALE_KEPT, 2)
 typedef enum { DBARTS_SWAP_STATUS_LIST(DBARTS_ENUMERATOR) } dbarts_swap_status;
+
+/// What a chain view's operations return, as an int (dbarts_chain_view). Zero
+/// is success, a positive value a success with a note and a negative value a
+/// failure that touched nothing; codes may be added, so a caller tests the sign
+/// and treats an unknown negative value as a failure. UNSUPPORTED: the chain
+/// cannot do this at all. INVALID_ARGUMENT: the call is wrong. A view returns
+/// a status rather than raising, since it runs on whatever thread runs the
+/// hook.
+#define DBARTS_STATUS_LIST(X) \
+  X(DBARTS_OK, 0) \
+  X(DBARTS_UNSUPPORTED, -1) \
+  X(DBARTS_INVALID_ARGUMENT, -2)
+typedef enum { DBARTS_STATUS_LIST(DBARTS_ENUMERATOR) } dbarts_status;
+
+/// The channels a draw callback reads, one flag per pointer channel of
+/// dbarts_draw, combined with | as dbarts_sampler_setDrawCallback's channels.
+/// VARIANCE names the pair varianceFits and varianceTestFits. The scalars
+/// (sigma, k, shape, residualDf) cost nothing and are always filled.
+/// DBARTS_DRAW_ALL names every channel, those a later version adds included.
+#define DBARTS_DRAW_CHANNEL_LIST(X) \
+  X(DBARTS_DRAW_TRAIN, 0x001) \
+  X(DBARTS_DRAW_TEST, 0x002) \
+  X(DBARTS_DRAW_VARIANCE, 0x004) \
+  X(DBARTS_DRAW_FOREST_FITS, 0x008) \
+  X(DBARTS_DRAW_GLUE, 0x010) \
+  X(DBARTS_DRAW_SPLIT_PROBABILITIES, 0x020) \
+  X(DBARTS_DRAW_LOG_LIKELIHOOD, 0x040) \
+  X(DBARTS_DRAW_ORDINAL_THRESHOLDS, 0x080) \
+  X(DBARTS_DRAW_VARCOUNT, 0x100) \
+  X(DBARTS_DRAW_LATENTS, 0x200)
+typedef enum {
+  DBARTS_DRAW_CHANNEL_LIST(DBARTS_ENUMERATOR)
+} dbarts_draw_channel;
+#define DBARTS_DRAW_ALL (~0u)
 #undef DBARTS_ENUMERATOR
+
+/// One chain as a sweep hook sees it. The library fills the view before each
+/// call of the hook, and it is valid for that call alone. Its operations reach
+/// this chain and no other, are called as view->setOffset(view, offset), and
+/// are function pointers rather than entries of DBARTS_C_API_LIST, so a worker
+/// never resolves one through the stubs, whose first call reaches R. They
+/// allocate nothing, call no R API and return a dbarts_status.
+///
+/// setOffset copies numObservations values into the chain's own offset, with
+/// the response transform held, never re-derived, and the chain draws against
+/// it from this sweep on, until the hook writes it again or a sampler-wide
+/// offset - dbarts_sampler_setOffset, or the R object's setOffset or setData -
+/// puts every chain back on that one. DBARTS_OK on a write;
+/// DBARTS_INVALID_ARGUMENT where a value is not finite.
+///
+/// setSigma holds this chain's residual standard deviation at sigma (original
+/// response scale) until its next call or the chain's next draw of it, as
+/// dbarts_sampler_setSigma does for every chain. DBARTS_OK on a write;
+/// DBARTS_UNSUPPORTED where the model fixes sigma, as dbarts_sampler_setSigma
+/// answers 0; DBARTS_INVALID_ARGUMENT on a sigma that is not finite and
+/// positive.
+///
+/// The library sets structSize to its own sizeof, as it does in dbarts_draw.
+/// internal is the library's and never read or written by the caller. The
+/// operation members are generated from DBARTS_CHAIN_VIEW_OPS, whose text the
+/// compile-time token folds; a future operation appends to that list, which
+/// puts its member last.
+typedef struct dbarts_chain_view_t dbarts_chain_view;
+#define DBARTS_CHAIN_VIEW_OPS(X) \
+  X(int, setOffset, (dbarts_chain_view* view, const double* offset)) \
+  X(int, setSigma, (dbarts_chain_view* view, double sigma))
+#define DBARTS_CHAIN_VIEW_MEMBER(ret, name, params) ret (*name) params;
+struct dbarts_chain_view_t {
+  size_t structSize; ///< the library sets it
+  size_t chainIndex;
+  size_t numObservations;
+  void* internal;    ///< the library's
+  DBARTS_CHAIN_VIEW_OPS(DBARTS_CHAIN_VIEW_MEMBER)
+};
+#undef DBARTS_CHAIN_VIEW_MEMBER
+
+/// A per-sweep hook, registered with dbarts_sampler_setSweepHook and called
+/// before every sweep of every chain of a dbarts_sampler_run, burn-in
+/// included, on the thread that owns the chain: a worker, or the calling
+/// thread when the run is inline. chain is that chain's view. sweepIndex
+/// counts this run's sweeps of the chain from 0, (numBurnIn + numSamples)
+/// times the thinning rate of them, and isBurnIn is nonzero on the first
+/// numBurnIn times the thinning rate. Calls for different chains may run
+/// concurrently, as a draw callback's do; calls within one chain are ordered.
+///
+/// RETURN, by a draw callback's sign rule: 0 continues, a positive value is a
+/// deliberate stop and a negative value the hook's failure. Either nonzero
+/// value stops the run as a draw callback's does: every chain stops at its
+/// next sweep boundary, the caller discards the results, the run's saved trees
+/// are dropped and dbarts_sampler_run returns normally, so a hook that wants
+/// to say why records it in its own context.
+///
+/// NO R CALL OF ANY KIND, on any path, an inline run's included: no
+/// allocation, printing, error, random number or interrupt check, so one rule
+/// holds at every thread count. The hook touches only its own chain, through
+/// the view, and calls no dbarts_sampler_* entry on this sampler. No C++
+/// exception may escape it: a consumer catches its own, keeps it, returns a
+/// negative value and re-raises after the run, on a draw callback's rule,
+/// whose safety net catches one here too.
+#define DBARTS_SWEEP_HOOK_TYPE(X) \
+  X(int, dbarts_sweep_hook, \
+    (void* context, dbarts_chain_view* chain, size_t sweepIndex, \
+     int isBurnIn))
+DBARTS_SWEEP_HOOK_TYPE(DBARTS_FUNCTION_TYPEDEF)
+#undef DBARTS_FUNCTION_TYPEDEF
 
 // ---------------------------------------------------------------------------
 // The single source of truth for the entry-point surface. Each
@@ -632,7 +759,11 @@ typedef enum { DBARTS_SWAP_STATUS_LIST(DBARTS_ENUMERATOR) } dbarts_swap_status;
   X(void, dbarts_sampler_sampleTreesFromPrior, (dbarts_sampler* sampler), \
     (sampler)) \
   X(void, dbarts_sampler_setDrawCallback, \
-    (dbarts_sampler* sampler, dbarts_draw_callback fn, void* context), \
+    (dbarts_sampler* sampler, dbarts_draw_callback fn, void* context, \
+     unsigned int channels), \
+    (sampler, fn, context, channels)) \
+  X(int, dbarts_sampler_setSweepHook, \
+    (dbarts_sampler* sampler, dbarts_sweep_hook fn, void* context), \
     (sampler, fn, context)) \
   X(int, dbarts_sampler_setResponse, \
     (dbarts_sampler* sampler, const double* y, int updateScale), \
@@ -860,7 +991,8 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// back), which is a valid state to run on from. A stop elsewhere - a
 /// multinomial sampler's omega or a coupled forest's glue, both drawn inside
 /// the tree loop - can leave the sweep partly done. A caller makes its changes
-/// between runs: this API has no hook inside a sweep.
+/// between runs, or inside a run through a sweep hook's chain view, which
+/// reaches that chain alone (dbarts_sampler_setSweepHook).
 ///
 /// A run whose monotone leaf-order counts were slow raises R's
 /// dbartsSlowCountWarning at most once per sampler, after the run returns
@@ -892,8 +1024,39 @@ void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
 /// context is handed back untouched and may be null; the sampler neither reads
 /// nor frees what it points at. The callback fires once per SAVED draw per
 /// chain, under the contract dbarts_draw_callback states.
+///
+/// channels names the channels the callback reads, as dbarts_draw_channel
+/// flags or DBARTS_DRAW_ALL. A run computes the channels it stores and the
+/// ones named here; a channel neither stored nor named is NULL in the draw and
+/// costs the run nothing. channels is copied with fn and cleared with it.
 void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
-                                    dbarts_draw_callback fn, void* context);
+                                    dbarts_draw_callback fn, void* context,
+                                    unsigned int channels);
+
+/// Registers a per-sweep hook, or clears one with a null fn, on
+/// dbarts_sampler_setDrawCallback's rule: fn and context are COPIED into the
+/// sampler, stay in force for every later dbarts_sampler_run until the next
+/// call here, and nothing is called through fn now. The hook fires on runs
+/// through dbarts_sampler_run only, never on the R object's run, under the
+/// contract dbarts_sweep_hook states. Registration allocates each chain's
+/// offset buffer, so no view operation does.
+///
+/// A chain's own offset is the larger sampler's state, written again before
+/// each sweep: it is not part of a state the R object stores, a copy of the
+/// sampler or the R object's data, which carry the sampler-wide offset, and
+/// neither is the hook. Clearing puts every chain back on the sampler-wide
+/// offset. While a chain holds its own, a call that re-derives the response
+/// transform from the offsets in force - dbarts_sampler_setResponse with
+/// updateScale, or the R object's setResponse, setWeights or setActiveRows
+/// with updateScale = TRUE - is refused with an error, since no one transform
+/// fits chains on different offsets; dbarts_sampler_setOffset, which hands
+/// every chain one offset, is not.
+///
+/// A CAPABILITY STATUS: 1, or 0, registering and clearing nothing, on a
+/// sampler where a chain's offset can never be written, the coupling whose
+/// dbarts_sampler_setOffset answers 0 whatever its arguments.
+int dbarts_sampler_setSweepHook(dbarts_sampler* sampler,
+                                dbarts_sweep_hook fn, void* context);
 
 /// y has numObservations values, which must be finite and lie in the family's
 /// support: 0/1 for probit and logistic, an integer category index in [1, K]
@@ -971,7 +1134,8 @@ int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 /// values from before the setter, except that a new data object starts them
 /// as creation does (an ordinal or nbinom sampler from the kept cutpoints or
 /// shape) and an aft response leaves a censored row at its new bound; the next
-/// sweep draws them afresh. The draw struct carries none.
+/// sweep draws them afresh. A draw callback reads them per draw, in
+/// dbarts_draw's latents.
 ///
 /// WHAT the variable is depends on the family and is not uniform. A LOCATION,
 /// on the sampler's own latent scale, for probit (the truncated normal z),

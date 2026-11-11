@@ -33,7 +33,8 @@ namespace {
 
 /// One enumerator per SamplerBase pure virtual, in declaration order.
 enum class FacadeVirtual {
-  shape, run, isRunning, setOffset, setResponse, setWeights, weights, setSurvivalStatus,
+  shape, run, isRunning, setOffset, setResponse, chainsHoldOwnOffsets,
+  restoreSharedOffset, setWeights, weights, setSurvivalStatus,
   setSigma, setTestData, setTestOffset, setData, rederiveStandardization,
   setPredictor,
   updatePredictor, setCutPoints, updatePredictorPerObservation,
@@ -109,6 +110,8 @@ public:
   SPY_RET(ResponseUpdateResult, setOffset, (const double* o, bool u), (o, u))
   SPY_RET(ResponseUpdateResult, setResponse, (const double* y, bool u),
           (y, u))
+  SPY_RET(bool, chainsHoldOwnOffsets, () const, ())
+  SPY_VOID(restoreSharedOffset, (), ())
   SPY_VOID(setWeights, (const double* w), (w))
   SPY_RET(const double*, weights, () const, ())
   SPY_VOID(setSurvivalStatus, (const double* s), (s))
@@ -699,6 +702,28 @@ const Row rows[] = {
           "facade setResponse: a kept scale is reported as kept");
     f.g.impl().setActiveRows(nullptr);
     f.g.base().setResponse(f.y.data(), true);
+  }},
+  {FacadeVirtual::chainsHoldOwnOffsets, "chainsHoldOwnOffsets", [](Fixtures& f) {
+    // a sweep hook's write through chain 0's view is the one way a chain
+    // comes to hold its own; a burn-in sweep keeps the store later rows read
+    check(!f.g.base().chainsHoldOwnOffsets(),
+          "facade chainsHoldOwnOffsets: false on the sampler-wide offset");
+    auto write = [&](ChainView& chain, std::size_t c, std::size_t, bool) {
+      if (c == 0) chain.setOffsetHoldingScale(f.offset.data());
+      return false;
+    };
+    Results results;
+    f.g.base().run(1, 0, results, {}, sweepHookOf(write));
+    check(f.g.base().chainsHoldOwnOffsets(),
+          "facade chainsHoldOwnOffsets: true once a hook wrote chain 0's");
+  }},
+  {FacadeVirtual::restoreSharedOffset, "restoreSharedOffset", [](Fixtures& f) {
+    double residuals = f.g.impl().sumOfSquaredResiduals(0);
+    f.g.base().restoreSharedOffset();
+    check(!f.g.base().chainsHoldOwnOffsets() &&
+            f.g.impl().sumOfSquaredResiduals(0) != residuals,
+          "facade restoreSharedOffset: chain 0 leaves the offset its hook "
+          "wrote for the sampler-wide one");
   }},
   {FacadeVirtual::setWeights, "setWeights", [](Fixtures& f) {
     f.g.base().setWeights(f.weights.data());

@@ -52,6 +52,7 @@ using bartcore_bridge::refuseMultiForestWarmStart;
 using bartcore_bridge::refuseNonBinaryMask;
 using bartcore_bridge::refuseNonFinite;
 using bartcore_bridge::refusePinnedSigmaChange;
+using bartcore_bridge::refuseChainOffsetRederivation;
 using bartcore_bridge::refuseSavedGPDrawReanchor;
 using bartcore_bridge::refuseSparseLeafCovariate;
 using bartcore_bridge::refuseUndefinedTestFits;
@@ -3960,6 +3961,21 @@ void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
            "the scale is fixed), or make a new sampler", caller);
 }
 
+// One transform read from which chain's offset is no rule a caller means, so
+// the refusal is the whole answer; a family with no response scale has none
+// to re-derive and takes the request.
+void refuseChainOffsetRederivation(const bartcore::SamplerBase& sampler,
+                                   const char* caller, int updateScale) {
+  if (updateScale == FALSE ||
+      !familyHasResponseScale(sampler.shape().family) ||
+      !sampler.chainsHoldOwnOffsets())
+    return;
+  Rf_error("%s: 'updateScale' cannot be TRUE while chains hold offsets their "
+           "sweep hook wrote, since one transform cannot be read from "
+           "several offsets; set a sampler-wide offset first, or pass "
+           "updateScale = FALSE", caller);
+}
+
 // The weight policy, stated once for creation and every mutation conduit: a
 // probit or ordinal weight is membership, 0 or 1, the one thing those
 // families can read off a weight, since a weighted truncated-normal latent
@@ -5782,7 +5798,8 @@ static void refuseSavedGPStandardizationUpdate(
 // The two setters of rows refuse a re-derivation before they install
 // anything, so a refused call leaves the weights and the mask as they were:
 // of the transform on a sampler of several forests, whose conduit the caller
-// names, and of either on gp leaves holding saved draws. Several forests take
+// names, or whose chains hold offsets their sweep hook wrote, and of either
+// on gp leaves holding saved draws. Several forests take
 // no leaf covariate, so their standardization has nothing to derive.
 static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
                                    const char* caller, ResponseConduit conduit,
@@ -5790,6 +5807,7 @@ static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
                                    bool updateStandardization) {
   refuseMultiForestResponseMutation(sampler, caller, conduit, updateScale);
   refuseSavedGPDrawReanchor(sampler, caller, updateScale);
+  refuseChainOffsetRederivation(sampler, caller, updateScale);
   refuseSavedGPStandardizationUpdate(sampler, caller, updateStandardization);
 }
 
@@ -6440,8 +6458,9 @@ static void readRunCounts(SEXP numBurnInExpr, SEXP numSamplesExpr,
 // undefined behavior and in practice a crash, so a callback that cannot know
 // which run it is in records its own status and returns nonzero.
 //
-// The observer sees every channel the fit carries: the engine run gives it
-// scratch for each one this entry does not keep, the log-likelihood included.
+// The observer is registered for every channel, since this route does not
+// know which it reads: the engine run gives it scratch for each one the fit
+// carries and this entry does not keep, the log-likelihood included.
 // With no test rows the test channel's NATURAL per-draw stride is zero, which
 // is also the opt-out sentinel - harmless, because the same condition leaves
 // the pointer null and nothing addresses it.
@@ -6459,7 +6478,8 @@ static bartcore_bridge::ShippedDrawHook bartcore_drawHook(SEXP fnExpr,
   // dbarts_sampler_setDrawCallback hand the same struct to the same kind of
   // function, so one compiled callback serves both
   hook.set(reinterpret_cast<dbarts_draw_callback>(address),
-           Rf_isNull(contextExpr) ? NULL : R_ExternalPtrAddr(contextExpr));
+           Rf_isNull(contextExpr) ? NULL : R_ExternalPtrAddr(contextExpr),
+           DBARTS_DRAW_ALL);
   return hook;
 }
 
@@ -7137,6 +7157,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
   refuseMultiForestResponseMutation(*holder.sampler, "$setResponse",
                                     ResponseConduit::response, updateScale);
   refuseSavedGPDrawReanchor(*holder.sampler, "$setResponse", updateScale);
+  refuseChainOffsetRederivation(*holder.sampler, "$setResponse", updateScale);
   if (!Rf_isReal(yExpr) ||
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",

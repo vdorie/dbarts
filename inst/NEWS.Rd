@@ -1020,7 +1020,10 @@
             caller-owned \code{dbarts_results} (initialize it with
             \code{DBARTS_RESULTS_INIT}), swap its response, offset and
             residual scale (copying them), read its latents, predict, store
-            and print trees, and register a per-draw callback; saving state,
+            and print trees, and register a per-draw callback, which names
+            the draw's values it reads so that no other is computed, and a
+            per-sweep hook, which sets each chain's offset and residual
+            scale on the thread running that chain; saving state,
             reading trees and changing predictors or weights go through the
             R methods. See \code{\link{dbarts-embedding}}.
     }

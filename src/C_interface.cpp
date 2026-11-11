@@ -6,6 +6,7 @@
 
 #include <dbarts/dbarts.h>
 
+#include <cassert> // assert
 #include <cstddef> // size_t
 #include <cstdint> // uint64_t
 #include <cstring> // memcpy
@@ -20,8 +21,8 @@
 
 using std::size_t;
 using bartcore_bridge::adoptVector;
-using bartcore_bridge::callConvertingExceptions;
 using bartcore_bridge::DrawCallbackProtection;
+using bartcore_bridge::refuseChainOffsetRederivation;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseMultiForestResponseMutation;
@@ -40,11 +41,15 @@ namespace {
 
 // dbarts_sampler_t IS the bridge's holder (R_interface_bartcore_common.hpp), so
 // the address in an R sampler object's external pointer is the handle dbarts.h
-// declares. Nothing is wrapped and nothing is owned here.
+// declares. Nothing is wrapped and nothing is owned here. No entry runs on a
+// sampler while its run is in flight, as from inside one of its hooks, which a
+// debug build asserts here.
 inline bartcore::SamplerBase& samplerOf(dbarts_sampler* sampler) {
+  assert(!sampler->sampler->isRunning());
   return *sampler->sampler;
 }
 inline const bartcore::SamplerBase& samplerOf(const dbarts_sampler* sampler) {
+  assert(!sampler->sampler->isRunning());
   return *sampler->sampler;
 }
 
@@ -348,7 +353,7 @@ static_assert(sizeof(dbarts_predictor_source) ==
 // only reads. Only the boundaries are pinned here, since the token fold below
 // carries every field's own name and offset and so fails on a reorder or an
 // insertion by itself: what these add is the PORTABILITY of the layout. The
-// eleven counts and ten channel pointers are one width and pack without
+// eleven counts and eleven channel pointers are one width and pack without
 // padding; the four trailing scalars are pinned against sigma rather than
 // against the prefix, because a host that aligns a double more strictly than a
 // pointer pads before it - the one thing about this layout that is not the
@@ -359,6 +364,8 @@ static_assert(offsetof(dbarts_draw, numOrdinalThresholds) ==
 static_assert(offsetof(dbarts_draw, train) == 11 * sizeof(size_t));
 static_assert(offsetof(dbarts_draw, varcount) ==
               11 * sizeof(size_t) + 9 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, latents) ==
+              11 * sizeof(size_t) + 10 * sizeof(double*));
 static_assert(offsetof(dbarts_draw, k) ==
               offsetof(dbarts_draw, sigma) + 1 * sizeof(double));
 static_assert(offsetof(dbarts_draw, shape) ==
@@ -370,10 +377,17 @@ static_assert(sizeof(dbarts_draw) ==
               "dbarts_draw layout changed; update these offsets, and bump "
               "DBARTS_C_API_MINOR if a field was appended after 1.0-0");
 
+// The chain view the library fills per sweep: three counts, the library's
+// pointer and one function pointer per operation, all one width.
+static_assert(offsetof(dbarts_chain_view, internal) == 3 * sizeof(size_t));
+static_assert(offsetof(dbarts_chain_view, setOffset) ==
+              3 * sizeof(size_t) + sizeof(void*));
+
 // Compile-time ABI token, checked against the baked DBARTS_C_API_HASH: FNV-1a
 // over the stringized DBARTS_C_API_LIST signatures, then the ABI enums'
-// enumerator lists, then the layout the compiler gives the two structs that
-// cross the ABI. Anything it
+// enumerator lists, then the stringized callback types and chain view
+// operations, then the layout the compiler gives the structs that cross the
+// ABI. Anything it
 // covers moving fails this assert until DBARTS_C_API_HASH is re-baked - the
 // mechanical acknowledgment that the ABI changed - and the consumer stubs
 // raise on the mismatch at runtime until the consumer is rebuilt.
@@ -436,7 +450,12 @@ constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
   X(numVariableCountForests) X(numForests) X(numAmplitudes) \
   X(numOrdinalThresholds) X(train) X(test) X(varianceFits) \
   X(varianceTestFits) X(forestFits) X(glue) X(splitProbabilities) \
-  X(logLikelihood) X(ordinalThresholds) X(varcount)
+  X(logLikelihood) X(ordinalThresholds) X(varcount) X(latents)
+// the chain view's members: its counts and pointer, then one per operation
+#define DBARTS_CHAIN_VIEW_OP_FIELD(ret, name, params) X(name)
+#define DBARTS_CHAIN_VIEW_FIELDS(X) \
+  X(structSize) X(chainIndex) X(numObservations) X(internal) \
+  DBARTS_CHAIN_VIEW_OPS(DBARTS_CHAIN_VIEW_OP_FIELD)
 #define DBARTS_DRAW_SCALAR_FIELDS(X) \
   X(sigma, 0) X(k, 1) X(shape, 2) X(residualDf, 3)
 #define DBARTS_ALIGN_ASSERT(type, field) \
@@ -451,6 +470,9 @@ DBARTS_PREDICTOR_SOURCE_FIELDS(X)
 #undef X
 #define X(field) DBARTS_ALIGN_ASSERT(dbarts_draw, field)
 DBARTS_DRAW_POINTER_FIELDS(X)
+#undef X
+#define X(field) DBARTS_ALIGN_ASSERT(dbarts_chain_view, field)
+DBARTS_CHAIN_VIEW_FIELDS(X)
 #undef X
 #define DBARTS_FOLD_STRUCT(hash, type) \
   dbarts_fnv1aValue(dbarts_fnv1a(hash, #type), sizeof(type) / sizeof(void*))
@@ -494,16 +516,28 @@ constexpr std::uint64_t dbarts_foldLayout(std::uint64_t hash) {
   hash = DBARTS_FOLD_SCALAR(hash, dbarts_draw, field, position);
   DBARTS_DRAW_SCALAR_FIELDS(X)
 #undef X
+  hash = DBARTS_FOLD_STRUCT(hash, dbarts_chain_view);
+#define X(field) hash = DBARTS_FOLD_FIELD(hash, dbarts_chain_view, field);
+  DBARTS_CHAIN_VIEW_FIELDS(X)
+#undef X
   return hash;
 }
 
 // "NAME=VALUE;" per enumerator.
 #define DBARTS_ENUMERATOR_TEXT(name, value) #name "=" #value ";"
+// a macro's expansion as a string literal
+#define DBARTS_MACRO_TEXT_(text) #text
+#define DBARTS_MACRO_TEXT(macro) DBARTS_MACRO_TEXT_(macro)
+// "returnType (*name)(parameterList);" per callback type or view operation,
+// so a parameter retyped at the same width moves the token as a signature in
+// DBARTS_C_API_LIST does.
+#define DBARTS_FUNCTION_TYPE_TEXT(ret, name, params) \
+  #ret " (*" #name ")" #params ";"
 
 // The signature half alone, baked privately so a failed build says WHICH half
 // moved: both asserts firing means the entry-point list changed, the combined
 // one alone means the ABI moved underneath unchanged signatures (a struct's
-// layout, an enumerator).
+// layout, an enumerator, a callback type or view operation).
 constexpr std::uint64_t dbarts_apiSignatureToken =
   dbarts_fnv1a(DBARTS_C_API_DECLS);
 
@@ -513,10 +547,18 @@ constexpr std::uint64_t dbarts_apiToken() {
   hash = dbarts_fnv1a(hash, DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_SWAP_STATUS_LIST(DBARTS_ENUMERATOR_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_STATUS_LIST(DBARTS_ENUMERATOR_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_DRAW_CHANNEL_LIST(DBARTS_ENUMERATOR_TEXT));
+  hash =
+    dbarts_fnv1a(hash, "DBARTS_DRAW_ALL=" DBARTS_MACRO_TEXT(DBARTS_DRAW_ALL));
+  hash =
+    dbarts_fnv1a(hash, DBARTS_DRAW_CALLBACK_TYPE(DBARTS_FUNCTION_TYPE_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_SWEEP_HOOK_TYPE(DBARTS_FUNCTION_TYPE_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_CHAIN_VIEW_OPS(DBARTS_FUNCTION_TYPE_TEXT));
   return dbarts_foldLayout(hash);
 }
 } // namespace
-static_assert(dbarts_apiSignatureToken == 0xfbf29fc67c22558bULL,
+static_assert(dbarts_apiSignatureToken == 0x1565b4ebb3800310ULL,
               "dbarts.h C API signatures moved (the entry-point list, not the "
               "layout fold); re-bake this literal here and DBARTS_C_API_HASH "
               "with it");
@@ -556,6 +598,7 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler) {
   // which is what makes a second destroy safe where every other entry here
   // would dereference.
   if (sampler == NULL) return;
+  assert(sampler->sampler == nullptr || !sampler->sampler->isRunning());
   sampler->sampler.reset();
 }
 
@@ -623,9 +666,14 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
       // poll is the R route's, so a pending interrupt cancels the run at the
       // next sweep boundary or inside a leaf-order count, and the engine says
       // whether a cancel was the callback's stop rather than an interrupt.
+      // the sweep hook's views read the row count and the pinned-sigma
+      // answer, settled here once on this thread
+      bartcore::SweepHook onSweep = sampler->sweepHook.engineHook(
+        shape.numChains, shape.numObservations,
+        sigmaIsPinned(samplerOf(sampler)));
       canceled = samplerOf(sampler).run(
         numBurnIn, numSamples, engineResults, bartcore_bridge::userInterrupted,
-        {}, sampler->drawHook.engineHook(), &stoppedByCallback);
+        onSweep, sampler->drawHook.engineHook(), &stoppedByCallback);
     });
   } catch (const UnwindJump& jump) {
     // the protection is disarmed by now: the throw ran every destructor
@@ -649,24 +697,36 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   }
 }
 
-/// The setter copies the pair into the sampler and nothing else: no call is
-/// made through fn here, and the sampler neither reads nor frees the context.
-/// A null fn clears, dropping the context with it.
+/// The setter copies the registration into the sampler and nothing else: no
+/// call is made through fn here, and the sampler neither reads nor frees the
+/// context. A null fn clears, dropping the context with it.
 void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
-                                    dbarts_draw_callback fn, void* context) {
-  sampler->drawHook.set(fn, context);
+                                    dbarts_draw_callback fn, void* context,
+                                    unsigned int channels) {
+  sampler->drawHook.set(fn, context, channels);
+}
+
+/// The capability answer comes first, so a sampler that could never take a
+/// chain's offset is left with nothing registered or cleared. A clear puts
+/// each chain back on the sampler-wide offset before the buffers it may
+/// borrow go.
+int dbarts_sampler_setSweepHook(dbarts_sampler* sampler, dbarts_sweep_hook fn,
+                                void* context) {
+  bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
+  if (responseConduitIsFixed(shape)) return 0;
+  if (fn == NULL) {
+    engine.restoreSharedOffset();
+    sampler->sweepHook.clear();
+    return 1;
+  }
+  sampler->sweepHook.set(fn, context, shape.numChains, shape.numObservations);
+  return 1;
 }
 
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler) {
-  // The prior draw refuses from the bottom of a deep call stack (a tree whose
-  // every draw left an empty leaf), and growing a whole forest allocates. Both
-  // reach here as C++ exceptions, so the engine's frames unwind first and only
-  // this one raises.
-  //
   // draws from the chain RNG only, not R's stream (see dbarts_sampler_run)
-  callConvertingExceptions("dbarts_sampler_sampleTreesFromPrior", [&]() {
-    samplerOf(sampler).sampleTreesFromPrior();
-  });
+  samplerOf(sampler).sampleTreesFromPrior();
 }
 
 /// A swap's status as the flat entries report it. A kept scale is a value
@@ -691,6 +751,8 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                     ResponseConduit::response, updateScale);
   refuseSavedGPDrawReanchor(samplerOf(sampler), "dbarts_sampler_setResponse",
                             updateScale);
+  refuseChainOffsetRederivation(samplerOf(sampler),
+                                "dbarts_sampler_setResponse", updateScale);
   bartcore_bridge::refuseBinomialResponseSwap(samplerOf(sampler).shape(),
                                               "dbarts_sampler_setResponse");
   // the one place minimal validation is not enough: an out-of-support y is a
@@ -782,45 +844,39 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
   }
   // The replay builds the CSC rank bitmaps a sparse view reads through and
   // fans across threads, so a worker failure arrives as a C++ exception whose
-  // unwind frees both before this frame reports it to R.
-  int filled = 0;
-  callConvertingExceptions("dbarts_sampler_predict", [&]() {
-    refuseEmptyTreeStore(engine, "dbarts_sampler_predict");
-    bartcore::SamplerShape shape = engine.shape();
-    void* scratch = vmaxget();
-    TranslatedSource source = translateSource(
-      engine.data(), xTest, NULL, shape.numPredictors, 0,
-      "dbarts_sampler_predict");
-    // a read-only replay builds no store, so the leaf-covariate rule is
-    // checked on the view itself rather than answered by a store build
-    validateTestSource(engine, source, "dbarts_sampler_predict");
-    size_t numTestObservations = source.view.numRows;
+  // unwind frees both before the entry's guard reports it to R.
+  refuseEmptyTreeStore(engine, "dbarts_sampler_predict");
+  bartcore::SamplerShape shape = engine.shape();
+  void* scratch = vmaxget();
+  TranslatedSource source = translateSource(
+    engine.data(), xTest, NULL, shape.numPredictors, 0,
+    "dbarts_sampler_predict");
+  // a read-only replay builds no store, so the leaf-covariate rule is
+  // checked on the view itself rather than answered by a store build
+  validateTestSource(engine, source, "dbarts_sampler_predict");
+  size_t numTestObservations = source.view.numRows;
 
-    // F > 1: the offset is the per-category matrix the replay adds to each
-    // category's raw fits; F = 1: a vector added to the fits after
-    engine.predict(source.view, numTestObservations,
-                   numLocations > 1 ? offsetTest : NULL, numThreads, out);
-    vmaxset(scratch);
+  // F > 1: the offset is the per-category matrix the replay adds to each
+  // category's raw fits; F = 1: a vector added to the fits after
+  engine.predict(source.view, numTestObservations,
+                 numLocations > 1 ? offsetTest : NULL, numThreads, out);
+  vmaxset(scratch);
 
-    if (offsetTest != NULL && numLocations == 1) {
-      size_t capacity = shape.savedTreeCapacity;
-      size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
-      for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
-        misc_addVectorsInPlace(offsetTest, numTestObservations,
-                               out + slab * numTestObservations);
-    }
-    filled = 1;
-  });
-  return filled;
+  if (offsetTest != NULL && numLocations == 1) {
+    size_t capacity = shape.savedTreeCapacity;
+    size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
+    for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
+      misc_addVectorsInPlace(offsetTest, numTestObservations,
+                             out + slab * numTestObservations);
+  }
+  return 1;
 }
 
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
                                    size_t numSamplesToStore) {
-  // the store resize allocates; a capacity too large to hold raises with the
-  // store and its draws as they were
-  callConvertingExceptions("dbarts_sampler_setTreeStorage", [&]() {
-    samplerOf(sampler).setTreeStorage(keepTrees != 0, numSamplesToStore);
-  });
+  // the store resize allocates; a capacity too large to hold raises, through
+  // the entry's guard, with the store and its draws as they were
+  samplerOf(sampler).setTreeStorage(keepTrees != 0, numSamplesToStore);
 }
 
 void dbarts_sampler_printTrees(dbarts_sampler* sampler, size_t forest,

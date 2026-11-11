@@ -878,6 +878,7 @@ typedef struct {
   size_t numFittedValuesPerObservation;
   size_t numVariableCountForests;
   long stopAfter; /* -1 never; else return nonzero once drawIndex reaches it */
+  int stopStatus; /* what the stop returns: 1 deliberate, -1 a failure */
 } capi_draw_counter;
 
 static capi_draw_counter capi_counter;
@@ -918,7 +919,7 @@ static int capi_countingDraw(void* context, const dbarts_draw* draw)
   }
   if (counter->stopAfter >= 0 &&
       draw->drawIndex >= (size_t) counter->stopAfter)
-    return 1;
+    return counter->stopStatus;
   return 0;
 }
 
@@ -938,6 +939,13 @@ SEXP capi_draw_context(void) {
 SEXP capi_draw_reset(SEXP stopAfterExpr) {
   memset(&capi_counter, 0, sizeof(capi_draw_counter));
   capi_counter.stopAfter = (long) Rf_asInteger(stopAfterExpr);
+  capi_counter.stopStatus = 1;
+  return R_NilValue;
+}
+
+/* what the armed stop returns, by the sign rule: 1 or -1 */
+SEXP capi_draw_stop_status(SEXP statusExpr) {
+  capi_counter.stopStatus = Rf_asInteger(statusExpr);
   return R_NilValue;
 }
 
@@ -946,9 +954,10 @@ SEXP capi_draw_reset(SEXP stopAfterExpr) {
 SEXP capi_set_draw_callback(SEXP ptrExpr, SEXP registerExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   if (Rf_asLogical(registerExpr) == TRUE)
-    dbarts_sampler_setDrawCallback(sampler, &capi_countingDraw, &capi_counter);
+    dbarts_sampler_setDrawCallback(sampler, &capi_countingDraw, &capi_counter,
+                                   DBARTS_DRAW_TRAIN);
   else
-    dbarts_sampler_setDrawCallback(sampler, NULL, NULL);
+    dbarts_sampler_setDrawCallback(sampler, NULL, NULL, 0);
   return R_NilValue;
 }
 
@@ -1028,7 +1037,8 @@ SEXP capi_set_raising_callback(SEXP ptrExpr, SEXP raiseAtExpr) {
   capi_raiseCtx.raiseAt = (long) Rf_asInteger(raiseAtExpr);
   capi_raiseCtx.calls = 0;
   capi_raiseCtx.returned = 0;
-  dbarts_sampler_setDrawCallback(sampler, &capi_raisingDraw, &capi_raiseCtx);
+  dbarts_sampler_setDrawCallback(sampler, &capi_raisingDraw, &capi_raiseCtx,
+                                 DBARTS_DRAW_ALL);
   return R_NilValue;
 }
 
@@ -1150,11 +1160,11 @@ SEXP capi_noop_function(void) {
 
 #define CAPI_REC_MAX_CHAINS 4
 #define CAPI_REC_MAX_DRAWS 32
-#define CAPI_REC_NUM_CHANNELS 10
+#define CAPI_REC_NUM_CHANNELS 11
 
 static const char* const capi_recChannelNames[CAPI_REC_NUM_CHANNELS] = {
   "train", "test", "variance", "varianceTest", "forestFits", "glue",
-  "varprobs", "logLikelihood", "thresholds", "varcount" };
+  "varprobs", "logLikelihood", "thresholds", "varcount", "latents" };
 
 typedef struct {
   size_t calls[CAPI_REC_MAX_CHAINS];
@@ -1197,6 +1207,7 @@ static int capi_recordingDraw(void* context, const dbarts_draw* draw)
   channels[7] = draw->logLikelihood;
   channels[8] = draw->ordinalThresholds;
   channels[9] = draw->varcount;
+  channels[10] = draw->latents;
   for (k = 0; k < CAPI_REC_NUM_CHANNELS; ++k)
     if (channels[k] != NULL) mask |= 1 << k;
   if (rec->calls[chain] == 0) rec->mask[chain] = mask;
@@ -1216,6 +1227,7 @@ static int capi_recordingDraw(void* context, const dbarts_draw* draw)
   capi_recTake(6, draw->splitProbabilities, draw->numPredictors);
   capi_recTake(7, draw->logLikelihood, n);
   capi_recTake(8, draw->ordinalThresholds, draw->numOrdinalThresholds);
+  capi_recTake(10, draw->latents, n);
   if (draw->varcount != NULL) {
     size_t length = draw->numPredictors * draw->numVariableCountForests, i;
     capi_rec.copy[9] = (double*) malloc(length * sizeof(double) + 1);
@@ -1249,13 +1261,42 @@ SEXP capi_recording_reset(SEXP targetChainExpr, SEXP targetDrawExpr) {
   return R_NilValue;
 }
 
-SEXP capi_set_recording_callback(SEXP ptrExpr, SEXP registerExpr) {
+/* registers the recording callback for the channels named (NA: every
+ * channel, DBARTS_DRAW_ALL), or clears it at register FALSE */
+SEXP capi_set_recording_callback(SEXP ptrExpr, SEXP registerExpr,
+                                 SEXP channelsExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  int channels = Rf_asInteger(channelsExpr);
   if (Rf_asLogical(registerExpr) == TRUE)
-    dbarts_sampler_setDrawCallback(sampler, &capi_recordingDraw, &capi_rec);
+    dbarts_sampler_setDrawCallback(
+      sampler, &capi_recordingDraw, &capi_rec,
+      channels == NA_INTEGER ? DBARTS_DRAW_ALL : (unsigned int) channels);
   else
-    dbarts_sampler_setDrawCallback(sampler, NULL, NULL);
+    dbarts_sampler_setDrawCallback(sampler, NULL, NULL, 0);
   return R_NilValue;
+}
+
+/* the channel flags by name, in the recording's own channel order */
+SEXP capi_draw_channel_flags(void) {
+  const char* names[] = { "train", "test", "variance", "forestFits", "glue",
+                          "varprobs", "logLikelihood", "thresholds",
+                          "varcount", "latents", "" };
+  const int flags[] = { DBARTS_DRAW_TRAIN, DBARTS_DRAW_TEST,
+                        DBARTS_DRAW_VARIANCE, DBARTS_DRAW_FOREST_FITS,
+                        DBARTS_DRAW_GLUE, DBARTS_DRAW_SPLIT_PROBABILITIES,
+                        DBARTS_DRAW_LOG_LIKELIHOOD,
+                        DBARTS_DRAW_ORDINAL_THRESHOLDS, DBARTS_DRAW_VARCOUNT,
+                        DBARTS_DRAW_LATENTS };
+  SEXP result = PROTECT(Rf_allocVector(INTSXP, 10));
+  SEXP resultNames = PROTECT(Rf_allocVector(STRSXP, 10));
+  int k;
+  for (k = 0; k < 10; ++k) {
+    INTEGER(result)[k] = flags[k];
+    SET_STRING_ELT(resultNames, k, Rf_mkChar(names[k]));
+  }
+  Rf_setAttrib(result, R_NamesSymbol, resultNames);
+  UNPROTECT(2);
+  return result;
 }
 
 /* calls and masks per chain (the mask as the names of the channels non-null on
@@ -1364,6 +1405,206 @@ SEXP capi_run_every(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
   for (i = 0; i < p * forests * draws; ++i)
     INTEGER(varcountExpr)[i] = (int) varcount[i];
+  UNPROTECT(1);
+  return result;
+}
+
+/* ------------------------------------------------------------------------
+ * The sweep hook: a toy Gibbs step outside the sampler, each chain's next
+ * offset and sigma a fixed function of its own last draw, which the draw
+ * callback records on the chain's own thread and the hook hands back through
+ * the chain view. Chunked, the same step is made between one-sweep runs
+ * through the sampler-wide setters, which is the same model at one chain.
+ * NO R API in either callback: they run on whichever thread owns the chain.
+ * ------------------------------------------------------------------------ */
+
+typedef struct {
+  size_t n, numChains;
+  double* lastTrain; /* n x numChains */
+  double* lastSigma;
+  int* hasDraw;
+  double* offset; /* n x numChains, each chain's next offset */
+  int* unexpected; /* per chain: a view status the step did not expect */
+  int setsSigma;
+  long stopChain, stopSweep; /* the hook returns stopStatus there; -1 never */
+  int stopStatus;
+  int stopped;
+} capi_gibbs;
+
+static capi_gibbs capi_gibbsCtx;
+
+static double capi_gibbsStep(capi_gibbs* gibbs, size_t c) {
+  const double* train = gibbs->lastTrain + c * gibbs->n;
+  double* offset = gibbs->offset + c * gibbs->n;
+  for (size_t i = 0; i < gibbs->n; ++i)
+    offset[i] = 0.3 * train[i] - 0.05 * (double) (c + 1);
+  return 0.5 * gibbs->lastSigma[c] + 0.2;
+}
+
+static int capi_gibbsDraw(void* context, const dbarts_draw* draw) {
+  capi_gibbs* gibbs = (capi_gibbs*) context;
+  size_t c = draw->chainIndex;
+  memcpy(gibbs->lastTrain + c * gibbs->n, draw->train,
+         gibbs->n * sizeof(double));
+  gibbs->lastSigma[c] = draw->sigma;
+  gibbs->hasDraw[c] = 1;
+  return 0;
+}
+
+static int capi_gibbsSweep(void* context, dbarts_chain_view* view,
+                           size_t sweepIndex, int isBurnIn) {
+  capi_gibbs* gibbs = (capi_gibbs*) context;
+  size_t c = view->chainIndex;
+  double sigma;
+  (void) isBurnIn;
+  if ((long) c == gibbs->stopChain && (long) sweepIndex == gibbs->stopSweep) {
+    gibbs->stopped = 1;
+    return gibbs->stopStatus;
+  }
+  if (!gibbs->hasDraw[c]) return 0;
+  sigma = capi_gibbsStep(gibbs, c);
+  if (view->setOffset(view, gibbs->offset + c * gibbs->n) != DBARTS_OK)
+    gibbs->unexpected[c] = 1;
+  if (gibbs->setsSigma && view->setSigma(view, sigma) != DBARTS_OK)
+    gibbs->unexpected[c] = 1;
+  return 0;
+}
+
+static void capi_gibbsFree(void) {
+  free(capi_gibbsCtx.lastTrain);
+  free(capi_gibbsCtx.lastSigma);
+  free(capi_gibbsCtx.hasDraw);
+  free(capi_gibbsCtx.offset);
+  free(capi_gibbsCtx.unexpected);
+  memset(&capi_gibbsCtx, 0, sizeof(capi_gibbs));
+}
+
+/* sizes the step for a sampler and arms the hook's stop */
+SEXP capi_gibbs_reset(SEXP ptrExpr, SEXP setsSigmaExpr, SEXP stopChainExpr,
+                      SEXP stopSweepExpr, SEXP stopStatusExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t chains = dbarts_sampler_numChains(sampler);
+  capi_gibbsFree();
+  capi_gibbsCtx.n = n;
+  capi_gibbsCtx.numChains = chains;
+  capi_gibbsCtx.lastTrain = (double*) calloc(n * chains, sizeof(double));
+  capi_gibbsCtx.lastSigma = (double*) calloc(chains, sizeof(double));
+  capi_gibbsCtx.hasDraw = (int*) calloc(chains, sizeof(int));
+  capi_gibbsCtx.offset = (double*) calloc(n * chains, sizeof(double));
+  capi_gibbsCtx.unexpected = (int*) calloc(chains, sizeof(int));
+  if (capi_gibbsCtx.lastTrain == NULL || capi_gibbsCtx.lastSigma == NULL ||
+      capi_gibbsCtx.hasDraw == NULL || capi_gibbsCtx.offset == NULL ||
+      capi_gibbsCtx.unexpected == NULL) {
+    capi_gibbsFree();
+    Rf_error("capi_gibbs_reset: out of memory");
+  }
+  capi_gibbsCtx.setsSigma = Rf_asLogical(setsSigmaExpr) == TRUE;
+  capi_gibbsCtx.stopChain = (long) Rf_asInteger(stopChainExpr);
+  capi_gibbsCtx.stopSweep = (long) Rf_asInteger(stopSweepExpr);
+  capi_gibbsCtx.stopStatus = Rf_asInteger(stopStatusExpr);
+  return R_NilValue;
+}
+
+/* mode 0 clears both callbacks, 1 registers the draw callback alone, 2 the
+ * sweep hook too; the sweep hook registration's status */
+SEXP capi_set_gibbs_hooks(SEXP ptrExpr, SEXP modeExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  int mode = Rf_asInteger(modeExpr);
+  int status = dbarts_sampler_setSweepHook(
+    sampler, mode == 2 ? &capi_gibbsSweep : NULL, &capi_gibbsCtx);
+  dbarts_sampler_setDrawCallback(sampler, mode >= 1 ? &capi_gibbsDraw : NULL,
+                                 &capi_gibbsCtx, DBARTS_DRAW_TRAIN);
+  return Rf_ScalarInteger(status);
+}
+
+/* numSweeps draws per chain, in one run or, chunked, one run per sweep with
+ * the step made between them through the sampler-wide setters; sigma and
+ * train come back */
+SEXP capi_gibbs_run(SEXP ptrExpr, SEXP numSweepsExpr, SEXP chunkedExpr) {
+  const char* names[] = { "sigma", "train", "" };
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numSweeps = (size_t) Rf_asInteger(numSweepsExpr);
+  size_t n = capi_gibbsCtx.n, chains = capi_gibbsCtx.numChains;
+  dbarts_results results = DBARTS_RESULTS_INIT;
+  SEXP result = PROTECT(Rf_mkNamed(VECSXP, names));
+  SET_VECTOR_ELT(result, 0,
+                 Rf_allocVector(REALSXP, (R_xlen_t) (numSweeps * chains)));
+  SET_VECTOR_ELT(result, 1,
+                 Rf_allocVector(REALSXP, (R_xlen_t) (n * numSweeps * chains)));
+  if (Rf_asLogical(chunkedExpr) != TRUE) {
+    results.sigma = REAL(VECTOR_ELT(result, 0));
+    results.train = REAL(VECTOR_ELT(result, 1));
+    dbarts_sampler_run(sampler, 0, numSweeps, &results);
+  } else {
+    if (chains != 1) Rf_error("capi_gibbs_run: chunked runs take one chain");
+    for (size_t s = 0; s < numSweeps; ++s) {
+      if (capi_gibbsCtx.hasDraw[0]) {
+        double sigma = capi_gibbsStep(&capi_gibbsCtx, 0);
+        dbarts_sampler_setOffset(sampler, capi_gibbsCtx.offset, 0);
+        if (capi_gibbsCtx.setsSigma) dbarts_sampler_setSigma(sampler, sigma);
+      }
+      results.sigma = REAL(VECTOR_ELT(result, 0)) + s;
+      results.train = REAL(VECTOR_ELT(result, 1)) + s * n;
+      dbarts_sampler_run(sampler, 0, 1, &results);
+    }
+  }
+  UNPROTECT(1);
+  return result;
+}
+
+SEXP capi_gibbs_report(void) {
+  const char* names[] = { "stopped", "unexpected", "" };
+  SEXP result = PROTECT(Rf_mkNamed(VECSXP, names));
+  int any = 0;
+  for (size_t c = 0; c < capi_gibbsCtx.numChains; ++c)
+    any = any || capi_gibbsCtx.unexpected[c];
+  SET_VECTOR_ELT(result, 0, Rf_ScalarLogical(capi_gibbsCtx.stopped));
+  SET_VECTOR_ELT(result, 1, Rf_ScalarLogical(any));
+  UNPROTECT(1);
+  return result;
+}
+
+/* Each refusal a view answers, on chain 0's first sweep: a non-finite offset,
+ * a sigma of 0, then a sigma of 1, which a pinned family refuses. */
+static int capi_viewStatuses[3];
+
+static int capi_probeSweep(void* context, dbarts_chain_view* view,
+                           size_t sweepIndex, int isBurnIn) {
+  double* offset = (double*) context;
+  (void) isBurnIn;
+  if (view->chainIndex != 0 || sweepIndex != 0) return 0;
+  capi_viewStatuses[0] = view->setOffset(view, offset);
+  capi_viewStatuses[1] = view->setSigma(view, 0.0);
+  capi_viewStatuses[2] = view->setSigma(view, 1.0);
+  return 0;
+}
+
+/* the registration's status, then the three statuses (NA where the hook
+ * never ran), from a run of numSweeps sweeps whose train comes back */
+SEXP capi_view_probe(SEXP ptrExpr, SEXP numSweepsExpr) {
+  const char* names[] = { "status", "train", "" };
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numSweeps = (size_t) Rf_asInteger(numSweepsExpr);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t chains = dbarts_sampler_numChains(sampler);
+  size_t fitted = dbarts_sampler_numFittedValuesPerObservation(sampler);
+  double* offset = (double*) R_alloc(n, sizeof(double));
+  dbarts_results results = DBARTS_RESULTS_INIT;
+  SEXP result = PROTECT(Rf_mkNamed(VECSXP, names));
+  SEXP status = Rf_allocVector(INTSXP, 4);
+  SET_VECTOR_ELT(result, 0, status);
+  SET_VECTOR_ELT(
+    result, 1,
+    Rf_allocVector(REALSXP, (R_xlen_t) (n * fitted * numSweeps * chains)));
+  for (size_t i = 0; i < n; ++i) offset[i] = i == 1 ? R_NaN : 0.5;
+  for (int i = 0; i < 3; ++i) capi_viewStatuses[i] = NA_INTEGER;
+  INTEGER(status)[0] =
+    dbarts_sampler_setSweepHook(sampler, &capi_probeSweep, offset);
+  results.train = REAL(VECTOR_ELT(result, 1));
+  dbarts_sampler_run(sampler, 0, numSweeps, &results);
+  dbarts_sampler_setSweepHook(sampler, NULL, NULL);
+  for (int i = 0; i < 3; ++i) INTEGER(status)[i + 1] = capi_viewStatuses[i];
   UNPROTECT(1);
   return result;
 }

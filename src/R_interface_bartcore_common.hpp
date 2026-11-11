@@ -5,7 +5,9 @@
 // (R_interface_bartcore.cpp) and the flat C API (C_interface.cpp);
 // definitions live in R_interface_bartcore.cpp
 
+#include <algorithm> // copy
 #include <atomic>    // atomic
+#include <cmath>     // isfinite
 #include <cstddef>   // size_t
 #include <cstdint>   // int32_t
 #include <exception> // exception
@@ -53,6 +55,7 @@ inline void fillShippedDraw(dbarts_draw& draw, const bartcore::DrawInfo& info) {
   draw.logLikelihood = info.logLikelihood;
   draw.ordinalThresholds = info.ordinalThresholds;
   draw.varcount = info.varcount;
+  draw.latents = info.latents;
   draw.sigma = info.sigma;
   draw.k = info.k;
   draw.shape = info.shape;
@@ -67,6 +70,8 @@ inline void fillShippedDraw(dbarts_draw& draw, const bartcore::DrawInfo& info) {
 struct ShippedDrawHook {
   dbarts_draw_callback fn = nullptr;
   void* context = nullptr;
+  /// The dbarts_draw_channel flags the callback reads.
+  unsigned int channels = 0;
 
   /// The thread a run entered on, for as long as that run lasts (see
   /// DrawCallbackProtection). Only that thread may install an unwind context:
@@ -77,12 +82,15 @@ struct ShippedDrawHook {
   std::thread::id protectedThread{};
 
   /// The setter's whole semantics: a null function CLEARS, dropping the
-  /// context with it so nothing cleared still holds a caller's pointer, and a
-  /// second registration REPLACES both. Nothing is called through fn here, so
-  /// a wrong pointer crashes at the first draw of the next run.
-  void set(dbarts_draw_callback function, void* callerContext) {
+  /// context and channels with it so nothing cleared still holds a caller's
+  /// pointer, and a second registration REPLACES all three. Nothing is called
+  /// through fn here, so a wrong pointer crashes at the first draw of the next
+  /// run.
+  void set(dbarts_draw_callback function, void* callerContext,
+           unsigned int readChannels) {
     fn = function;
     context = function == nullptr ? nullptr : callerContext;
+    channels = function == nullptr ? 0 : readChannels;
   }
 
   /// One call into the host under R_UnwindProtect: the LEAF, and the only
@@ -169,9 +177,134 @@ inline int shippedDrawTrampoline(void* context,
   return hook.callProtected(&draw);
 }
 
+// the engine's channel bits are the header's flags, so a registration's
+// channels pass through unconverted
+#define DBARTS_ASSERT_DRAW_CHANNEL(flag, engineBit) \
+  static_assert(static_cast<unsigned int>(flag) == bartcore::engineBit, \
+                #flag " is not its engine bit");
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_TRAIN, drawTrain)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_TEST, drawTest)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_VARIANCE, drawVariance)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_FOREST_FITS, drawForestFits)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_GLUE, drawGlue)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_SPLIT_PROBABILITIES,
+                           drawSplitProbabilities)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_LOG_LIKELIHOOD, drawLogLikelihood)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_ORDINAL_THRESHOLDS,
+                           drawOrdinalThresholds)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_VARCOUNT, drawVariableCounts)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_LATENTS, drawLatents)
+DBARTS_ASSERT_DRAW_CHANNEL(DBARTS_DRAW_ALL, drawAllChannels)
+#undef DBARTS_ASSERT_DRAW_CHANNEL
+
 inline bartcore::DrawHook ShippedDrawHook::engineHook() {
   if (fn == nullptr) return bartcore::DrawHook();
-  return bartcore::DrawHook{shippedDrawTrampoline, this};
+  return bartcore::DrawHook{shippedDrawTrampoline, this, channels};
+}
+
+/// What a chain view's internal pointer names for the length of one hook call:
+/// the engine's chain, the offset buffer it borrows once the hook writes one,
+/// and the run's answer to whether sigma is pinned.
+struct ChainViewTarget {
+  bartcore::ChainView& chain;
+  double* offset;
+  std::size_t numObservations;
+  bool sigmaIsPinned;
+};
+
+/// dbarts_chain_view's setOffset: a copy into the chain's own buffer, which the
+/// chain then borrows, the transform held. The buffer may be the one the chain
+/// already reads, which every response's offset install admits.
+inline int chainViewSetOffset(dbarts_chain_view* view, const double* offset) {
+  ChainViewTarget& target = *static_cast<ChainViewTarget*>(view->internal);
+  for (std::size_t i = 0; i < target.numObservations; ++i)
+    if (!std::isfinite(offset[i])) return DBARTS_INVALID_ARGUMENT;
+  std::copy(offset, offset + target.numObservations, target.offset);
+  target.chain.setOffsetHoldingScale(target.offset);
+  return DBARTS_OK;
+}
+
+/// dbarts_chain_view's setSigma, on dbarts_sampler_setSigma's rule for one
+/// chain: the pinned answer first, then the value.
+inline int chainViewSetSigma(dbarts_chain_view* view, double sigma) {
+  ChainViewTarget& target = *static_cast<ChainViewTarget*>(view->internal);
+  if (target.sigmaIsPinned) return DBARTS_UNSUPPORTED;
+  if (!std::isfinite(sigma) || sigma <= 0.0) return DBARTS_INVALID_ARGUMENT;
+  target.chain.setSigma(sigma);
+  return DBARTS_OK;
+}
+
+/// A registered flat-C sweep hook, its context, and the per-chain offset
+/// buffers its chain views write. Nothing here calls R: the hook and the
+/// view's operations run on whichever thread owns the chain.
+struct ShippedSweepHook {
+  dbarts_sweep_hook fn = nullptr;
+  void* context = nullptr;
+  /// One numObservations buffer per chain, which the chain borrows once its
+  /// hook writes an offset; empty while nothing is registered. Nested, so a
+  /// borrowed pointer survives the outer vector's growth.
+  std::vector<std::vector<double>> chainOffsets;
+  /// The run's row count and pinned-sigma answer, read by every view.
+  std::size_t numObservations = 0;
+  bool sigmaIsPinned = false;
+
+  /// Registers \p function and \p callerContext, sizing a buffer per chain
+  /// first, so an allocation that fails registers nothing new.
+  void set(dbarts_sweep_hook function, void* callerContext,
+           std::size_t numChains, std::size_t rows) {
+    resize(numChains, rows);
+    fn = function;
+    context = callerContext;
+  }
+  /// Drops the hook, its context and the buffers. The caller first puts every
+  /// chain back on the sampler-wide offset, since a chain may borrow one.
+  void clear() {
+    fn = nullptr;
+    context = nullptr;
+    std::vector<std::vector<double>>().swap(chainOffsets);
+  }
+
+  /// The engine-facing hook for one run, empty while nothing is registered.
+  /// Called on the run's own thread before it starts, so no view allocates:
+  /// a buffer is resized only where the row count moved, which only a
+  /// sampler-wide install does, one that leaves no chain borrowing a buffer.
+  /// It borrows THIS object, so it must not outlive it.
+  bartcore::SweepHook engineHook(std::size_t numChains, std::size_t rows,
+                                 bool pinned);
+
+private:
+  void resize(std::size_t numChains, std::size_t rows) {
+    chainOffsets.resize(numChains);
+    for (std::vector<double>& buffer : chainOffsets) buffer.resize(rows);
+    numObservations = rows;
+  }
+};
+
+/// The engine hook's body: a view of the chain on this thread's stack, handed
+/// to the registered function.
+inline int shippedSweepTrampoline(void* context, bartcore::ChainView& chain,
+                                  std::size_t chainIndex,
+                                  std::size_t sweepIndex, bool isBurnIn) {
+  ShippedSweepHook& hook = *static_cast<ShippedSweepHook*>(context);
+  ChainViewTarget target{chain, hook.chainOffsets[chainIndex].data(),
+                         hook.numObservations, hook.sigmaIsPinned};
+  dbarts_chain_view view;
+  view.structSize = sizeof(dbarts_chain_view);
+  view.chainIndex = chainIndex;
+  view.numObservations = hook.numObservations;
+  view.internal = &target;
+  view.setOffset = &chainViewSetOffset;
+  view.setSigma = &chainViewSetSigma;
+  return hook.fn(hook.context, &view, sweepIndex, isBurnIn ? 1 : 0);
+}
+
+inline bartcore::SweepHook ShippedSweepHook::engineHook(std::size_t numChains,
+                                                        std::size_t rows,
+                                                        bool pinned) {
+  if (fn == nullptr) return bartcore::SweepHook();
+  resize(numChains, rows);
+  sigmaIsPinned = pinned;
+  return bartcore::SweepHook{shippedSweepTrampoline, this};
 }
 
 /// The per-chain generators a sampler borrows, owned: each one is destroyed
@@ -242,6 +375,10 @@ struct dbarts_sampler_t {
   // and runs exactly as it did before the entry existed. It is NOT part of a
   // saved state: a re-created engine starts with nothing registered.
   bartcore_bridge::ShippedDrawHook drawHook{};
+  // The flat C API's registered per-sweep hook (dbarts_sampler_setSweepHook)
+  // and the per-chain offsets its views write, on the draw hook's rule: not
+  // part of a saved state, a copy or the R object's data.
+  bartcore_bridge::ShippedSweepHook sweepHook{};
 
   // COPY-ON-SET: the four value vectors the engine borrows for the sampler's
   // lifetime. No R vector and no flat caller's array is ever retained. Every
@@ -455,6 +592,15 @@ bool holdsSavedGPDraws(const bartcore::SamplerShape& shape);
 /// refuseMultiForestResponseMutation. caller labels the error.
 void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
                                const char* caller, int updateScale);
+
+/// Errors on a sampler of a family with a response scale whose chains hold
+/// offsets a sweep hook wrote (SamplerBase::chainsHoldOwnOffsets), asked to
+/// re-derive the response transform (any updateScale but an explicit FALSE),
+/// which would read it from several offsets. Raised before anything is
+/// installed. A sampler-wide offset swap at updateScale true is not refused:
+/// it hands every chain one offset. caller labels the error.
+void refuseChainOffsetRederivation(const bartcore::SamplerBase& sampler,
+                                   const char* caller, int updateScale);
 
 /// Errors on a weight vector its family cannot carry: probit and ordinal on
 /// any element other than 0 and 1, which are membership composed with the

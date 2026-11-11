@@ -5,9 +5,11 @@
 // apart from the bridge internals so the .Call registration table can apply
 // it without compiling the engine.
 
-#include <cstdio>    // snprintf
-#include <exception> // exception
-#include <utility>   // forward
+#include <cstddef>     // size_t
+#include <cstdio>      // snprintf
+#include <exception>   // exception
+#include <type_traits> // is_void_v
+#include <utility>     // forward
 
 #include <external/Rinternals.h> // SEXP, R_ContinueUnwind, Rf_error
 
@@ -125,6 +127,54 @@ template <typename... Args, SEXP (*Entry)(Args...)>
 struct GuardedEntry<Entry> {
   static SEXP call(Args... args) {
     return callRaisingExceptions([&]() -> SEXP { return Entry(args...); });
+  }
+};
+
+/// An entry point's name as a template argument, so the flat C API's guard
+/// can label its error without the entry passing one.
+template <std::size_t N>
+struct EntryName {
+  char text[N];
+  constexpr EntryName(const char (&name)[N]) {
+    for (std::size_t i = 0; i < N; ++i) text[i] = name[i];
+  }
+};
+
+/// The registration form of a flat C API entry \p Entry, named \p Name: the
+/// same signature, the body run under callConvertingExceptions, so an
+/// exception escaping any entry becomes an R error naming it and carrying its
+/// what(), and an UnwindJump resumes the jump it carries. A compiled
+/// consumer calls an entry from its own frames, which no exception may cross.
+/// A value-returning entry that raises returns nothing, the raise being a
+/// jump; this is where an engine reporting errors without R would return a
+/// negative status and keep the message instead.
+template <auto Entry, EntryName Name, typename Signature = decltype(Entry)>
+struct GuardedApiEntry;
+
+template <auto Entry, EntryName Name, typename Result, typename... Args>
+struct GuardedApiEntry<Entry, Name, Result (*)(Args...)> {
+  static Result call(Args... args) {
+    if constexpr (std::is_void_v<Result>) {
+      run([&]() { Entry(args...); });
+    } else {
+      Result result{};
+      run([&]() { result = Entry(args...); });
+      return result;
+    }
+  }
+
+private:
+  /// callConvertingExceptions, then the jump an UnwindJump carries, resumed
+  /// once its handler is left.
+  template <typename Body>
+  static void run(Body&& body) {
+    SEXP continuation = NULL;
+    try {
+      callConvertingExceptions(Name.text, std::forward<Body>(body));
+    } catch (const UnwindJump& jump) {
+      continuation = jump.continuation;
+    }
+    if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
   }
 };
 

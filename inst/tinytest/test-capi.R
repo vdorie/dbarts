@@ -87,9 +87,23 @@ expect_false(identical(hashes$text, "0xa7415a6f1bcc93c3"))
 # list joined the fold with no signature moving, so a token that folded only
 # the lists it already knew would still read this
 expect_false(identical(hashes$text, "0xa33182bf349aa60d"))
+# the token before the sweep hook: one entry, a parameter, two enum lists
+# (the statuses and the draw channels) with DBARTS_DRAW_ALL's text, the chain
+# view's layout and operations, both callback types' text and the draw's
+# latents joined the fold
+expect_false(identical(hashes$text, "0xa84b67742536fbc4"))
+# the tokens of this header with one parameter retyped at the same width: the
+# sweep hook's isBurnIn unsigned, the view's setOffset taking a non-const
+# offset, the draw callback a non-const draw. A token blind to a callback's
+# or an operation's parameter list would read one of these
+expect_false(identical(hashes$text, "0x0337e88b95749642"))
+expect_false(identical(hashes$text, "0x1945d8d3f58ded0d"))
+expect_false(identical(hashes$text, "0x42ac4b080ae4b8dd"))
+# and this header's with DBARTS_DRAW_ALL naming only today's ten channels
+expect_false(identical(hashes$text, "0xd2db09fcb6caecbf"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0xa84b67742536fbc4")
+expect_identical(hashes$text, "0x7220b30db0d94fd4")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -229,6 +243,18 @@ expect_equal(sum(CALL("capi_draw_report")$calls), 4L)
 # normally: no condition is raised, so the caller learns of the stop from its
 # own context and discards the results.
 CALL("capi_draw_reset", 2L)
+stopRun <- tryCatch(
+  {
+    CALL("capi_run", ptrDraw, 0L, 6L, TRUE, FALSE)
+    "returned"
+  },
+  interrupt = function(cond) "an interrupt"
+)
+expect_equal(stopRun, "returned")
+expect_equal(sum(CALL("capi_draw_report")$calls), 3L)
+# and a negative one, the callback's failure, stops it the same way
+CALL("capi_draw_reset", 2L)
+CALL("capi_draw_stop_status", -1L)
 stopRun <- tryCatch(
   {
     CALL("capi_run", ptrDraw, 0L, 6L, TRUE, FALSE)
@@ -1664,13 +1690,15 @@ rm(specKernel, ptrKernel, kernelDraws, refusedKernel, specBare, ptrBare)
 rm(served)
 
 # a store too large to hold raises from the flat setter rather than aborting,
-# and leaves the store at its previous capacity
+# and leaves the store at its previous capacity: the allocation's exception
+# leaves the entry through the guard every flat entry is registered under,
+# which names the entry and carries the exception's message
 specStorage <- dbarts(x, y, control = control, n.trees = 25L)
 ptrStorage <- specStorage$getPointer()
 CALL("capi_set_tree_storage", ptrStorage, TRUE, 3L)
 expect_error(
   CALL("capi_set_tree_storage", ptrStorage, TRUE, -1L),
-  "dbarts_sampler_setTreeStorage"
+  "^dbarts_sampler_setTreeStorage: .+"
 )
 invisible(specStorage$run(0L, 3L))
 expect_identical(dim(specStorage$predict(x))[2L], 3L)
@@ -2100,7 +2128,14 @@ channelArms <- list(
         n.trees = 8L
       )
     },
-    channels = c("train", "test", "logLikelihood", "thresholds", "varcount")
+    channels = c(
+      "train",
+      "test",
+      "logLikelihood",
+      "thresholds",
+      "varcount",
+      "latents"
+    )
   ),
   variance = list(
     build = function(keepFits = TRUE) {
@@ -2140,7 +2175,8 @@ channelArms <- list(
       "variance",
       "varianceTest",
       "logLikelihood",
-      "varcount"
+      "varcount",
+      "latents"
     )
   ),
   bcf = list(
@@ -2166,11 +2202,11 @@ drawOf <- function(values, perDraw) {
   slot <- 1L * 3L + 1L
   as.vector(values)[slot * perDraw + seq_len(perDraw)]
 }
-flatRecording <- function(sampler, every) {
+flatRecording <- function(sampler, every, channels = NA_integer_) {
   CALL("capi_recording_reset", 1L, 1L)
-  CALL("capi_set_recording_callback", sampler$getPointer(), TRUE)
+  CALL("capi_set_recording_callback", sampler$getPointer(), TRUE, channels)
   stored <- CALL("capi_run_every", sampler$getPointer(), 5L, 3L, every)
-  CALL("capi_set_recording_callback", sampler$getPointer(), FALSE)
+  CALL("capi_set_recording_callback", sampler$getPointer(), FALSE, NA_integer_)
   list(stored = stored, report = CALL("capi_recording_report", 2L, 3L))
 }
 rRecording <- function(sampler) {
@@ -2251,6 +2287,39 @@ for (armName in names(channelArms)) {
     expect_identical(as.vector(flatNone$report$sigma), as.vector(stored$sigma))
   }
 }
+
+# A callback gets the channels it names that the fit carries, the ones the run
+# stores, and no other. Each flag alone, with results NULL, hands over that
+# channel where the fit carries it and nothing else, the draw it hands over
+# the one every channel's registration does; with every dbarts_results array
+# stored and no channel named, the ones those arrays hold.
+channelFlags <- CALL("capi_draw_channel_flags")
+for (armName in names(channelArms)) {
+  arm <- channelArms[[armName]]
+  everyCopy <- flatRecording(arm$build(), FALSE)$report$copies
+  for (flag in names(channelFlags)) {
+    named <- if (flag == "variance") c("variance", "varianceTest") else flag
+    report <- flatRecording(arm$build(), FALSE, channelFlags[[flag]])$report
+    info <- paste(armName, flag)
+    expected <- intersect(arm$channels, named)
+    for (chain in 1:2) {
+      expect_identical(report$channels[[chain]], expected, info = info)
+    }
+    expect_identical(report$copies[expected], everyCopy[expected], info = info)
+  }
+  report <- flatRecording(arm$build(), TRUE, 0L)$report
+  for (chain in 1:2) {
+    expect_identical(
+      report$channels[[chain]],
+      intersect(
+        arm$channels,
+        c("train", "test", "varprobs", "logLikelihood", "varcount")
+      ),
+      info = armName
+    )
+  }
+}
+rm(everyCopy, named, expected)
 
 # the scalar sigma is NaN keyed on the variance forest, not on a sigma held
 # fixed: a probit sampler stores and hands over the pinned 1, a gaussian one at
@@ -2341,4 +2410,216 @@ expectKDrawn(sK, FALSE, "setModel back to k fixed")
 sK <- kDrawn()
 expectKDrawn(sK, TRUE, "created with a k hyperprior")
 rm(sK, fixedModel)
+invisible(gc(FALSE))
+
+# ---- the sweep hook: a compiled toy Gibbs step through the chain view ----
+# Each chain's next offset and sigma are a fixed function of its own last
+# draw (consumer.c, capi_gibbsStep), handed back before each sweep through
+# the chain view; chunked, the same step goes through the sampler-wide
+# setters between one-sweep runs.
+set.seed(5L)
+nH <- 80L
+xH <- matrix(runif(nH * 3L), nH, 3L)
+yH <- 1 + xH[, 1L] + sin(3 * xH[, 2L]) + rnorm(nH, 0, 0.3)
+hookSampler <- function(chains, threads, binary = FALSE) {
+  dbarts(
+    xH,
+    if (binary) as.numeric(yH > 1.5) else yH,
+    control = dbartsControl(
+      n.chains = chains,
+      n.threads = threads,
+      updateState = FALSE,
+      seed = 7L
+    ),
+    n.trees = 10L
+  )
+}
+gibbsRun <- function(
+  sampler,
+  numSweeps,
+  chunked,
+  setsSigma = TRUE,
+  stop = c(-1L, -1L, 1L)
+) {
+  ptr <- sampler$getPointer()
+  CALL("capi_gibbs_reset", ptr, setsSigma, stop[1L], stop[2L], stop[3L])
+  status <- CALL("capi_set_gibbs_hooks", ptr, if (chunked) 1L else 2L)
+  result <- CALL("capi_gibbs_run", ptr, numSweeps, chunked)
+  CALL("capi_set_gibbs_hooks", ptr, 0L)
+  c(result, status = status, CALL("capi_gibbs_report"))
+}
+
+# at one chain the two routes are the same model, bit for bit, on a sampler
+# that takes sigma and on one that pins it
+for (binary in c(FALSE, TRUE)) {
+  hooked <- gibbsRun(hookSampler(1L, 1L, binary), 6L, FALSE, !binary)
+  chunked <- gibbsRun(hookSampler(1L, 1L, binary), 6L, TRUE, !binary)
+  plain <- CALL(
+    "capi_run",
+    hookSampler(1L, 1L, binary)$getPointer(),
+    0L,
+    6L,
+    TRUE,
+    FALSE
+  )
+  expect_identical(hooked$status, 1L, info = paste("binary", binary))
+  expect_false(hooked$unexpected, info = paste("binary", binary))
+  expect_identical(hooked$train, chunked$train, info = paste("binary", binary))
+  expect_identical(hooked$sigma, chunked$sigma, info = paste("binary", binary))
+  # and the step moves the draws it is checked by
+  expect_false(identical(hooked$train, plain$train))
+}
+
+# four chains, each on its own offset, the same at one thread and two
+fourInline <- gibbsRun(hookSampler(4L, 1L), 6L, FALSE)
+fourThreaded <- gibbsRun(hookSampler(4L, 2L), 6L, FALSE)
+expect_false(fourThreaded$unexpected)
+expect_identical(fourInline$train, fourThreaded$train)
+expect_identical(fourInline$sigma, fourThreaded$sigma)
+
+# the view's refusals touch nothing and raise nothing: a non-finite offset,
+# a sigma of 0, and on a probit sampler any sigma, which it pins
+gaussianProbe <- CALL("capi_view_probe", hookSampler(2L, 2L)$getPointer(), 3L)
+expect_identical(gaussianProbe$status, c(1L, -2L, -2L, 0L))
+probitProbe <- CALL(
+  "capi_view_probe",
+  hookSampler(2L, 2L, TRUE)$getPointer(),
+  3L
+)
+expect_identical(probitProbe$status, c(1L, -2L, -1L, -1L))
+expect_identical(
+  probitProbe$train,
+  CALL(
+    "capi_run",
+    hookSampler(2L, 2L, TRUE)$getPointer(),
+    0L,
+    3L,
+    TRUE,
+    FALSE
+  )$train
+)
+# a softmax, whose offset no chain can write, registers nothing
+softmaxProbe <- CALL("capi_view_probe", multinomialW()$getPointer(), 2L)
+expect_identical(softmaxProbe$status, c(0L, NA, NA, NA))
+
+# a hook's nonzero return stops the run, which returns normally: a positive
+# value, a deliberate stop, and a negative one, the hook's failure
+for (stopStatus in c(1L, -1L)) {
+  stopped <- gibbsRun(
+    hookSampler(2L, 2L),
+    6L,
+    FALSE,
+    stop = c(1L, 3L, stopStatus)
+  )
+  expect_true(stopped$stopped, info = stopStatus)
+}
+
+# an interrupt in a loop of one-sweep hooked runs on two threads raises the
+# interrupt condition, and a fresh sampler then draws what one did before it
+setInterruptAfter <- function(polls) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_setMonotoneCountHooks,
+    NA_real_,
+    FALSE,
+    as.integer(polls)
+  )
+}
+reference <- gibbsRun(hookSampler(2L, 2L), 6L, FALSE)
+interrupted <- local({
+  ptr <- hookSampler(2L, 2L)$getPointer()
+  CALL("capi_gibbs_reset", ptr, TRUE, -1L, -1L, 1L)
+  CALL("capi_set_gibbs_hooks", ptr, 2L)
+  on.exit({
+    setInterruptAfter(0L)
+    CALL("capi_set_gibbs_hooks", ptr, 0L)
+  })
+  setInterruptAfter(3L)
+  tryCatch(
+    {
+      for (i in 1:5) {
+        CALL("capi_gibbs_run", ptr, 1L, FALSE)
+      }
+      "not interrupted"
+    },
+    interrupt = function(cond) class(cond)
+  )
+})
+expect_identical(interrupted, c("interrupt", "condition"))
+again <- gibbsRun(hookSampler(2L, 2L), 6L, FALSE)
+expect_identical(again$train, reference$train)
+expect_identical(again$sigma, reference$sigma)
+
+# while chains hold their own offsets a re-derivation of the transform is
+# refused on every route; a sampler-wide offset, or a clear, puts every chain
+# back on one offset and lifts it
+refusal <- "sweep hook wrote"
+heldOffsets <- function() {
+  sampler <- hookSampler(2L, 2L)
+  ptr <- sampler$getPointer()
+  CALL("capi_gibbs_reset", ptr, TRUE, -1L, -1L, 1L)
+  CALL("capi_set_gibbs_hooks", ptr, 2L)
+  CALL("capi_gibbs_run", ptr, 3L, FALSE)
+  sampler
+}
+held <- heldOffsets()
+ptr <- held$getPointer()
+expect_error(CALL("capi_set_response", ptr, yH, TRUE), refusal)
+expect_error(held$setResponse(yH, updateScale = TRUE), refusal)
+expect_error(
+  held$setWeights(c(0.5, rep(1, nH - 1L)), updateScale = TRUE),
+  refusal
+)
+expect_error(
+  held$setActiveRows(c(0, rep(1, nH - 1L)), updateScale = TRUE),
+  refusal
+)
+expect_equal(CALL("capi_set_response", ptr, yH, FALSE), 1L)
+expect_equal(CALL("capi_set_offset", ptr, rep(0.1, nH), FALSE), 1L)
+expect_equal(CALL("capi_set_response", ptr, yH, TRUE), 1L)
+CALL("capi_set_gibbs_hooks", ptr, 0L)
+held <- heldOffsets()
+ptr <- held$getPointer()
+CALL("capi_set_gibbs_hooks", ptr, 0L)
+expect_equal(CALL("capi_set_response", ptr, yH, TRUE), 1L)
+rm(held, ptr)
+
+# a C++ consumer's exceptions, from its sweep hook and its draw callback,
+# inline and on a worker, come back to R as errors carrying their what(), and
+# the sampler runs on
+throwingDir <- tempfile("capi-throwing")
+dir.create(throwingDir)
+file.copy(
+  system.file("tinytest", "capi", "throwing.cpp", package = "dbarts"),
+  file.path(throwingDir, "throwing.cpp")
+)
+writeLines(
+  sprintf('PKG_CPPFLAGS = -I"%s"', includeDir),
+  file.path(throwingDir, "Makevars")
+)
+throwingLib <- compileCapiSource(
+  throwingDir,
+  "throwing.cpp",
+  "the throwing C++ consumer"
+)
+throwingDll <- dyn.load(throwingLib)
+THROW <- function(name, ...) {
+  .Call(getNativeSymbolInfo(name, throwingDll), ...)
+}
+for (threads in 1:2) {
+  for (which in 1:2) {
+    info <- paste("threads", threads, "callback", which)
+    sampler <- hookSampler(2L, threads)
+    ptr <- sampler$getPointer()
+    THROW("throwing_register", ptr, which)
+    expect_error(
+      THROW("throwing_run", ptr, 4L),
+      if (which == 1L) "the sweep hook threw" else "the draw callback threw",
+      info = info
+    )
+    THROW("throwing_register", ptr, 0L)
+    expect_true(CALL("capi_run_plain", ptr, 0L, 2L), info = info)
+  }
+}
+dyn.unload(throwingLib)
+rm(sampler, ptr, throwingDll)
 invisible(gc(FALSE))

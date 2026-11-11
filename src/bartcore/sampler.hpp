@@ -376,6 +376,7 @@ public:
     // whose count the K-length spec carries wherever it came from
     options_.numTrees = expandForestSpecs(spec)[0].forest.numTrees;
 
+    sharedOffset_ = offset;
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L, ResidT>>(
@@ -687,14 +688,16 @@ public:
         r.glue = results.glue + c * chainSlab(glueStride, glueDraw);
     }
 
-    // A registered observer receives every channel the fit carries: each one
-    // the caller leaves null gets one draw per chain of scratch, owned by this
-    // frame so every exit frees it, and a stride of zero, so each draw of a
-    // chain overwrites that chain's block. No observer, nothing allocated.
+    // A registered observer receives every channel the fit carries that it
+    // names: each one the caller leaves null gets one draw per chain of
+    // scratch, owned by this frame so every exit frees it, and a stride of
+    // zero, so each draw of a chain overwrites that chain's block. No
+    // observer, nothing allocated.
     std::vector<double> observerScratch;
     std::vector<std::uint32_t> observerCounts;
     if (onDraw.fn != nullptr)
-      provideObserverScratch(chainResults, observerScratch, observerCounts);
+      provideObserverScratch(chainResults, onDraw.channels, observerScratch,
+                             observerCounts);
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
     std::chrono::steady_clock::time_point startTime =
@@ -709,7 +712,8 @@ public:
     relay.sweep = onSweep;
     relay.draw = onDraw;
     const SweepHook relaySweep{&CallbackRelay::callSweep, &relay};
-    const DrawHook relayDraw{&CallbackRelay::callDraw, &relay};
+    const DrawHook relayDraw{&CallbackRelay::callDraw, &relay,
+                             onDraw.channels};
     const SweepHook* onSweepPtr = onSweep.fn != nullptr ? &relaySweep : nullptr;
     const DrawHook* onDrawPtr = onDraw.fn != nullptr ? &relayDraw : nullptr;
     bool canceled = false;
@@ -849,13 +853,14 @@ public:
     return false;
   }
 
-  /// Points each per-draw array channel the fit carries and \p chainResults
-  /// leaves null at one draw of scratch per chain, chain c's at the c-th block,
-  /// with that channel's stride set to zero. Every chain carries the same
-  /// channels, so chain 0 answers for all. The doubles share \p doubles and
-  /// the variable counts take \p counts; both are sized here and outlive the
-  /// run.
+  /// Points each per-draw array channel the fit carries, \p channels names and
+  /// \p chainResults leaves null at one draw of scratch per chain, chain c's at
+  /// the c-th block, with that channel's stride set to zero. Every chain
+  /// carries the same channels, so chain 0 answers for all. The doubles share
+  /// \p doubles and the variable counts take \p counts; both are sized here and
+  /// outlive the run.
   void provideObserverScratch(std::vector<Results>& chainResults,
+                              unsigned int channels,
                               std::vector<double>& doubles,
                               std::vector<std::uint32_t>& counts) const {
     const Results& first = chainResults[0];
@@ -874,29 +879,33 @@ public:
     Claim claims[10];
     size_t numClaims = 0, total = 0;
     auto claim = [&](double* Results::*channel, std::size_t Results::*stride,
-                     bool present, size_t extent) {
-      if (!present || first.*channel != nullptr || extent == 0) return;
+                     unsigned int bit, bool present, size_t extent) {
+      if ((channels & bit) == 0 || !present || first.*channel != nullptr ||
+          extent == 0)
+        return;
       claims[numClaims++] = Claim{channel, stride, total, extent};
       total += extent * numChains;
     };
-    claim(&Results::trainingFits, &Results::trainingFitsStride, true,
+    claim(&Results::trainingFits, &Results::trainingFitsStride, drawTrain, true,
           n * numLocations);
-    claim(&Results::testFits, &Results::testFitsStride, carried.test,
+    claim(&Results::testFits, &Results::testFitsStride, drawTest, carried.test,
           nTest * numLocations);
-    claim(&Results::varianceFits, &Results::varianceFitsStride,
+    claim(&Results::varianceFits, &Results::varianceFitsStride, drawVariance,
           carried.varianceFits, n);
     claim(&Results::varianceTestFits, &Results::varianceTestFitsStride,
-          carried.varianceTestFits, nTest);
-    claim(&Results::forestFits, &Results::forestFitsStride,
+          drawVariance, carried.varianceTestFits, nTest);
+    claim(&Results::forestFits, &Results::forestFitsStride, drawForestFits,
           carried.forestReporting, n * numForests());
-    claim(&Results::glue, &Results::glueStride, carried.forestReporting,
-          totalAmplitudes());
+    claim(&Results::glue, &Results::glueStride, drawGlue,
+          carried.forestReporting, totalAmplitudes());
     claim(&Results::splitProbabilities, &Results::splitProbabilitiesStride,
-          carried.splitProbabilities, data_.numPredictors);
+          drawSplitProbabilities, carried.splitProbabilities,
+          data_.numPredictors);
     claim(&Results::logLikelihood, &Results::logLikelihoodStride,
-          carried.logLikelihood, n);
+          drawLogLikelihood, carried.logLikelihood, n);
     claim(&Results::ordinalThresholds, &Results::ordinalThresholdsStride,
-          carried.ordinalThresholds, numOrdinalThresholds());
+          drawOrdinalThresholds, carried.ordinalThresholds,
+          numOrdinalThresholds());
 
     doubles.resize(total);
     for (size_t k = 0; k < numClaims; ++k)
@@ -906,7 +915,8 @@ public:
         chainResults[c].*(claims[k].stride) = 0;
       }
 
-    if (first.variableCounts == nullptr) {
+    if ((channels & drawVariableCounts) != 0 &&
+        first.variableCounts == nullptr) {
       size_t extent = data_.numPredictors * first.numVariableCountForests;
       counts.resize(extent * numChains);
       for (size_t c = 0; c < numChains; ++c) {
@@ -2190,10 +2200,27 @@ public:
                                  IncomingVector::offset, offset);
     updateScale = updateScale && !keep;
     SavedDrawSlots kept = savedDrawSlots();
+    sharedOffset_ = offset;
     for (auto& chain : chains_) chain->setOffset(offset, updateScale, kept);
     if (updateScale) recordAnchor();
     return keep ? ResponseUpdateResult::scaleKept
                 : ResponseUpdateResult::accepted;
+  }
+  /// Whether a chain holds an offset other than the sampler-wide one: one a
+  /// sweep hook wrote through the chain's ChainView. Every sampler-wide
+  /// install (creation, setOffset, setData) puts each chain back on the
+  /// sampler-wide offset.
+  bool chainsHoldOwnOffsets() const {
+    for (const auto& chain : chains_)
+      if (chain->offset() != sharedOffset_) return true;
+    return false;
+  }
+  /// Puts each chain that holds its own offset back on the sampler-wide one,
+  /// the transform held, as ChainView::setOffsetHoldingScale wrote it.
+  void restoreSharedOffset() {
+    for (auto& chain : chains_)
+      if (chain->offset() != sharedOffset_)
+        chain->setOffset(sharedOffset_, false);
   }
   ResponseUpdateResult setResponse(const double* y, bool updateScale) {
     bool keep = updateScale && chains_[0]->lacksDistinctRowsIn(
@@ -2749,6 +2776,7 @@ public:
     // with them; the host installs the new rows' mask afterward
     activeRows_.clear();
     SavedDrawSlots kept = savedDrawSlots();
+    sharedOffset_ = offset;
     // a chain that throws settles itself (Chain::applyNewData)
     size_t c = 0;
     try {
@@ -3655,6 +3683,7 @@ private:
               y, offset, data_.numObservations),
         weights, rowCounts, data_.numObservations, fallbackCountStorage);
     }
+    sharedOffset_ = offset;
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L, ResidT>>(
@@ -4291,6 +4320,10 @@ private:
   std::vector<double> activeRows_;
   size_t recordedDraws_ = 0;     // slots written since the last reset, capped
                                  // at capacity; the extent of every read
+  // the offset the last sampler-wide install handed every chain (borrowed),
+  // null for none and on a multinomial sampler, whose chains carry none; a
+  // chain whose offset differs holds one its sweep hook wrote
+  const double* sharedOffset_ = nullptr;
   // set for the length of run(); atomic so a check on another thread, a
   // worker's hook included, reads it without a race
   std::atomic<bool> running_{false};

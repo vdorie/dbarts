@@ -3,9 +3,9 @@
 # bridge). Runs on macos-latest (arm64) to match the environment the bitwise
 # baselines are recorded on, so the tight-tolerance and determinism checks do
 # not drift on last-ulp reduction-order differences; x86 engine coverage is
-# already provided by the R-CMD-check and sanitizer jobs. The cpp-leak job
-# below is the one Linux job: the same tests under ASAN+UBSAN with the leak
-# sanitizer on.
+# already provided by the R-CMD-check and sanitizer jobs. The two Linux jobs
+# below are cpp-leak, the same tests under ASAN+UBSAN with the leak sanitizer
+# on, and cpp-tests-tsan, the threaded suites under ThreadSanitizer.
 #
 # The same arm64 pin is why the REFERENCE build's bitwise gates run here too,
 # in a second half of this one job: --enable-reference-build compiles the
@@ -241,3 +241,61 @@ jobs:
           if grep -Eq "runtime error:|AddressSanitizer|LeakSanitizer|SUMMARY: .*Sanitizer" cpp-leak.log; then
             echo "::error::sanitizer reported a finding"; exit 1
           fi
+
+  # The suites that run sweep hooks and draw callbacks on worker threads,
+  # built with ThreadSanitizer: a hook's chain view, the relay's stop flag
+  # and the shipped hook's buffers are shared across threads, and a later
+  # engine change that races on them fails here rather than only in a local
+  # run. Linux, where gcc and clang both carry it; R's own libraries stay
+  # uninstrumented, which the suites never call into at runtime.
+  cpp-tests-tsan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      TSAN_OPTIONS: halt_on_error=1 second_deadlock_stack=1
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: setup_r_1
+        continue-on-error: true
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Wait before retrying setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
+      - name: Retry setup-r
+        if: steps.setup_r_1.outcome == 'failure'
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      # ThreadSanitizer's shadow mapping does not fit the 32 bits of mmap
+      # randomization the runner's kernel defaults to
+      - name: Narrow mmap randomization for ThreadSanitizer
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      # leaves src/misc.a, src/external.a, src/rc.a for the test link
+      - name: Build the package in place
+        run: R CMD INSTALL --preclean .
+
+      # R's library directory goes on the loader path: the Linux binary links
+      # against it and the runner does not search it
+      - name: Build and run the threaded suites under ThreadSanitizer
+        shell: bash
+        run: |
+          set -e
+          cd tests/cpp
+          make -j"$(nproc)" OPT='-O1 -g -fsanitize=thread'
+          export LD_LIBRARY_PATH="$(R RHOME)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          ./test_bartcore sampler
+          ./test_bartcore facade
+          ./test_bartcore capi
