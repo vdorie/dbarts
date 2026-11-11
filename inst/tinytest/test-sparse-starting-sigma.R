@@ -339,21 +339,17 @@ for (rule in c("auto", "dense")) {
     summary(lm(y ~ f6 + x1))$sigma
   )
 }
-# a data object's own sigma: dbartsSpec and dbarts keep it unless told how to
-# replace it (bart's arm is in test-door-keeps-data-sigma.R)
+# a data object's own sigma, a record its sampler wrote, is not read by a new
+# fit: every door estimates over the data's response unless a number is stated
 carried <- dbartsData(frame, y)
 carried@sigma <- 7
-expect_identical(spec(carried), 7)
-expect_identical(spec(carried, sigest = "auto"), 7)
+expect_identical(spec(carried), sigmaOf(frame, y))
+expect_identical(spec(carried, sigest = "auto"), sigmaOf(frame, y))
 expect_identical(spec(carried, sigest = 2), 2)
 expect_identical(spec(carried, sigest = "dense"), sigmaOf(frame, y))
 expect_equal(spec(carried, sigest = "sparse"), sigmaOf(frame, y))
 expect_identical(
   dbarts(carried, control = control, sigest = "auto", n.trees = 3L)$data@sigma,
-  7
-)
-expect_identical(
-  dbarts(carried, control = control, sigest = "dense", n.trees = 3L)$data@sigma,
   sigmaOf(frame, y)
 )
 

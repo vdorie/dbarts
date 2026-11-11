@@ -1884,14 +1884,15 @@ dbartsSpec <- function(
 
   # read as dbarts() reads them beside the same data object
   data <- applyCutSettings(data, copies)
-  # an explicit sigest overrides whatever the data carries, a number by
-  # replacing it and "dense" or "sparse" by estimating over it; NULL and
-  # "auto" leave it alone, so a consumer's own starting estimate survives (an
-  # unset one is estimated during resolution, exactly as for dbarts())
-  if (!is.na(sigest)) {
-    data@sigma <- validateSigest(sigest, "dbartsSpec")
-  } else if (sigestRule != "auto") {
-    data@sigma <- NA_real_
+  # as dbarts() reads a data object: the response's scale and sigma's
+  # starting estimate come from these data's response, whatever a sampler
+  # wrote into them, unless sigest states a number; a rule, "auto" and NULL
+  # estimate during resolution
+  data <- clearResponseCalibration(data)
+  data@sigma <- if (!is.na(sigest)) {
+    validateSigest(sigest, "dbartsSpec")
+  } else {
+    NA_real_
   }
 
   # as on dbarts(): the forest constructors resolve by bare name inside their

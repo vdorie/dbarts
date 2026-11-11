@@ -1443,10 +1443,9 @@ crossValidated <- function(data) {
   )
 }
 expect_identical(crossValidated(basesData), crossValidated(dbartsData(x, y)))
-grouped <- function(data, ...) {
+grouped <- function(data) {
   suppressWarnings(rbart_vi(
     data,
-    ...,
     group.by = rep(1:2, length.out = n),
     n.samples = 5L,
     n.burn = 5L,
@@ -1457,12 +1456,7 @@ grouped <- function(data, ...) {
     verbose = FALSE
   ))$yhat.train
 }
-# the sampler's data hold the starting sigma it regressed on its bases, which a
-# door keeps; the plain data are told the same
-expect_identical(
-  grouped(basesData),
-  grouped(dbartsData(x, y), sigest = basesData@sigma)
-)
+expect_identical(grouped(basesData), grouped(dbartsData(x, y)))
 
 # a basis on the FIRST forest and none on the second: the control's slot
 # holds the first forest's count and the control's own goes to the second

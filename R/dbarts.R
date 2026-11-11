@@ -1799,19 +1799,15 @@ dbarts <- function(
   }
 
   data <- applyCutSettings(data, copies, !is.null(hazardPeriods))
-  # a data object handed over carries the starting estimate its sampler used,
-  # which stays unless 'sigest' gives another or a rule to estimate by, as
-  # dbartsSpec() keeps it; an unset one is estimated during resolution
-  data@sigma <- if (
-    is.na(sigest) &&
-      sigestRule == "auto" &&
-      !is.null(dataObject) &&
-      !is.na(dataObject@sigma)
-  ) {
-    dataObject@sigma
-  } else {
-    sigest
-  }
+  # A new fit calibrates from the response it is given: the response's scale
+  # and sigma's starting estimate are read from these data's response, not
+  # from the records a sampler wrote into a data object it held, unless the
+  # caller states sigest. The count model's center and a survival fit's span
+  # ride the range record and the calibration map's anchor and unit the other,
+  # so they follow. The predictor-derived records (cut points, a leaf
+  # covariate's standardization) are data and stay.
+  data <- clearResponseCalibration(data)
+  data@sigma <- sigest
 
   # Every basis is built now, on the rows the data object kept, a hazard
   # fit's repeated over each subject's periods (buildFitBases). data@bases is

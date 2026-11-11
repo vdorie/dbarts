@@ -450,12 +450,16 @@
             \code{standardization} and \code{forest.calibration} (see
             \code{\link{dbartsData}}). A
             sampler created from a data object uses what it records and
-            derives the rest, so \code{dbarts(sampler$data)},
-            \code{bart(sampler$data)}, \code{new("dbartsSampler", ...,
+            derives the rest, so \code{new("dbartsSampler", ...,
             sampler$data)} and \code{samplePriorPredictive(sampler)} are made
             on the sampler's cut points and response range, where 0.9-34
-            derived them again from the data. A data object made afresh
-            derives them, as before. \code{xbart(sampler$data)} takes the
+            derived them again from the data. A new fit, \code{dbarts(sampler$data)},
+            \code{bart(sampler$data)} or \code{dbartsSpec(sampler$data)},
+            takes the cut points and standardization the data record and
+            derives the response range and sigma's starting estimate from the
+            data's response, unless \code{sigest} states one, as 0.9-34 did;
+            \code{sampler$copy()} makes the same model again. A data object
+            made afresh derives them all, as before. \code{xbart(sampler$data)} takes the
             cut points in every fold and derives the rest there. A copy and a
             reloaded sampler are made
             on the record: a copy of a sampler takes its current chain, where

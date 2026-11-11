@@ -369,6 +369,19 @@ dataResponseRange <- function(data) {
   }
   data@response.range
 }
+## A data object with its response-based calibration records cleared, so that
+## a fit made from it derives them from its response: the response's scale
+## (a count model's center and a survival fit's span ride the same record) and
+## a several-forest calibration map's anchor and unit.
+clearResponseCalibration <- function(data) {
+  if (methods::.hasSlot(data, "response.range")) {
+    data@response.range <- NULL
+  }
+  if (methods::.hasSlot(data, "forest.calibration")) {
+    data@forest.calibration <- NULL
+  }
+  data
+}
 dataForestCalibration <- function(data) {
   if (!methods::.hasSlot(data, "forest.calibration")) {
     return(NULL)
