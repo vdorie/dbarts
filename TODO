@@ -291,7 +291,18 @@ items
     with it (dec-B692, VD 2026-11-08: "Sure, (b)."). It reshapes part
     1's resolution, the held basis's name and the environment's object,
     and stan4bart's three reads of sampler$data. Part 1 is on main;
-    saved-sampler-data-twice is examined before this.
+    saved-sampler-data-twice is examined before this. dec-B805 (the
+    maintainer, 2026-11-11): the held frame is accurate, as the R
+    side's means of interrogating a sampler and of saving and loading
+    it: model.frame(s$data) and a saved sampler give lm's frame
+    exactly, a matrix term whole with its own column names; the
+    setters update it where that is cheap and, where it is costly,
+    skip the bookkeeping and mark it stale, a read or a save updating
+    it from the sampler first (as 0.9-34's updateState skipped
+    storeState). This revises dec-B678's "kept current by the
+    setters" and the design note's call 24 (a matrix term split into
+    columns). Part 2's design sizes whether a caller sees a switch
+    for the deferral or the setters decide by cost.
   sampler-help-mask-sentence: the dbartsSampler help's data argument
     says "Under such a family the sampler's own data object carries no
     weights, so setData(sampler$data) drops the mask in force"; on main
@@ -452,7 +463,13 @@ items
     still decides the move's form and its default before the release:
     if it goes against the move, the switch goes off or the move
     comes out before 1.0-0, so the release waits on pricing's verdict
-    on the default.
+    on the default. dec-B623's question (no
+    switch if pricing turns the move on) goes to the maintainer with
+    pricing's report, before 1.0-0; the landing ahead of it is
+    recorded in dec-A442 call 17, corrected 2026-11-11. Flip to
+    switching the move off on main if the guard or the report shows
+    harm in set A or B, or a cost past 1.25, while the release is
+    weeks off.
     Must be written before pricing starts. Proposed by the independent
     critique of the k study, none of them a ruling:
     - Proposal: Step 1, a prior tilted toward small k: only 5 of 1,040
@@ -583,7 +600,15 @@ items
   treatsens-cibart-chains: after 1.0-0, on treatSens's own schedule
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
-    and buffers, the draws combined.
+    and buffers, the draws combined. Note (the pass on
+    dec-A453 call 9): treatSens's outcome loop calls
+    dbarts_sampler_setResponse after every sweep (runGridCell); ported
+    with grid cells as chains (dec-B781), that call is what the
+    offset-rederivation refusal stops. A response range shared across
+    cells (one prior over the sensitivity grid) is the natural port,
+    per-chain transforms an additive engine change; whether the cells
+    share one range or each derives its own is a model question for
+    the maintainer when the port is planned.
   leaf-covariate-infinite-value: a linear leaf covariate holding an
     Inf, with sigest given so the starting sigma's regression, which
     refuses it, does not run, is centered at Inf, and every fitted value
@@ -1591,7 +1616,12 @@ items
     per draw that dbarts stores in the fit; list(fn, context) is
     replaced; no R function per draw. Plan with threaded-chains (one
     count-argument name with stan4bart, the maintainer's); build after
-    its draw-callback slices land. Not built.
+    its draw-callback slices land. The amendment has bart()'s callback
+    route name the channels it reads instead of passing
+    DBARTS_DRAW_ALL (dec-B810, an agent call said at the sitting), so
+    a callback that reads one channel does not pay for the test
+    predictions and the log-likelihood pass at every saved draw; how
+    the user states them is the amendment's. Not built.
   stan4bart-compiled-callback-pointer: (dec-B801, settling C142 of
     dec-A438, revising call A15 of the threaded-chains plan)
     stan4bart's callback = takes an R function or an external pointer
@@ -1603,6 +1633,125 @@ items
     threaded-chains. Not built.
   agent-call-fixes-2026-11-10: the unbuilt fixes of dec-A438: C135
     and I173 to I175, on threaded-chains. Not built.
+  bartcause-character-treatment-refusal: (dec-B804, revising the
+    character half of dec-A448 call 3) bartCause refuses a character
+    treatment on every route (bart, glm and none) with a message built
+    from the data's values: factor(arm, levels = c("placebo", "drug"))
+    with the untreated value first, or 0/1; a factor, a logical and
+    0/1 are accepted as now. About 5 lines in treatmentIsBinary and
+    its message, two or three tests, a help sentence and a NEWS
+    sentence; no draws move. The bartCause fixes batch. Not built.
+  bartcause-fixes-2026-11-11: agent fixes of the 2026-11-11 sitting in
+    bartCause, with bartcause-character-treatment-refusal. (1) The
+    treatment check (dec-A448 call 5, extended) reads the rows subset
+    keeps, on every route including given propensity scores
+    (method.trt numeric); a missing treatment is still refused and the
+    message adds "leave such rows out with subset"; the NEWS line
+    "every route and call" is made true; about 10 to 15 lines and
+    tests (subset = !is.na(z) fits on all routes; given scores of 1
+    and 2 refused). (2) Side finding: function(...) bartc(...) with
+    the columns in data fails "object 'z' not found" ("object '..4'
+    not found" on none), numeric treatments included, in 1.0-10 too: a
+    wrapper that forwards its dots loses the call's data. A fix and a
+    pin. Not built.
+  r-fixes-2026-11-11: the R fixes batch of the 2026-11-11 sitting,
+    dbarts. (1) The interaction refusal reads "interaction terms (a:b,
+    a*b, a/b, a %in% b, (a + b)^2) are not supported ..." (dec-A441
+    call 1, corrected), about 5 test literals. (2) A binomial row
+    counts at its trials times any frequency weight in summary()'s
+    forest line and effect lines, header "over N trials (M rows)", as
+    the default size does (dec-A439 call 15, extended; dec-B632,
+    dec-B567), the effect average likewise (dec-A438 call 17); 5 to 10
+    lines and a pin that a cbind fit, its Bernoulli written-out twin
+    and its count-weighted twin print the same block. (3) The counted
+    header takes the row noun and the singular ("over 314
+    person-period observations (163 person-period rows)", "(1 training
+    row)"), so a weighted hazard fit keeps "person-period" and one row
+    no longer reads "(1 rows)". (4) rhat's help description says "from
+    four iterations on" (dec-B809) and no longer says the value always
+    matches posterior's. (5) A held user function's names are those in
+    its body less its formals, less the names after $ and @ and both
+    sides of :: and :::; an expression walk in heldFunction and
+    frozenBuildEnvironment, about 10 to 15 lines, with a pin that a
+    workspace df is not held for fit$df (dec-A438 call 1, revised).
+    (6) ?na.keepPredictors says "NULL applies no action, which on new
+    data gives the default's result" in place of "NULL means the
+    default", and resolvePredictNaAction's comment drops "as
+    predict.lm reads it". (7) The setData paragraph of the
+    dbartsSampler help names the count center beside the response
+    range, as the updateScale item does. (8) The help of
+    model.frame.dbartsData states that an unnamed matrix of two or
+    more columns is named 1, 2, ... until basis-references-part-2
+    lands (dec-B805). Not built.
+  summary-basis-probability-line: (dec-B806, revising dec-A438 call
+    16) on a binary, binomial or hazard fit the basis-forest block
+    adds a change-in-probability line under its link-scale line, per
+    draw and row from the kept fits and averaged last: a factor basis
+    gives the change from its first level to its second, a numeric
+    basis the slope of the probability per unit (as avg_slopes does);
+    the help says factor(z) gives an exact 0/1 contrast for a 0/1
+    numeric basis. Agent fix with it: the hazard forest header's "sd
+    in the response's units (sd(y) 1)" takes the latent wording the
+    probit and logistic blocks use (it prints in a hazard sampler's
+    verbose creation too), and the NEWS aside names hazard. About 25
+    to 30 R lines, help and pins; no draws move. Not built.
+  news-helpfulness-pass: before any release (the maintainer,
+    2026-11-11: "I think the news probably contains way too many
+    things ... before any release we'll want to make sure it is
+    actually helpful") prune the NEWS of dbarts, stan4bart and
+    bartCause to what helps their users, and read the result as a
+    document the maintainer reads. Not done.
+  threaded-chains-before-landing: dbarts on branch threaded-chains,
+    before it lands. (1) DBARTS_DRAW_ALL names exactly the channels of
+    the installed header (dec-B810, revising dec-A453 call 5): defined
+    from DBARTS_DRAW_CHANNEL_LIST with its header sentence,
+    chain.hpp's drawAllChannels matching, the compatibility token's
+    expected value, one line of test-capi.R; about 10 lines. (2) A C
+    API entry called on a sampler during its own run is refused in
+    every build (dec-B811, revising dec-A453 call 6): status-returning
+    entries return an invalid-argument status and change nothing, void
+    entries do nothing and record the misuse, which dbarts_sampler_run
+    raises as an R error after the chains join; one relaxed atomic
+    load per entry; about 30 to 50 lines, a test per entry kind, the
+    header's contract sentences updated. (3) The offset-rederivation
+    refusal reads "... since no one response transform fits chains on
+    their own offsets; set a sampler-wide offset first, or pass
+    updateScale = FALSE" in the error, the code comment, the
+    dbartsSampler-class help and docs/architecture.md (dec-A454 call
+    5, revised); about 8 lines. (4) StudentTLogDensity moves out of
+    model.hpp into a small math header beside misc_logGamma (tcsan fix
+    round 2, call 1, ratified), with the fresh engine review that
+    round still owes. (5) The plan's treatSens item and
+    treatsens-cibart-chains name the question whether grid cells as
+    chains share one response range (the pass on dec-A453 call 9). Not
+    built.
+  stan4bart-callback-chain-iteration: (dec-B807, revising dec-A455
+    call 4) stan4bart's R callback is passed chain and iteration when
+    its formals name them, so 0.0-13's three-argument callbacks run
+    unchanged; the help promises only each chain's draws in order,
+    chains interleaved, on the main thread; the R and compiled forms
+    see the same things (dec-B801). Built with threaded-chains S3
+    (plan amended); about 15 lines, the help paragraph and a test.
+    Before stan4bart's threaded-chains lands, with it: the callback
+    result's length is checked (a longer vector on a later iteration
+    writes past its buffer; an integer result already errors) and the
+    Callbacks help's "funtion" is fixed. Not built.
+  stan4bart-fixes-2026-11-11: the stan4bart fixes batch of the
+    2026-11-11 sitting, on stan4bart's threaded-chains branch before
+    it lands: a chain failure's error is raised without the internal
+    call "stan4bart_fit_chains(...)", reading "Error: chain 2: ...";
+    chain messages are no longer cut at 255 characters; the
+    Reproducibility help says chain c, not only chain 1, is the same
+    whatever the chain count (dec-A455 call 1). Not built.
+  stan4bart-fit-error-in-loop: (dec-B808, revising dec-A438 call 13
+    and dec-A447 calls 3 and 4; settles I27) stan4bart accumulates
+    each draw's squared error in the sampling loop and stores it per
+    draw, as sigma is stored: no end-of-fit replay, no memory spike or
+    failure path, keep_fits = FALSE fits checked too, the user-offset
+    variants handled in the loop, the R block code (visit_ev_blocks
+    use in fit_rmse_draws, the guard and its reasons attribute)
+    removed. The stan4bart fixes batch; order it with threaded-chains
+    S2 and S3, since the loop moves. Not built.
   stan4bart-shrinkage-probit-scale-help: (item 3 of the shrinkage
     dossier, dec-A436) the five new prior families (hs, hs_plus,
     lasso, laplace, product_normal) read their scales with the
