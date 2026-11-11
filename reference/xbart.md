@@ -329,28 +329,31 @@ xbart(
   observations of positive weight, weighted as the regression is
   (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
   weights; for weights read as counts, the standard deviation of the
-  rows written out), which a line under `verbose` says, with no warning.
-  `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a data
-  frame and an exact sparse one (`"sparse"`) where the caller supplied a
-  sparse-stored column. `NULL` (the default) is `"auto"`; an explicit
-  `NA` is a missing value and is refused. The estimate is made
-  separately for each fold on that fold's training rows, so no fold's
-  prior reads its held-out responses; it is made on all rows once
-  beforehand, to raise any refusal once, to print its lines under
-  `verbose` and to settle the routine every fold runs, a fold taking its
-  own response's standard deviation where all rows, or its own, leave no
-  residual degrees of freedom; where all rows allow the regression and
-  some folds' rows do not, one more line under `verbose` gives the
-  number of those folds. A function is called once for each fold in
-  place of any of that, as `function(x, y, weights, offset)` or in
-  `loss`'s list form with an environment, on the worker that runs the
-  fold and so under what `loss` and `seed` say of workers and random
-  numbers. `x` is the fold's training rows of the design `"auto"` would
-  read, a numeric matrix or for a sparse `x` a `dgCMatrix`, built only
-  if the function reads it; `y`, `weights` and `offset` are those rows',
-  `NULL` where the call has none; the value must be one positive finite
-  number. `function(x, y, weights, offset) sd(y)` skips an expensive
-  estimate, and the alternatives
+  rows written out, or `sd(y)` over the observations of positive weight
+  where the counts total at most 1, up to the rounding of their sum),
+  which a line under `verbose` says, with no warning. `"auto"` is `lm`'s
+  own routine (`"dense"`) for a matrix or a data frame and an exact
+  sparse one (`"sparse"`) where the caller supplied a sparse-stored
+  column. `NULL` (the default) is `"auto"`; an explicit `NA` is a
+  missing value and is refused. The estimate is made separately for each
+  fold on that fold's training rows, so no fold's prior reads its
+  held-out responses; it is made on all rows once beforehand, to raise
+  any refusal once, to print its lines under `verbose` and to settle the
+  routine every fold runs, a fold taking its own response's standard
+  deviation where all rows, or its own, leave no residual degrees of
+  freedom; where all rows allow the regression and some folds' rows do
+  not, one more line under `verbose` gives, for each standard deviation
+  taken, the number of (replication, fold) units that took it. A
+  function is called once for each fold in place of any of that, as
+  `function(x, y, weights, offset)` or in `loss`'s list form with an
+  environment, on the worker that runs the fold and so under what `loss`
+  and `seed` say of workers and random numbers. `x` is the fold's
+  training rows of the design `"auto"` would read, a numeric matrix or
+  for a sparse `x` a `dgCMatrix`, built only if the function reads it;
+  `y`, `weights` and `offset` are those rows', `NULL` where the call has
+  none; the value must be one positive finite number.
+  `function(x, y, weights, offset) sd(y)` skips an expensive estimate,
+  and the alternatives
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) lists
   for one can be written the same way. Every entry point spells this
   `sigest` - `xbart`,

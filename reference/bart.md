@@ -1015,21 +1015,22 @@ nobs(object, ...)
   Under `"frequency"` on a gaussian-type fit, the starting sigma
   (`sigest`) is the residual sd of the regression on the rows written
   out, its degrees of freedom the total weight less the regression's
-  rank, the sd stand-in a weighted one; the residual scale's posterior
-  counts \\w\\ observations at a row; a row's predictive draw is one
-  observation at sd \\\sigma\\; its log-likelihood is \\w\\ times one
-  observation's; and `predict` takes weights of 1 and 0 only. Under
-  Student-t, a row's latent precision (`$getLatents()`) is the composite
-  of its \\w\\ copies'. A frequency weight is data, not a design weight:
-  weights rescaled to sum to 1 leave \\\sigma\\ one observation's worth
-  of data, survey or inverse-probability weights are not counts, and
-  \\w\\ copies of a continuous response are exact ties, which the fit
-  reads as nearly noiseless data. A 0/1 response's weight is always a
-  count of identical rows. A `"hurdle.lognormal"` fit reads its 0/1
-  weights as membership in both parts and refuses `"precision"`. The
-  reading is fixed when the sampler is created: `$setModel` cannot
-  change it, and `$setWeights`, `$setData` and `predict` read new
-  weights under it.
+  rank, a total within rounding of the rank leaving none, the sd
+  stand-in a weighted one (unweighted where the counts total at most 1);
+  the residual scale's posterior counts \\w\\ observations at a row; a
+  row's predictive draw is one observation at sd \\\sigma\\; its
+  log-likelihood is \\w\\ times one observation's; and `predict` takes
+  weights of 1 and 0 only. Under Student-t, a row's latent precision
+  (`$getLatents()`) is the composite of its \\w\\ copies'. A frequency
+  weight is data, not a design weight: weights rescaled to sum to 1
+  leave \\\sigma\\ one observation's worth of data, survey or
+  inverse-probability weights are not counts, and \\w\\ copies of a
+  continuous response are exact ties, which the fit reads as nearly
+  noiseless data. A 0/1 response's weight is always a count of identical
+  rows. A `"hurdle.lognormal"` fit reads its 0/1 weights as membership
+  in both parts and refuses `"precision"`. The reading is fixed when the
+  sampler is created: `$setModel` cannot change it, and `$setWeights`,
+  `$setData` and `predict` read new weights under it.
 
 - sigest:
 
@@ -1047,15 +1048,17 @@ nobs(object, ...)
   weighted as the regression is
   (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
   weights; for weights read as counts, the standard deviation of the
-  rows written out), which a line under `verbose` and one in the fit's
-  `summary` say, with no warning. (Where rows are out and the
-  observations of positive weight hold fewer than two distinct values of
-  the response, the regression is made on every row instead, under the
-  warning of class `dbartsScaleFallbackWarning`.) `"auto"` is `lm`'s own
-  routine (`"dense"`) for a matrix or a data frame and an exact sparse
-  one (`"sparse"`) where the caller supplied a sparse-stored column.
-  `NULL` (the default) is `"auto"`; an explicit `NA` reads as `NULL` for
-  one release, with a once-per-session warning.
+  rows written out, or `sd(y)` over the observations of positive weight
+  where the counts total at most 1, up to the rounding of their sum),
+  which a line under `verbose` and one in the fit's `summary` say, with
+  no warning. (Where rows are out and the observations of positive
+  weight hold fewer than two distinct values of the response, the
+  regression is made on every row instead, under the warning of class
+  `dbartsScaleFallbackWarning`.) `"auto"` is `lm`'s own routine
+  (`"dense"`) for a matrix or a data frame and an exact sparse one
+  (`"sparse"`) where the caller supplied a sparse-stored column. `NULL`
+  (the default) is `"auto"`; an explicit `NA` reads as `NULL` for one
+  release, with a once-per-session warning.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) says
   what the two routines cost, where they differ, and what to pass in
   place of an expensive estimate, which cannot be interrupted once
@@ -2548,7 +2551,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001745
+#> total seconds in loop: 0.001465
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 4 3 2 2 4 2 1 2 4 4 2 3 3 3 3 
@@ -2585,7 +2588,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000865
+#> total seconds in loop: 0.000720
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2620,7 +2623,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001302
+#> total seconds in loop: 0.001148
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2674,7 +2677,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.002022
+#> total seconds in loop: 0.001635
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

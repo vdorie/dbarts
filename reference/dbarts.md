@@ -578,8 +578,9 @@ dbarts(
   observations of positive weight, weighted as the regression is
   (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
   weights; for weights read as counts, the standard deviation of the
-  rows written out), which a line under `verbose` says, with no warning
-  (the `summary` of a
+  rows written out, or `sd(y)` over the observations of positive weight
+  where the counts total at most 1, up to the rounding of their sum),
+  which a line under `verbose` says, with no warning (the `summary` of a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit says
   it too). `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a
   data frame and an exact sparse one (`"sparse"`) where the caller
@@ -964,19 +965,21 @@ dbarts(
   Under `"frequency"` on a gaussian-type fit, the starting sigma
   (`sigest`) is the residual sd of the regression on the rows written
   out, its degrees of freedom the total weight less the regression's
-  rank, the sd stand-in a weighted one; the residual scale's posterior
-  counts \\w\\ observations at a row; a row's predictive draw is one
-  observation at sd \\\sigma\\; its log-likelihood is \\w\\ times one
-  observation's; and `predict` takes weights of 1 and 0 only. Under
-  Student-t, a row's latent precision (`$getLatents()`) is the composite
-  of its \\w\\ copies'. A frequency weight is data, not a design weight:
-  weights rescaled to sum to 1 leave \\\sigma\\ one observation's worth
-  of data, survey or inverse-probability weights are not counts, and
-  \\w\\ copies of a continuous response are exact ties, which the fit
-  reads as nearly noiseless data. A 0/1 response's weight is always a
-  count of identical rows. The reading is fixed when the sampler is
-  created: `$setModel` cannot change it, and `$setWeights`, `$setData`
-  and `predict` read new weights under it.
+  rank, a total within rounding of the rank leaving none, the sd
+  stand-in a weighted one (unweighted where the counts total at most 1);
+  the residual scale's posterior counts \\w\\ observations at a row; a
+  row's predictive draw is one observation at sd \\\sigma\\; its
+  log-likelihood is \\w\\ times one observation's; and `predict` takes
+  weights of 1 and 0 only. Under Student-t, a row's latent precision
+  (`$getLatents()`) is the composite of its \\w\\ copies'. A frequency
+  weight is data, not a design weight: weights rescaled to sum to 1
+  leave \\\sigma\\ one observation's worth of data, survey or
+  inverse-probability weights are not counts, and \\w\\ copies of a
+  continuous response are exact ties, which the fit reads as nearly
+  noiseless data. A 0/1 response's weight is always a count of identical
+  rows. The reading is fixed when the sampler is created: `$setModel`
+  cannot change it, and `$setWeights`, `$setData` and `predict` read new
+  weights under it.
 
 ## Details
 
