@@ -519,7 +519,12 @@ nobs(object, ...)
   drops rows with a missing RESPONSE and keeps rows with missing
   predictors, which the trees route; the base functions keep their usual
   meaning. A survival response is missing where its time or its status
-  is, as `survreg` and `coxph` take it. See
+  is, as `survreg` and `coxph` take it. `NULL` applies no action, as in
+  `lm`, on the formula and matrix interfaces alike. A row whose
+  `weights` or `offset` is missing is dropped by `na.omit` and
+  `na.exclude` on the matrix interface as on the formula one,
+  `na.exclude` padding it back; every other action leaves it to the
+  refusal of that argument. See
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
   For `predict`, what to do with the rows of `newdata` that have missing
@@ -1072,7 +1077,14 @@ nobs(object, ...)
   a number that differs from it is refused. An estimate that equals that
   square root (to within a few units in the last place) is accepted with
   a message saying it has no effect, as 0.9-34 ran it; that is an error
-  from dbarts 1.1-0.
+  from dbarts 1.1-0. Given a data object in place of a formula,
+  including a sampler's `data`, a new fit calibrates from that data's
+  response: the response's scale and this estimate are derived from it,
+  not read from records the sampler wrote, unless `sigest` states a
+  number;
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+  reads a data object the same way, and a sampler's `copy()` is the way
+  to the same model again.
 
 - k:
 
@@ -1221,7 +1233,8 @@ nobs(object, ...)
   reads its first argument (terms matched to the fit's predictors, the
   dot and transformed terms taken, `*`, `:` and
   [`I()`](https://rdrr.io/r/base/AsIs.html) terms refused), or `NULL`
-  (the default) for a homoscedastic fit - or a
+  (the default), `FALSE`, an empty selection (`character(0)`,
+  `integer(0)`, `logical(0)`) or `~ 1` for a homoscedastic fit - or a
   [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)`(vars = , n.trees = , base = , power = )`
   object, which additionally sets the variance forest's own tree count
   and tree-structure prior (defaulting to `40` trees and the mean
@@ -2392,7 +2405,9 @@ are refused by name. `plot(object)` traces the integer-gridded shape
 `bart` drives one `n.burn`/`n.samples` sweep for this family; no trace
 is drawn for a shape held fixed, which `print` names instead) alongside
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s own
-gaussian observed-vs-fitted panel, applied to the counts. `plotTree` and
+gaussian observed-vs-fitted panel, applied to the counts. The shape
+trace shows the kept draws only; the burn-in draws of the shape are not
+stored. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name. `extract(object, type = "shape")` returns the
 per-draw shape \\r\\, `type = "k"` and `"leaf.prior.sd"` the leaf scale
@@ -2531,7 +2546,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001445
+#> total seconds in loop: 0.001933
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 3 3 2 2 2 2 2 3 2 2 2 3 3 2 
@@ -2568,7 +2583,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000736
+#> total seconds in loop: 0.000909
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2603,7 +2618,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001103
+#> total seconds in loop: 0.001371
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2657,7 +2672,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001594
+#> total seconds in loop: 0.002004
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

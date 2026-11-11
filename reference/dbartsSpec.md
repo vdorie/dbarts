@@ -145,14 +145,15 @@ does not arise.
 
 ### Differences from dbarts()
 
-`sigest` defaults to `NULL`, which like `"auto"` leaves the data
-object's own value alone, rather than overwriting it: a caller that
-computed a starting estimate keeps it, and an unset (`NA`) value is
-still estimated during resolution. A number replaces the data object's
-value, and `"dense"` or `"sparse"` estimates over it. An explicit `NA`
-for `sigest` is a missing value and is refused. Cut points are taken
-from `control` only when the data does not already carry resolved
-per-column counts.
+`sigest` defaults to `NULL`, which like `"auto"` estimates the starting
+sigma from the data's response, as
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) does: a
+starting estimate or response scale a sampler wrote into the data object
+is not read, since a new fit is a new model (use the sampler's `copy()`
+for the same model again). A number states it, and `"dense"` or
+`"sparse"` names the routine. An explicit `NA` for `sigest` is a missing
+value and is refused. Cut points are taken from `control` only when the
+data does not already carry resolved per-column counts.
 
 Families that require ingestion this function does not perform are
 unavailable: `"hazard"` needs person-period expansion, and

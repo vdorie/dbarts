@@ -379,7 +379,10 @@ dbarts(
   reads its first argument (terms matched to the fit's predictors, the
   dot and transformed terms taken, `*`, `:` and
   [`I()`](https://rdrr.io/r/base/AsIs.html) terms refused), or `NULL`
-  (the default) for the ordinary homoscedastic fit - or a
+  (the default) or `FALSE` for the ordinary homoscedastic fit, as do an
+  empty selection (`character(0)`, `integer(0)`, `logical(0)`) and the
+  formula `~ 1`, which name no predictor (`varianceForest(~ 1)` and
+  `~ 0` are refused) - or a
   [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)
   object, which additionally sets the variance forest's own tree count
   (default `40`) and tree-structure prior (default the mean forest's
@@ -580,8 +583,15 @@ dbarts(
   it too). `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a
   data frame and an exact sparse one (`"sparse"`) where the caller
   supplied a sparse-stored column. `NULL` (the default) is `"auto"`; an
-  explicit `NA` is a missing value and is refused. Spelled the same way
-  on [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
+  explicit `NA` is a missing value and is refused. Given a data object
+  in place of a formula, including a sampler's `data`, a new fit
+  calibrates from that data's response: the response's scale and this
+  estimate are derived from it, not read from records the sampler wrote,
+  unless `sigest` states a number;
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+  reads a data object the same way, and a sampler's `copy()` is the way
+  to the same model again. Spelled the same way on
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md); the
   sampler's own `setSigma`, which sets the parameter rather than an
@@ -629,7 +639,12 @@ dbarts(
   [`na.exclude`](https://rdrr.io/r/stats/na.fail.html),
   [`na.fail`](https://rdrr.io/r/stats/na.fail.html) and
   [`na.pass`](https://rdrr.io/r/stats/na.fail.html) keep their usual
-  meaning, and under `na.pass` a missing response is an error. See
+  meaning, and under `na.pass` a missing response is an error; `NULL`
+  applies no action, as in `lm`, on the formula and matrix interfaces
+  alike, so a missing response is an error. A row whose `weights` or
+  `offset` is missing is dropped by `na.omit` and `na.exclude` as one
+  with a missing predictor is, on the matrix interface as on the formula
+  one; every other action leaves it to the refusal of that argument. See
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
 - ...:

@@ -322,18 +322,23 @@ derived with them; `NULL` as a whole, and not an entry per forest, where
 no forest's leaves take a covariate. The data object a sampler holds,
 `sampler$data`, records them from creation on, and the sampler rewrites
 them after every call that changes one. A sampler created from a data
-object - by
+object by `new("dbartsSampler", control, model, data)`, and the copy and
+reload of a sampler, which are created from its own, uses each value the
+object records and derives the others. A new fit, by
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
-or `new("dbartsSampler", control, model, data)`, and the copy and reload
-of a sampler, which are created from its own - uses each value the
-object records and derives the others, so `dbarts(sampler$data)` is made
-on the sampler's cut points, response range and leaf standardization,
-while a data object made afresh from the same rows derives its own. A
-sampler's `setData` does the same unless its `updateCutPoints`,
-`updateScale` or `updateStandardization` says to derive a value or to
-keep the sampler's (see
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
+[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
+takes the cut points and the leaf standardization the object records and
+derives the response-based values from its response: `response.range`,
+`forest.calibration` and sigma's starting estimate (unless `sigest`
+states one), so `dbarts(sampler$data)` after `sampler$setResponse()`
+calibrates to the new response, as a fresh fit does, and
+`sampler$copy()` is the way to the same model again. A data object made
+afresh from the same rows derives its own. No door states a response
+range: the records are read only from a sampler's own data. A sampler's
+`setData` does the same unless its `updateCutPoints`, `updateScale` or
+`updateStandardization` says to derive a value or to keep the sampler's
+(see
 [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
 so `sampler$setData(sampler$data)`, the object handed back whole, keeps
 them. [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)
@@ -550,7 +555,7 @@ data
 #> Slot "build":
 #> $formula
 #> y ~ x + g
-#> <environment: 0x5fd7495c25c8>
+#> <environment: 0x64be33fc77a0>
 #> 
 #> $weights
 #> NULL

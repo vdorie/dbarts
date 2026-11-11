@@ -111,7 +111,7 @@ Fits a varying intercept/random effect BART model. A fallback this function make
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-group-by">group.by<a class="anchor" aria-label="anchor" href="#arg-group-by"></a></dt>
-<dd><p>Grouping factor. Can be an integer vector/factor, or a reference to such in <code>data</code>. In <code>predict</code>, a character or numeric vector names its groups by value, as a factor of it does.</p></dd>
+<dd><p>Grouping factor. Can be an integer vector/factor, or a reference to such in <code>data</code>. In <code>predict</code>, a character or numeric vector names its groups by value, as a factor of it does. With a data object in place of a formula and data, <code>group.by</code> is looked up where the call was written; with a formula and data it is looked up in <code>data</code> first (as <code>lm</code>'s <code>weights</code>).</p></dd>
 
   <dt id="arg-group-by-test">group.by.test<a class="anchor" aria-label="anchor" href="#arg-group-by-test"></a></dt>
 <dd><p>Grouping factor for test data, of the same type as <code>group.by</code>. Can be missing.</p></dd>

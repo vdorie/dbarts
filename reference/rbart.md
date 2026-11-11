@@ -85,7 +85,10 @@ nobs(object, ...)
 
   Grouping factor. Can be an integer vector/factor, or a reference to
   such in `data`. In `predict`, a character or numeric vector names its
-  groups by value, as a factor of it does.
+  groups by value, as a factor of it does. With a data object in place
+  of a formula and data, `group.by` is looked up where the call was
+  written; with a formula and data it is looked up in `data` first (as
+  `lm`'s `weights`).
 
 - group.by.test:
 

@@ -82,6 +82,7 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
 <span>  combineChains <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  na.action <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="va"><a href="na.keepPredictors.html">na.keepPredictors</a></span>,</span>
 <span>  sample <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"train"</span>, <span class="st">"test"</span><span class="op">)</span>,</span>
+<span>  bases <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -171,11 +172,21 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
     both causes and, on a fit kept without trees, a test set at the fit or
     the trees as what would answer it.</p></dd>
 
+  <dt id="arg-bases">bases<a class="anchor" aria-label="anchor" href="#arg-bases"></a></dt>
+<dd><p>For a fit of several forests with a basis, the basis at the subjects, as
+    <code><a href="bartBT.html">predict</a></code> takes <code>bases</code> but one value per
+    subject (a hazard subject's value applies at every period, as its offset
+    does), where <code>predict</code> takes one per row of the person-period
+    <code>newdata</code>: a list with an entry per forest, a bare value when one forest
+    carries a basis, or the name of a column of <code>newdata</code>. Left out, the
+    basis is read from <code>newdata</code> by the fit's <code><a href="forest.html">forest()</a></code> terms, and
+    with no <code>newdata</code> the training subjects keep their own. Refused on a
+    fit that has one forest.</p></dd>
+
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Not a formal on the method: a name belonging to a sibling generic
     (<code>type</code>, <code>ci.level</code>,
-    <code>weights</code>, <code>n.threads</code>, <code>forest</code>, <code>contribution</code>,
-    <code>bases</code>) is refused by name rather than silently ignored, since this
+    <code>weights</code>, <code>n.threads</code>, <code>forest</code>, <code>contribution</code>) is refused by name rather than silently ignored, since this
     method returns the draws of \(S(t \mid x)\) at <code>times</code> alone.</p></dd>
 
 </dl></div>

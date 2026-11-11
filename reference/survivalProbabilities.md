@@ -26,6 +26,7 @@ survivalProbabilities(
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
   sample = c("train", "test"),
+  bases = NULL,
   ...
 )
 
@@ -122,12 +123,26 @@ survivalProbabilities(object, ...)
   causes and, on a fit kept without trees, a test set at the fit or the
   trees as what would answer it.
 
+- bases:
+
+  For a fit of several forests with a basis, the basis at the subjects,
+  as [`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  takes `bases` but one value per subject (a hazard subject's value
+  applies at every period, as its offset does), where `predict` takes
+  one per row of the person-period `newdata`: a list with an entry per
+  forest, a bare value when one forest carries a basis, or the name of a
+  column of `newdata`. Left out, the basis is read from `newdata` by the
+  fit's
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+  terms, and with no `newdata` the training subjects keep their own.
+  Refused on a fit that has one forest.
+
 - ...:
 
   Not a formal on the method: a name belonging to a sibling generic
-  (`type`, `ci.level`, `weights`, `n.threads`, `forest`, `contribution`,
-  `bases`) is refused by name rather than silently ignored, since this
-  method returns the draws of \\S(t \mid x)\\ at `times` alone.
+  (`type`, `ci.level`, `weights`, `n.threads`, `forest`, `contribution`)
+  is refused by name rather than silently ignored, since this method
+  returns the draws of \\S(t \mid x)\\ at `times` alone.
 
 ## Details
 
