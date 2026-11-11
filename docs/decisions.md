@@ -5995,6 +5995,15 @@ Not built.
 See also: [dec-B783], [dec-B581], [dec-A438].
 Record: root TODO, stan4bart-compiled-callback-pointer; docs/plans/threaded-chains.md, S4 and call A15, at its next amendment. Marked: ruled by the maintainer, 2026-11-11. [dec-B801]
 
+**dbarts' callback takes a pointer to a compiled function the user builds with Rcpp's tools, writing a stated number of values per draw that dbarts stores in the fit**
+Since 1.0-0 (0.9-34 had no callback) bart()'s callback = takes list(fn, context), two external pointers: fn a compiled function of dbarts.h's draw-callback signature called on each chain's worker at every draw, context handed back to it. Only that both are external pointers is checked; the function has nowhere to put results, so what it computes lives in memory the user allocates through context and reads back with more compiled code; no R function is taken. The maintainer asked, after dec-B801: "Out of curiosity, should dbarts also accept callbacks like this?" Answered: the standard form would let callback = take a pointer from RcppXPtrUtils::cppXPtr or the user's own sourceCpp, its types checked, with the number of values it writes per draw stated and stored in the fit, as stan4bart's will; nothing is released, so the list form is replaced; about 100 to 150 lines (a small wrapper in the bridge writing into a per-chain slot, the R argument and help), a rewritten vignette and a test that needs a compiler; recommended. Taking an R function per draw stays out: it would hold every chain's thread at each draw.
+The maintainer, 2026-11-11: "Go ahead and do it."
+The rule: dbarts' callback = takes an external pointer to a compiled function of a documented signature, built with RcppXPtrUtils::cppXPtr or the user's own sourceCpp, checked where the pointer records its types, and the number of values it writes per draw in a further argument; dbarts stores the values in the fit, per chain and draw. The list(fn, context) form is replaced, not kept beside it (compatibility is owed only to shipped versions). No R function per draw. The signature, where the stored values sit in the fit, and the further argument's name (one name in dbarts and stan4bart, the maintainer's) come with the threaded-chains plan's amendment, built after its draw-callback slices land. The flat C API's dbarts_sampler_setDrawCallback stays for packages linking to dbarts.
+The alternative was keeping list(fn, context). The cost is the bridge wrapper, a new documented signature and the vignette's rewrite.
+Not built.
+See also: [dec-B801], [dec-B783], [dec-B581].
+Record: root TODO, dbarts-compiled-callback-pointer; docs/plans/threaded-chains.md at its next amendment. Marked: ruled by the maintainer, 2026-11-11. [dec-B802]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

@@ -1601,6 +1601,14 @@ items
     (logistic drawn-k draws move by rounding and their baselines are
     re-recorded once) only if that report reads the share as
     material. Not built.
+  dbarts-compiled-callback-pointer: (dec-B802) bart()'s callback =
+    takes an external pointer to a compiled function of a documented
+    signature (RcppXPtrUtils::cppXPtr or the user's own sourceCpp),
+    types checked where recorded, writing a stated number of values
+    per draw that dbarts stores in the fit; list(fn, context) is
+    replaced; no R function per draw. Plan with threaded-chains (one
+    count-argument name with stan4bart, the maintainer's); build after
+    its draw-callback slices land. Not built.
   stan4bart-compiled-callback-pointer: (dec-B801, settling C142 of
     dec-A438, revising call A15 of the threaded-chains plan)
     stan4bart's callback = takes an R function or an external pointer
