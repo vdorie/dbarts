@@ -593,9 +593,9 @@
             \code{x} takes the sparse routine by default.
       \item Where the linear regression behind the starting \code{sigest}
             leaves no residual degrees of freedom, as with more columns
-            than rows (each distinct row counted once under frequency
-            weights), the fit starts from the standard deviation of the
-            response, weighted as the regression is (\code{sd(y)} at unit
+            than rows (each row counted once under frequency weights, not
+            as often as its weight), the fit starts from the standard
+            deviation of the response, weighted as the regression is (\code{sd(y)} at unit
             weights), saying so in a line under \code{verbose} and in its
             \code{summary}; 0.9-34 stopped.
       \item \code{xbart}'s \code{sigest} may be a function, called on
@@ -1142,9 +1142,12 @@
             machine's linear algebra library: an exactly fit response could
             give an estimate of 0, which the sampler then refused. Such an
             estimate is now raised to a floor of about 1.5e-8 times the
-            largest absolute response (each times the square root of its
-            weight under precision weights), which leaves a sound estimate,
-            in any units, as 0.9-34 gave it.
+            largest absolute response less its offset (under precision
+            weights, of the square root of the weight times it), and an
+            estimate above the floor is 0.9-34's. A response with a mean far
+            above its spread (a mean of 1.7e9 beside a standard deviation
+            of 1) can start at the floor, where \code{lm} and 0.9-34 give
+            the spread.
       \item \code{plot.bart}, \code{plot.pd2bart} and tree plots restore the
             caller's graphical parameters.
       \item Sampler methods. \code{$setResponse} and \code{$setData} check

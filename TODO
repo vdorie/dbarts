@@ -1503,10 +1503,23 @@ items
     absolute 1.5e-8 only for an all-zero response. Both in the routine
     every fitting function and xbart's folds share; about 7 lines, one
     pin moved, new tests including a fold. The help of dbarts, bart
-    and xbart adds "counting each distinct row once under weights read
-    as counts" to the no-residual-degrees sentence. Draws move for
-    saturated count fits and for precision-weighted fits or responses
+    and xbart adds "counting each row once, not as often as its weight,
+    under weights read as counts" to the no-residual-degrees
+    sentence. Draws move for saturated count fits and for precision-weighted fits or responses
     under 1 in absolute value that land on the floor. Not built.
+  starting-sigma-fractional-counts: (found in the review of
+    starting-sigma-count-floor, not built) under fractional counts the
+    written-out denominator (weightedSd's total - 1, the dense
+    routine's sum(w) - rank, the sparse routine's count - rank) takes
+    floating-point rounding as data: rep(0.05, 20) sums to 1 + 2.2e-16
+    and starts at sigma 66401035, where a sum of exactly 1 gives the
+    floor, so the result depends on the machine's summation. Options:
+    (a) a tolerance on the denominator, then the floor; (b) a
+    tolerance, then the unweighted sd of the rows in, as dec-B381's
+    fallback stays unweighted (the review recommends it); (c) refuse
+    and ask for sigest. A few lines in the routine every fitting
+    function shares, a test per option's arm. A decision for the
+    maintainer.
   two-count-columns-auto: (dec-B732, extending dec-B567, revising
     calls 9, 35, 69 and 70 of dec-A276) under family = "auto" dbarts()
     refuses a data object with exactly two count columns in the words

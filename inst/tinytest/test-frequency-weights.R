@@ -344,6 +344,83 @@ expect_true(any(grepl(
   )))),
   fixed = TRUE
 )))
+# the verbose line of bart() and of dbarts() names the count stand-in
+verboseLine <- paste0(
+  "starting sigma is the sd of the response with each row written out as ",
+  "often as its weight"
+)
+verboseLines <- character()
+invisible(utils::capture.output(withCallingHandlers(
+  bart(
+    y ~ a + b,
+    small,
+    weights = smallCounts,
+    weights.type = "frequency",
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = TRUE
+  ),
+  message = function(m) {
+    verboseLines <<- c(verboseLines, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  }
+)))
+expect_true(any(grepl(verboseLine, verboseLines, fixed = TRUE)))
+dbartsLines <- character()
+conditions <- character()
+invisible(utils::capture.output(withCallingHandlers(
+  dbarts(
+    y ~ a + b,
+    small,
+    weights = smallCounts,
+    weights.type = "frequency",
+    control = dbartsControl(verbose = TRUE, n.chains = 1L, n.threads = 1L)
+  ),
+  message = function(m) {
+    dbartsLines <<- c(dbartsLines, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  },
+  dbartsSigmaFallback = function(condition) {
+    conditions <<- c(conditions, conditionMessage(condition))
+  }
+)))
+expect_true(any(grepl(verboseLine, dbartsLines, fixed = TRUE)))
+expect_identical(
+  conditions,
+  paste0(
+    "the starting sigma is ",
+    "the sd of the ",
+    "response with each row written out as often as its weight"
+  )
+)
+# fractional counts whose rows in exceed the rank but whose sum falls below
+# it leave the dense regression no degrees of freedom: the stand-in, silently
+set.seed(4)
+fracX <- matrix(rnorm(40), 20)
+fracY <- rnorm(20)
+fracWarnings <- character()
+fracSigma <- withCallingHandlers(
+  dbarts(
+    fracX,
+    fracY,
+    weights = rep(0.1, 20),
+    weights.type = "frequency",
+    sigest = "dense"
+  )$data@sigma,
+  warning = function(condition) {
+    fracWarnings <<- c(fracWarnings, conditionMessage(condition))
+    invokeRestart("muffleWarning")
+  }
+)
+expect_identical(fracWarnings, character())
+expect_equal(
+  fracSigma,
+  sqrt(sum(0.1 * (fracY - mean(fracY))^2) / (sum(rep(0.1, 20)) - 1)),
+  tolerance = 1e-12
+)
 # a fold's estimate, the routine xbart runs on each fold's training rows
 trainRows <- sort(sample(n, 30L))
 foldExpanded <- rep(trainRows, w[trainRows])
