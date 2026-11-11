@@ -6004,6 +6004,15 @@ Not built.
 See also: [dec-B801], [dec-B783], [dec-B581].
 Record: root TODO, dbarts-compiled-callback-pointer; docs/plans/threaded-chains.md at its next amendment. Marked: ruled by the maintainer, 2026-11-11. [dec-B802]
 
+**dbarts exports rhat(), taking an iterations-by-chains matrix and returning posterior::rhat's value, and its help and every example write dbarts::rhat and dbarts::extract**
+dec-B800 has users read R-hat on the estimand they report; dbarts computed R-hat only inside summary() (rank-normalized split R-hat, the larger of the bulk and folded values, as posterior and rstan), and with posterior removed (dec-B99) the examples of the build carried a 7-line plain split R-hat of their own, 1.0222 where summary()'s statistic gave 1.0223. Shown: (a) keep the example's function; (b) export summary()'s function as rhat(), recommended; (c) summary(fit, estimand = ) printing the estimand's mean, interval and R-hat. The maintainer asked: "If we export it, we're likely to collide with everyone else who exports it, right? I don't mind (b), I just don't want to cause confusion for users." Answered: yes; of 390 installed packages, posterior exports rhat (from a draws matrix; brms re-exports it), bayesplot exports rhat (from a fitted Stan model, so the two already collide), rstan exports Rhat; whichever is attached later masks the other, harmless against posterior's, breaking against bayesplot's; a name nobody uses, splitRhat(), was suggested. The maintainer: "That might work today, but is that confusing? It begs questions about how it differs from other functions. I guess we can just export `rhat`, but we should recommend that users always call `dbarts::rhat`, just as they should always call `dbarts::extract` so as to not collide with `rstan` or `rstanarm`. Does that sound right?" Answered: yes; the extract advice was not yet written anywhere (extract is also exported by rstan, tidyr, terra, raster, magrittr and R.utils); stan4bart attaches dbarts, so it brings both names; rhat should take posterior's input and return its value so a bare call that lands on posterior's still answers right.
+The maintainer, 2026-11-11: "OK, go ahead."
+The rule: dbarts exports rhat(x), x an iterations-by-chains matrix of one quantity's draws, returning the same value as posterior::rhat for the inputs posterior takes (rank-normalized split R-hat, the larger of bulk and folded); the help of rhat and of extract recommends calling them as dbarts::rhat and dbarts::extract, naming the packages that export the same names; every example in dbarts and stan4bart writes them so; the summary help's example uses dbarts::rhat in place of its own function. Builds on dec-B800 and keeps dec-B99.
+The alternative was a name nobody else exports (splitRhat). The cost is a masked name for users who attach dbarts beside posterior or bayesplot and call it bare.
+Not built.
+See also: [dec-B800], [dec-B99].
+Record: root TODO, rhat-values-only. Marked: ruled by the maintainer, 2026-11-11. [dec-B803]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

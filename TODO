@@ -1584,7 +1584,11 @@ items
     compares chains with their pooled spread, that at the defaults
     BART's chains disagree on sigma, k and single predictions, and
     that averaged estimands mix far better, with code to read R-hat on
-    the estimand a user reports. Not built.
+    the estimand a user reports. dbarts exports rhat(x) on an
+    iterations-by-chains matrix with posterior::rhat's value, and the
+    help of rhat and extract recommends dbarts::rhat and
+    dbarts::extract, as every example in both packages writes them
+    (dec-B803). Not built.
   rhat-known-estimands: (dec-B800) where a package knows the
     estimand (bartCause's treatment effects, stan4bart's fixed
     effects), measure their R-hats at the defaults and bring whether
