@@ -272,6 +272,28 @@ fit <- dbarts(
 )
 expect_equal(sdsOf(fit)[2L], 1)
 
+# and through the exported list and the namespace's own spelling, so that
+# forest(), an alias and the two spellings agree
+fit <- dbarts(
+  y ~ x1 + x2,
+  dat,
+  forests = list(
+    forest(),
+    dbartsForests$forest(x2, basis = dose, sd = normal(0.5))
+  ),
+  n.trees = 5L,
+  control = ctl
+)
+expect_equal(sdsOf(fit)[2L], 1)
+fit <- dbarts(
+  y ~ x1 + x2,
+  dat,
+  forests = list(forest(), dbarts:::forest(x2, basis = dose, sd = normal(0.5))),
+  n.trees = 5L,
+  control = ctl
+)
+expect_equal(sdsOf(fit)[2L], 1)
+
 # and a prior's name nested in an expression
 fit <- dbarts(
   y ~ x1 + x2,

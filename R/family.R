@@ -194,8 +194,8 @@ inlineCallerFunctions <- function(expr, vocabulary, evalEnv, numbers = FALSE) {
       return(expr)
     }
     head <- expr[[1L]]
-    isForest <- is.symbol(head) &&
-      (as.character(head) == "forest" ||
+    isForest <- isForestCall(expr) ||
+      (is.symbol(head) &&
         identical(
           get0(as.character(head), envir = evalEnv, mode = "function"),
           forest
