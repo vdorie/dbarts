@@ -6213,6 +6213,15 @@ Not built.
 See also: [dec-B104], [dec-B474], [dec-B813], [dec-B613].
 Record: root TODO, hazard-keep-trees-default. Marked: ruled by the maintainer, 2026-11-11. [dec-B814]
 
+**A fit that keeps its trees stores its sampler state at the end of the fit, so a saved fit reloads whole**
+A fit that keeps its trees holds them in compiled memory behind a pointer; saveRDS keeps them only after fit$fit$storeState() copies the state into R, and a fit saved without it reloads but refuses predict, survivalProbabilities and warm starts, naming storeState(). 0.9-34 worked so and dec-B104 kept it, the stored state then put at about 2.8 times the training predictions. Since dec-B814 a default hazard fit keeps its trees, so more users meet it; two of dec-B814's three experts raised it. Measured at bart()'s defaults (scratch/haztrees/report.md): the stored state adds about 8 to 9 MB of file and 15 to 25 MB of memory and no measurable time, growing with draws x trees and not with rows, so the 2.8 holds only for fits of a few hundred rows (about half the training predictions at 1,000 rows, 5% at 10,000). Base R's fits, survival, ranger, randomForestSRC and BART all survive saveRDS. Shown: (a) the manual step as ruled; (b) a fit that keeps its trees stores its state at the end of the fit, recommended.
+The maintainer, 2026-11-11: "(b)"
+The rule: when bart() keeps a fit's trees, it stores the sampler state at the end of the fit, so the fit saved with saveRDS reloads whole; a user who runs the kept sampler further calls storeState() again before saving. Fits that keep no trees are unchanged. Revises dec-B104.
+The alternative was the documented manual storeState() step. The cost is about 8 to 9 MB of file and 15 to 25 MB of memory a fit that keeps its trees, and about 5 lines.
+Built (summary-prob-line branch).
+See also: [dec-B104], [dec-B814], [dec-B613].
+Record: root TODO, saved-fit-state-at-fit-end. Marked: ruled by the maintainer, 2026-11-11. [dec-B815]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
