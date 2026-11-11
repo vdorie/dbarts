@@ -1039,9 +1039,12 @@ effectCovariates <- function(reg, rep) {
     rows <- subsampleRows(4802L, reg$n, seedOf("S8-sub", rep))
     x <- acic2016Input()[rows, , drop = FALSE]
     rownames(x) <- NULL
+    # dgp_2016 has 100 parameter seeds; later replications reuse them on
+    # fresh subsamples and truths.
+    iteration <- (as.integer(rep) - 1L) %% 100L + 1L
     base <- list(
       x = x,
-      z = acic2016Surfaces(31L, rep)$z[rows],
+      z = acic2016Surfaces(31L, iteration)$z[rows],
       dataset = "acic2016",
       propKey = sprintf("S8-r%03d", as.integer(rep))
     )
