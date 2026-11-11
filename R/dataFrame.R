@@ -252,6 +252,9 @@ keepFrameInObject <- function(result, frame, build) {
     missing.seen = if (is.null(seen)) flags else flags | seen
   )
   build$nobs <- NROW(result@y)
+  build$nobs.likelihood <- sum(
+    rowsInLikelihood(result@weights, NULL, NROW(result@y))
+  )
   result@build <- build
   result@x <- frameStandIn("x")
   result@y <- frameStandIn("y")
@@ -377,9 +380,14 @@ resolveDataObject <- function(object) {
   object
 }
 
-## What a data object's rows number: every row in, whatever its weight.
+## What a data object's rows number: the rows in the likelihood, as lm counts
+## positive weights and as nobs() of a fit does.
 nobs.dbartsData <- function(object, ...) {
-  if (dataKeepsFrame(object)) object@build$nobs else NROW(object@y)
+  if (dataKeepsFrame(object)) {
+    object@build$nobs.likelihood
+  } else {
+    sum(rowsInLikelihood(object@weights, NULL, NROW(object@y)))
+  }
 }
 
 ## The model's variables over the rows in, as model.frame() of an lm fit has

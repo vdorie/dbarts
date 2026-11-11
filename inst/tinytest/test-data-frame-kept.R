@@ -215,7 +215,24 @@ expect_identical(nobs(oOff), nobs(fit))
 dz <- d
 dz$w[c(4L, 5L)] <- 0
 oZ <- suppressWarnings(dbartsData(y ~ x1 + x2, dz, weights = w))
-expect_identical(nobs(oZ), n)
+# the rows with a positive weight, as lm counts them (the data keep their NAs,
+# which lm drops, so the comparison is on complete data)
+expect_identical(nobs(oZ), n - 2L)
+dzc <- dz
+dzc$x1[3L] <- 0
+dzc$x2[9L] <- 0
+expect_identical(
+  nobs(suppressWarnings(dbartsData(y ~ x1 + x2, dzc, weights = w))),
+  nobs(lm(y ~ x1 + x2, dzc, weights = w))
+)
+# the same count where the block holds the data
+expect_identical(
+  nobs(suppressWarnings(
+    dbartsData(y ~ x1 + x2, dz, weights = w, keep.data = FALSE)
+  )),
+  n - 2L
+)
+rm(dzc)
 expect_identical(nobs(lm(y ~ x1 + x2, dz, weights = w)), n - 4L)
 
 # nobs() reads the count the build recorded and leaves the random-number
