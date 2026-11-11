@@ -114,7 +114,8 @@
             \code{offset} slots, which held the model matrix and the
             response in 0.9-34, no longer hold them:
             \code{model.frame(object)} returns the model's variables,
-            factors as factors, and \code{nobs(object)} counts the rows.
+            factors as factors, and \code{nobs(object)} counts the rows with
+            a positive weight.
             A forest given to \code{dbarts()} or \code{dbartsSpec()}
             beside a data object finds its basis in the frame.
             \code{keep.data = FALSE} keeps the matrix and the response in
