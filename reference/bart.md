@@ -1041,12 +1041,14 @@ nobs(object, ...)
   the response on the predictors and on each forest's basis (a factor's
   as the indicator of its second level), factors entering as indicator
   columns whatever the trees are given, and, where that regression
-  leaves no residual degrees of freedom, the standard deviation of the
-  response over the observations of positive weight, weighted as the
-  regression is (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)`
-  at unit weights; for weights read as counts, the standard deviation of
-  the rows written out), which a line under `verbose` and one in the
-  fit's `summary` say, with no warning. (Where rows are out and the
+  leaves no residual degrees of freedom, counting each row once, not as
+  often as its weight, under weights read as counts, the standard
+  deviation of the response over the observations of positive weight,
+  weighted as the regression is
+  (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
+  weights; for weights read as counts, the standard deviation of the
+  rows written out), which a line under `verbose` and one in the fit's
+  `summary` say, with no warning. (Where rows are out and the
   observations of positive weight hold fewer than two distinct values of
   the response, the regression is made on every row instead, under the
   warning of class `dbartsScaleFallbackWarning`.) `"auto"` is `lm`'s own
@@ -2546,7 +2548,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001473
+#> total seconds in loop: 0.001462
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 4 3 2 2 4 2 1 2 4 4 2 3 3 3 3 
@@ -2583,7 +2585,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000798
+#> total seconds in loop: 0.000741
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2618,7 +2620,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001114
+#> total seconds in loop: 0.001099
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 

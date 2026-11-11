@@ -572,9 +572,10 @@ dbarts(
   the linear regression of the response on the predictors and on each
   forest's basis (a factor's as the indicator of its second level),
   factors entering as indicator columns whatever the trees are given,
-  and, where that regression leaves no residual degrees of freedom, the
-  standard deviation of the response over the observations of positive
-  weight, weighted as the regression is
+  and, where that regression leaves no residual degrees of freedom,
+  counting each row once, not as often as its weight, under weights read
+  as counts, the standard deviation of the response over the
+  observations of positive weight, weighted as the regression is
   (`summary(lm(y ~ 1, weights = weights))$sigma`, `sd(y)` at unit
   weights; for weights read as counts, the standard deviation of the
   rows written out), which a line under `verbose` says, with no warning
