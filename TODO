@@ -298,13 +298,16 @@ items
     among the arguments it refuses as set by bcf() itself, though
     dbartsData() has no such argument; a user passing it is refused
     either way (found reviewing basis-references part 1). A text edit.
-  door-keeps-data-sigma: a door handed a sampler's data (dbarts(s$data,
-    forests = ), dbartsSpec(s$data)) estimates the starting sigma again
-    from those data, a regression whose last bit depends on the BLAS
-    kernel, so after a basis swap it differs from the swapped sampler's
-    by an ulp on some Linux builds (dec-A410, the D4 pin states sigest).
-    Whether such a door keeps the data's starting sigma instead moves
-    draws wherever data are refit after a swap. A decision first.
+  door-keeps-data-sigma: (dec-B777, which revises dec-B774) dbarts(),
+    bart(), dbartsSpec() and rbart_vi given any data object calibrate
+    the response-based priors, the range and sigma (the count center
+    and the survival range likewise), from the data given unless
+    sigest is stated; predictor-derived records (cut points,
+    standardization) stay as they are (dec-B231). A sampler's own
+    setters and xbart are unchanged. Built on the branch doors-1111
+    with the agent calls of dec-A437; a fit rebuilt from a sampler's
+    data no longer repeats the sampler's sigma to the bit. Not built
+    on main.
   hazard-basis-after-fit: under dec-B707 a hazard fit's basis has one
     value per subject, but predict() takes person-period rows, so its
     bases = is one value per period row, and survivalProbabilities(
@@ -332,13 +335,13 @@ items
     test.
   study-firming: every study whose result decides a default, a sampler
     change or a gate is brought, in time, to what published research
-    of its kind would do (dec-B637); k-move-pricing is the first. In
-    order:
+    of its kind would do (dec-B637); k-move-pricing is the first. The
+    first tier runs one study at a time against about 39 core-hours
+    (59 at most), the swap study done (dec-B770). In order:
     - drop of the swap move from the default mixture (dec-B02): rerun
-      at the defaults (75 trees, 4 chains, 20 or more seeds) with
-      rank-normalized bulk and tail effective draws, effective draws per
-      second, and coverage and length for f, before the release, since
-      NEWS says it "costs nothing measurable";
+      the comparison when a change that improves mixing lands, since
+      the measured effect (dec-B780) was taken with the mixing as it
+      is;
     - the logistic k default: reread the October study's stored fits,
       whose truths were probit surfaces; redesign the September rerun
       (dec-B390, dec-B634) on Chipman, George and McCulloch (2010)'s
@@ -570,8 +573,9 @@ items
     ruled the same day (dec-B441, dec-B444 to dec-B447) and is built in
     stan4bart. What remains is the per-chain data itself, whose stan4bart
     motivation is now one sampler for every chain (threads, not
-    processes) and a smaller saved fit. About 1260 lines planned, after
-    response-scale-rows.
+    processes); the saved-size motive is gone, the data being 0.28 of a
+    17.4 MB stan4bart fit, and the route is ruled (see threaded-chains).
+    About 1260 lines planned, after response-scale-rows.
   variance-forest-prior-calibration: a study (dec-B597, VD 2026-11-06;
     the dec-B559 standard for changing a default prior). A variance
     forest's per-tree priors match the written chisq(df, quantile)'s
@@ -994,10 +998,13 @@ items
     gaussian) and setActiveRows handing the redraw a zero fit (killer
     mask-redraw-exact.R quick probit). Both were run by hand at landing
     (docs/plans/empty-leaf-membership.md).
-  forest-size-reader: nothing reports a drawn forest's posterior size, the
-    median of its coefficient's size times the trees' scale; summary()
-    prints only the prior. An adviser on the shape of sd asked for a reader
-    and a line in summary(). Not ruled.
+  forest-size-reader: (dec-B773) summary()'s forest block, which
+    prints only the prior's stated sd, reports per forest the average
+    effect per unit of the basis and its spread across rows, each with
+    an interval, computed per draw and averaged last; the fit holds
+    each forest's per-row multiplier (forestFits times the glue equals
+    the predict difference), so no trees are replayed. A fit that kept
+    no forest fits omits the block. Not built.
   forest-prior-args: how a model of several forests is written, and
     what a forest's sd means. Written: each forest() is one function,
     the first included (dec-B268); a multiplier is the basis argument,
@@ -1082,7 +1089,7 @@ items
     (setmodel-parameters' slice 4). The creation summary of invchi(df, 0)
     still reads "chi ... inf scale".
   consumer-slot-writes: stan4bart (R/generics.R, R/stan4bart_fit.R, R/stan4bart.R) and bartCause
-    (R/responseFit.R) write a data object's slots before handing it on (x, x.test, sigma, n.cuts,
+    (R/responseFit.R) write a data object's slots before handing it on (x, x.test, n.cuts,
     useQuantiles). A data object's slots are read-only copies (dec-B554): move each to an accessor
     where one exists, and name what is missing. stan4bart's n.cuts and useQuantiles writes stay until
     its dbartsData call, built before bart_args is read, can take bart_args.
@@ -1502,69 +1509,6 @@ items
     intercept-only weighted regression", not "the weighted sd of the
     response" (at weights 100 the old words print ten times sd(y));
     the record and its attribute stand. R strings and their pins.
-  data-object-slice: (dec-B753 to dec-B757, dec-B760, dec-B761, and
-    the agent calls of dec-A376, dec-A378, dec-A370 and dec-B756) one
-    slice on the data object and a sampler's data. (1) A sampler's
-    data field stops on an outside write naming $setData, the roughly
-    12 internal sites writing dataHeld, the false code comment and the
-    setData help sentence corrected, test-data-frame-kept.R and
-    test-state-grid-install.R changed (dec-B753, call 15 of dec-A375).
-    (2) Functions from no package in the formula's response and
-    weights are held by value in frozenBuildEnvironment, a local
-    function's scope trimmed to the names it uses, package functions
-    by name; tests for a redefinition, an rm and a local 40 MB frame;
-    no draws move (dec-B754, call 4 of dec-A364). (3)
-    model.frame(s$data) rejoins a one-column matrix term under its own
-    name in the formula's column order, with a terms record from the
-    held terms so model.response() works; where a record proves
-    fragile without a formula (the matrix route, a hazard sampler's
-    period expansion) it is built without one and the help says so
-    (dec-B755, call 9 of dec-A369). (4) model.frame(o) keeps sparse
-    columns as stored, with poly() coefficients and a terms record, no
-    densification; agent call: a sampler's decoded frame keeps a
-    column sparse where the block holds it sparse (dec-B756, call 8 of
-    dec-A368). (5) Agent calls: the stand-in also stops mean, c, rep,
-    unique, as.numeric, as.double, cbind and rbind, the help naming
-    var(), sd() and paste() as reads R cannot stop (call 16 of
-    dec-A376); nobs() reads a row count recorded in the build record
-    and a test pins that it leaves the random-number stream alone
-    (call 18 of dec-A378); rows and rows.total typed integerOrNULL,
-    build listOrNULL, and a new characterOrNULL for frame.columns and
-    basis.written, the frame and the four stand-in slots staying ANY
-    (internal call 10 of dec-A370). (6) A frame-keeping object whose
-    build moves the generator holds the drawn values, as keep.data =
-    FALSE does; a term drawing from a generator outside R's stays as
-    built and the help says so (dec-B757). (7) A data object's kept
-    rows are read from the model frame through a row-number column
-    carried through subset and the na.action, with pins for an
-    na.action that leaves no note (dec-B760, internal call 5 of
-    dec-A365). (8) The environment mark is a declared slot beside
-    frame.columns and the response label is derived from the terms
-    record of (3), the response.label attribute removed, its readers
-    decodeBlockFrame and heldDataColumns reading the terms (dec-B761,
-    internal call 4 of dec-A382). Order: (3) before (8). Not built.
-  basis-slice-refusals-and-help: (dec-B752, dec-B758, dec-B759,
-    dec-B762, and the agent fix of dec-A388) a slice on how a basis is
-    named and refused. (1) A string basis passed through a wrapper's
-    dots is read where the wrapper's caller wrote it, under the
-    maintainer's condition: run the sibling usages (named-argument
-    wrappers, do.call, lapply and Map over strings, a wrapper that
-    sets its own basis, nested wrappers, the finished-call route)
-    before and after, and if any obvious usage changes or the change
-    grows past the existing writer-recovery walk plus about 10 lines,
-    stop and report for the global lookup with a help caveat
-    (dec-B758, call 11 of dec-A389). (2) predict's bases = a single
-    string is always a column name of newdata: the one-row level
-    fallback in predictBasisByName and the help's one-row sentence go,
-    a pin is added, and the typo message on a numeric forest reads
-    "names no column" (dec-B759, call 17 of dec-A395). (3) $setData on
-    a one-forest sampler takes the rows of a several-forest sampler's
-    data, bases and their records dropped, as dbarts(s2$data) does
-    (dec-B762, call 23 of dec-A401). (4) Agent fixes: the stale "is
-    refused" sentences in man/xbart.Rd (formula) and man/rbart.Rd
-    (...) (dec-B752, call 14 of dec-A392); the setter's refusal and
-    not-found messages worded in the setter's terms, not forest()'s
-    (call 10 of dec-A388). Not built.
   frame-object-single-copy: (dec-B754, option (c) of call 4 of
     dec-A364, not built) a formula-named workspace value is saved
     twice in a saved frame-keeping object (once in the held values,
@@ -1573,6 +1517,97 @@ items
     MB instead of 16.5. It touches the record predict reads. Build
     when saved data objects with workspace matrices turn out to be
     common. Not built.
+  mutation-fuzzer-completion-gap: tests/cpp's mutation fuzzer holds a
+    state read before a column's first missing value to installing
+    clean as the state the arrival left, but its samplers appear to
+    hold no recorded draws, so a mutant in the saved-draw completion
+    of Sampler::setState is caught only by the deterministic
+    missing-record test (a mutant in the live-tree completion is
+    caught at one seed in four configurations). Give a fuzz sampler
+    recorded draws before an arrival, and have the style notes of that
+    review (the epilogue of fuzzDrive as a lambda; the check covers
+    dense configurations only, sparse runs skipping it) read at the
+    same time. Gate-only, tests/cpp. Not built.
+  clang-warnings-main-build: a macOS clang build of main's tests/cpp
+    reports ten compiler warnings, all in main's code: missing-field
+    initializers of oldCodes and oldHasMissing in
+    src/bartcore/sampler.hpp (two sites, repeated in every translation
+    unit that includes it), set-but-unused variables lwz2 and rwz2 in
+    tests/cpp/test_scan.cpp, and an unused variable in
+    tests/cpp/test_sampler.cpp. Clear them: CRAN reads compiler
+    warnings and the C++ bar counts them. No draws move. Not built.
+  stan4bart-wide-prior-followups: two follow-ups of the wide-prior fix
+    on stan4bart main. (1) The Newton solve for a Student-t or Cauchy
+    coordinate's origin has no guard on its slope where the degrees of
+    freedom are below 0.4, below which the transform is no longer
+    increasing; guard it (a nit of the review, the solve converging in
+    at most 9 steps on every finite input tried). (2) normal(500, 2.5)
+    has a coordinate scale equal to the prior's, so the fix leaves it
+    as before, and it mixes worse than 0.0-13 did; the fix cannot
+    change it without moving the draws of narrow priors. Measure it
+    before deciding. Not built.
+  stan4bart-shrinkage-probit-scale-help: (item 3 of the shrinkage
+    dossier, dec-A436) the five new prior families (hs, hs_plus,
+    lasso, laplace, product_normal) read their scales with the
+    identity link under probit, as normal, student_t and cauchy do and
+    as 0.0-13 did, and the help gets one sentence saying stan4bart
+    does not apply rstanarm's probit factor, dnorm(0) / dlogis(0) =
+    1.596. Whether stan4bart should ever adopt the factor is a
+    separate default-prior question, which dec-B559 would want a study
+    for. Owed with the shrinkage priors; not built.
+  stan4bart-shrinkage-leapfrog-message: (item 5 of the shrinkage
+    dossier, dec-A436) the message print and summary give for many
+    leapfrog steps describes the geometry ("many steps per transition;
+    the posterior may be hard to sample") and no longer prescribes
+    more warmup, one threshold (30) for every family; the exact words,
+    and whether 30 stands, are decided once the shrinkage plan's
+    comparison records the mean steps per family under WALNUTS. Built
+    with the shrinkage priors. Not built.
+  stan4bart-shrinkage-qr-help: (item 6 of the shrinkage dossier,
+    dec-A436) the help says, in rstanarm's words, that under QR = TRUE
+    a prior applies to the rotated coefficients, so a shrinkage prior
+    no longer shrinks the user's coefficients one by one, and that QR
+    is advised only without informative priors; no warning, no
+    refusal. Open, not ruled: whether QR = TRUE with a prior that is
+    not a plain normal should warn. Owed with the shrinkage priors; not built.
+  stan4bart-shrinkage-hsplus-raw-rows: (item 7 of the shrinkage
+    dossier, dec-A436) the sampler draws two global scales for
+    hs_plus, so a save_raw_parameters fit stores global.1 and
+    global.2, not rstanarm's four (its model reads only the first
+    two); the help says "two global scales". Owed with the shrinkage priors; not built.
+  sigma-anchor-setters: (dec-B778, with dec-B777 and the agent calls
+    of dec-A437) setData with no carried scale record keeps the
+    sampler's own response scale as setResponse does, updateScale =
+    NULL then meaning keep and TRUE meaning derive; a carried record
+    is still used; cut points and standardization keep the NULL rule.
+    NEWS and a maintainer-notes line say it. After doors-1111, which
+    makes the new-fit doors calibrate the response-based priors from
+    the data given. Open, not ruled: a way to state a response range
+    on a data object, since none of the doors states one and a
+    hand-written slot is not a door (dec-B554). Not built.
+  threaded-chains: (dec-B779, dec-B781 to dec-B783) stan4bart's chains
+    run on threads before the release, as one dbarts sampler holding
+    every chain with a per-chain compiled hook on dbarts' worker
+    threads (named per-chain values and a dbarts.h surface); one
+    sampler per chain on stan4bart threads only where that cannot
+    serve, as treatSens with a BART treatment model. The cores default
+    is mc.cores when set, else the smaller of guessNumCores() and the
+    chains, bartCause's own parallel rule for stan4bart going, tests
+    and examples capping at 2, NEWS saying the default changed from
+    0.0-13. A user's R callback is evaluated on the main thread
+    between chunks, each chain's draws queued to it (about 120 lines);
+    a compiled callback, through Rcpp compiled from an R script if
+    that proves feasible, is its own stan4bart slice. rbart_vi keeps
+    its processes (dec-B785). Plan: the plan threaded-chains (on its
+    branch), then a blind critique. Not built.
+  per-chain-offsets-recorded: post-release enhancement (dec-B784):
+    per-chain offsets, and responses, recorded on a copy and in a
+    saved state, with an R door, setOffset(chain =), on the per-chain
+    buffers of the per-chain responses design note, section 2. A copy
+    or a saved state carries the sampler-wide offset until then; a
+    saved stan4bart fit needs nothing more, since it keeps each
+    chain's trees and every parametric draw. It serves R-level
+    multi-chain Gibbs loops, about 420 lines. Not built.
   sampler-core-and-capabilities: (dec-B763, Q1 of the C++ quality
     review) shrink SamplerBase to a core plus a queried capability
     object, then fold Sampler into it (Sampler final over the slimmer
@@ -1906,6 +1941,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     of each against the others' CRAN versions are expected to fail (VD
     2026-09-24: CRAN handles such sets routinely). bartCause is
     re-verified against the final header at the freeze.
+  maintainer notes and the submission note (dec-B751): dbarts 1.0-0
+    breaks stan4bart 0.0-13 and bartCause 1.0-10 on CRAN, because a
+    data object now keeps its frame; the three packages go in together
+    and the simultaneous submission covers it. Say so in both.
   DBARTS_REQUIRE_EXACT_ABI is already off stan4bart's and treatSens's
     compat branches (pure-c-header S2); nothing to drop at the merge.
   close GitHub issue #80 at release: the setResponse updateScale switch
