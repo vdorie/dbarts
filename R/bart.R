@@ -1089,7 +1089,7 @@ bart <- function(
   printEvery = 100L,
   printCutoffs = 0L,
   verbose = TRUE,
-  keepTrees = FALSE,
+  keepTrees = NULL,
   keepCall = TRUE,
   samplerOnly = FALSE,
   seed = NULL,
@@ -1377,6 +1377,15 @@ bart <- function(
     }
   }
 
+  # keepTrees = NULL, written or by default, is the family's own setting: a
+  # hazard fit's survival curves replay the saved trees. A written TRUE or
+  # FALSE stands, and the name is dropped from the matched call only when
+  # NULL, so the control merge below sees it as left out.
+  keepTreesDefault <- family %in% hazardFamilyTokens
+  if ("keepTrees" %in% names(matchedCall) && is.null(keepTrees)) {
+    matchedCall[["keepTrees"]] <- NULL
+  }
+
   # the retired names have left the matched call, and the family gating below
   # reads what the CALLER wrote
   argNames <- unique(c(names(matchedCall)[-1L], supplied))
@@ -1428,6 +1437,9 @@ bart <- function(
         defaultValues[["n.threads"]],
         TRUE
       )
+    }
+    if ("keepTrees" %in% missingDefaultArgs) {
+      defaultValues[["keepTrees"]] <- keepTreesDefault
     }
     controlCall[missingDefaultArgs] <- mergeFrontDoorControl(
       suppliedControl,

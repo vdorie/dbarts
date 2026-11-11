@@ -59,7 +59,7 @@ bart(
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
-    verbose = TRUE, keepTrees = FALSE,
+    verbose = TRUE, keepTrees = NULL,
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NULL,
     monotone = NULL,
@@ -369,7 +369,7 @@ bart(
      Logical; if \code{FALSE} suppress printing, including the one-line message \code{family = "auto"} prints naming the family it resolves to (a message of class \code{dbartsAutoFamilyMessage}).
    }
    \item{keepTrees}{
-     A fit saved to disk and reloaded needs its sampler's state stored first, with \code{fit$fit$storeState()}; \code{predict} on a fit reloaded without it refuses, naming \code{storeState()} (see \code{\link{bartBT}}'s \sQuote{Saving} section). Logical; must be \code{TRUE} in order to use \code{predict} with the result of a fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive. The kept sampler, \code{fit$fit}, is what \code{predict} at new data replays and what \code{print} reads its settings from (the tree count and \code{n.burn}); every other method, and \code{predict} with no \code{newdata}, reads the draws stored in the fit, and \code{print} counts those. Running the kept sampler further, or giving it another control, is not a supported use of the fit: \code{predict} at new data then replays the sampler's current trees, which mix the fit's draws with the new ones, while the other methods keep reading the fit's own.
+     A fit saved to disk and reloaded needs its sampler's state stored first, with \code{fit$fit$storeState()}; \code{predict} on a fit reloaded without it refuses, naming \code{storeState()} (see \code{\link{bartBT}}'s \sQuote{Saving} section). Logical; must be \code{TRUE} in order to use \code{predict} with the result of a fit. \code{NULL}, the default, keeps the trees on a hazard fit, whose survival curves need them, and not otherwise; \code{TRUE} or \code{FALSE} is taken as given, and \code{keepSampler} follows the resolved value. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive. The kept sampler, \code{fit$fit}, is what \code{predict} at new data replays and what \code{print} reads its settings from (the tree count and \code{n.burn}); every other method, and \code{predict} with no \code{newdata}, reads the draws stored in the fit, and \code{print} counts those. Running the kept sampler further, or giving it another control, is not a supported use of the fit: \code{predict} at new data then replays the sampler's current trees, which mix the fit's draws with the new ones, while the other methods keep reading the fit's own.
    }
    \item{keepCall}{
      Logical; if \code{FALSE}, the returned object has \code{call} set to \code{NULL}, as a base R fit without a call has, so \code{\link{update}} refuses it; otherwise the call used to instantiate BART.

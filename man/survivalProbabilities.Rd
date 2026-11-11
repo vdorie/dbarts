@@ -47,8 +47,9 @@ survivalProbabilities(object, ...)
     A fitted \code{bart} object from a survival model: an AFT
     model (its \code{family} element equals \code{"aft"}) or a discrete-time
     hazard model (it carries a \code{$periods} grid; its \code{family} records
-    the binary link). A hazard fit must have been made with
-    \code{keepTrees = TRUE}, except to read the test subjects a
+    the binary link). A hazard fit must have kept its trees, as
+    \code{\link{bart}} does for it by default (not with an explicit
+    \code{keepTrees = FALSE}), except to read the test subjects a
     \code{test} set that rode the fit call gave it (the matrix interface's
     own hazard \code{test} acceptance, person-period-expanded on the
     training grid): \code{sample = "test"} reads their stored draws and no
