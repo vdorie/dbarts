@@ -134,7 +134,9 @@ makeScenarios <- function() {
 
   # whole-data replacement mid-chain: burn in on one draw of the process,
   # setData to a larger draw (cuts rebuild, splits remap, arrays resize),
-  # then re-burn only briefly so the carried-over tree state matters
+  # then re-burn only briefly so the carried-over tree state matters.
+  # updateScale = TRUE derives the response scale again, as the baseline did;
+  # the default keeps the sampler's own
   set.seed(5108L)
   x <- matrix(runif(400L * 10L), 400L)
   x2 <- matrix(runif(500L * 10L), 500L)
@@ -144,7 +146,7 @@ makeScenarios <- function() {
     x.test = matrix(runif(n.test * 10L), n.test),
     binary = FALSE,
     samplerApi = TRUE,
-    setData = list(x = x2, y = friedman(x2) + rnorm(500L))
+    setData = list(x = x2, y = friedman(x2) + rnorm(500L), updateScale = TRUE)
   )
 
   # weights swapped and a test offset installed mid-chain: exercises the
@@ -806,17 +808,18 @@ makeScenarios <- function() {
     mutate = list(partial = list(index = 6L, values = runif(400L)))
   )
 
-  # a HETEROSCEDASTIC sampler taking the WHOLE-DATA replacement. setData is the
-  # one mutation conduit that re-anchors the response transform
-  # unconditionally - there is no updateScale to pin it with - so the variance
+  # a HETEROSCEDASTIC sampler taking the WHOLE-DATA replacement. setData
+  # re-anchors the response transform when asked with updateScale = TRUE (its
+  # default keeps the sampler's scale), and this scenario asks: the variance
   # forest's scale leaf is restated on the replacement's working scale and its
   # drawn surface carried into the same units; a swap left on the abandoned
   # scale moves every later variance draw, and the mean draws with it through
-  # the precision channel. The setdata scenario above is homoscedastic and the
-  # het scenarios above all mutate predictors, so this conduit had no coverage
-  # in this harness at all. The replacement's response range differs from the
-  # original's, which is what makes the re-anchor visible. binary = TRUE for
-  # hetforce's reason: sigma is structurally pinned under a variance forest.
+  # the precision channel. The setdata scenario above is homoscedastic and
+  # takes the default, and the het scenarios above all mutate predictors, so
+  # this conduit had no coverage in this harness at all. The replacement's
+  # response range differs from the original's, which is what makes the
+  # re-anchor visible. binary = TRUE for hetforce's reason: sigma is
+  # structurally pinned under a variance forest.
   set.seed(5150L)
   x <- matrix(runif(400L * 10L), 400L)
   x2 <- matrix(runif(500L * 10L), 500L)
@@ -829,7 +832,8 @@ makeScenarios <- function() {
     samplerArgs = list(variance = dbartsForests$varianceForest(n.trees = 40L)),
     setData = list(
       x = x2,
-      y = 1.5 * friedman(x2) + (0.5 + 2 * x2[, 6L]) * rnorm(500L)
+      y = 1.5 * friedman(x2) + (0.5 + 2 * x2[, 6L]) * rnorm(500L),
+      updateScale = TRUE
     )
   )
 
@@ -1561,11 +1565,17 @@ fitViaSamplerApi <- function(scenario) {
   testMid <- NULL
   r <- if (!is.null(scenario$setData)) {
     sampler$run(nskip, 0L)
-    sampler$setData(dbartsData(
+    # updateScale goes through only when the scenario names it, so a build
+    # whose setData lacks the argument still runs the scenarios that do not
+    setDataArgs <- list(dbartsData(
       scenario$setData$x,
       scenario$setData$y,
       test = scenario$x.test
     ))
+    if (!is.null(scenario$setData$updateScale)) {
+      setDataArgs$updateScale <- scenario$setData$updateScale
+    }
+    do.call(sampler$setData, setDataArgs)
     sampler$run(ceiling(nskip / 4), ndpost)
   } else if (!is.null(scenario$testSwap)) {
     # the test container is replaced mid-chain, once through each bridge
