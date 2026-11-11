@@ -1,0 +1,135 @@
+# Second screen of three stage-4 census entries after the seal (kmp-screen4)
+
+Rule read: docs/plans/k-move-pricing-datasets.md at 1fee76878 (worktree k-move-pricing), sections 1 to 4 and
+References only; format from k-move-pricing-seal/second-screen-census.txt. Not read: section 5 onward, the screen
+file, frame.csv, any other screen of these entries. No data file was downloaded and no outcome value was read.
+Sources fetched on 2026-11-11, saved under scratch/kmp-screen4/meta/: each entry's UCI page
+(https://archive.ics.uci.edu/dataset/<id>, page-<id>.html and .txt) and API record
+(https://archive.ics.uci.edu/api/dataset?id=<id>, api-<id>.json); the archived pre-2023 UCI pages (Wayback
+Machine, old-<id>.html and .txt); SECOM's donor file secom.names
+(https://archive.ics.uci.edu/ml/machine-learning-databases/secom/secom.names, documentation only); the DataCite
+records of the three DOIs (no rights field in any); UCI name searches (search-<term>.json). Paper fetched:
+Er, Tanrikulu and Abakay 2015 (scratch/papers/er_tanrikulu_abakay-2015.pdf). Entries screened in draw order, all
+three regardless of result. The license line on all three UCI pages, read 2026-11-11: "This dataset is licensed
+under a Creative Commons Attribution 4.0 International (CC BY 4.0) license", linked to
+https://creativecommons.org/licenses/by/4.0/legalcode.
+
+Readings: R1 to R4 of the sealed screen, now in the rule's text, applied as written (UCI is the originating
+repository for creator-deposited data; arithmetic on listed counts is a listed share; criterion 3 checked against
+the seen list and UCI name searches only, the frame not read). One new reading, S1, under SECOM.
+
+## 1. Mesothelioma's disease data set (frame 207, UCI 351) - FAIL (criterion 1; also 4)
+
+1. Outcome - FAIL. No default target: API target_col null, num_features 0, and all 34 rows of the variable table
+   have blank name, role and type; data_url null. The donors' list (variable_info, also the old page's "Attribute
+   Information") names 34 "features" with no target marked, among them several binary candidates: "dead or not",
+   "class of diagnosis", and others such as gender and cytology. The creators' paper (Er, Tanrikulu and Abakay
+   2015, Dicle Med J 42(1), 5-11, doi 10.5798/diclemedj.0921.2015.01.0520 on Crossref, the PDF header printing
+   ...0521) uses the same set ("The study included 324 patients"; "all samples have thirty four features") but
+   lists "class of diagnosis" among the 34 features, and its network has "thirty four inputs were features, and
+   eight outputs are index of eight classes (MPM type and phase)"; its abstract speaks of "deciding the healthy
+   and patient subjects" while its methods say "324 patients suffering from variety of MPM disease". So the binary
+   task, its outcome column and its coding are not defined by any source I could read: "several candidate targets
+   and no default". The paper UCI names as relevant and in its citation request is unread (paywalled, Unpaywall
+   oa_status closed): Er, O., Tanrikulu, A. C., Abakay, A. and Temurtas, F. (2012). An approach based on
+   probabilistic neural network for diagnosis of Mesothelioma's disease. Computers and Electrical Engineering
+   38(1), 75-81. DOI 10.1016/j.compeleceng.2011.09.001 (checked on Crossref); file name
+   er_tanrikulu_abakay_temurtas-2012.pdf. It may define the task; until read, the cell is unsettled and fails.
+2. Real data - PASS. Hospital reports of Dicle University Faculty of Medicine, 2010, read retrospectively (2015
+   paper, "Data source"); creators Tanrikulu (Dicle, chest diseases) and Er (Bozok).
+3. Provenance - PASS. Diyarbakir, Turkey; no seen dataset from Dicle or of mesothelioma. UCI searches
+   "mesothelioma" and "dicle" return this entry only and nothing. See R3.
+4. Size and share - FAIL. 324 rows (UCI; 2015 paper). No share is listed on the UCI page, the old page or the
+   2015 paper, and the target itself is unsettled (1); the 2012 paper is unread. Share not established.
+5. License and file - PASS, with a doubt. CC BY 4.0 (above), deposited by the creators (R2). DOI 10.24432/C5903T;
+   file https://archive.ics.uci.edu/static/public/351/mesothelioma+s+disease+data+set.zip holding
+   "Mesothelioma data set.xlsx" (70.7 KB). Row count 324 agrees with the 2015 paper. Doubt (5 and pre-fit): UCI
+   could not render the file's columns (blank variable table, no data.csv); an xlsx's sheet layout is
+   undocumented, so which sheet and which columns hold the 324 by 34 table is for the loader to settle.
+6. Feasibility - PASS. At most 34 columns; UCI feature type "Real", no donor types; numeric codes kept numeric
+   give 33 columns (34 less the target); no plausible coding nears 2,000.
+Pre-fit check (as far as readable): listing 324 rows, 34 listed columns, one stated count each; the 34 include
+whatever the target is, so 33 predictors if the target is one of them (the 2015 paper suggests the class is
+listed among the features); outcome column unsettled; types as the file's (no donor types); "has_missing_values:
+no"; no ID column listed. Leaks such as "diagnosis method" and "type of MM" against a diagnosis outcome are a
+dropped matter.
+
+## 2. SECOM (frame 211, UCI 179) - PASS (with reading S1)
+
+1. Outcome - PASS. Donors (UCI page and secom.names): "the labels represent a simple pass/fail yield for in house
+   line testing ... Where -1 corresponds to a pass and 1 corresponds to a fail". One label, the donors'; no
+   threshold or merge. API target_col null, but there is one candidate target, so "several candidate targets and
+   no default" does not apply. Predictors as the donors list them: "the dataset file SECOM consisting of 1567
+   examples each with 591 features"; Attribute Characteristics "Real"; Number of Attributes 591. The labels file
+   holds "the classifications and date time stamp for each example"; the time stamp is not among the 591 listed
+   features, so it is not a predictor (section 4 keeps the columns the source lists as predictors). Doubt: were
+   the time stamp kept as a predictor, as text it would be a factor of up to 1,567 levels, putting the columns
+   near or past 2,000 (6); as the donors list it, it is not one. Time order is a dropped matter.
+   Reading S1: the data are two files joined by row (features, then labels), not section 4's row concatenation of
+   several files; the donors state both files hold one line per example in the same order. I read the row-wise
+   join as the described data. Alternative: treat a two-file source of this shape as uncovered by section 4 and
+   fail it as a doubt on 5. Recommend the reading: the donors document the layout and no choice is made.
+2. Real data - PASS. "Data from a semi-conductor manufacturing process"; "each example represents a single
+   production entity with associated measured features"; donors Michael McCann and Adrian Johnston, named. No
+   originating paper ("Relevant Papers: N/A" on the old page).
+3. Provenance - PASS. No seen dataset is industrial. UCI searches "secom", "semiconductor" and "wafer" return
+   this entry, nothing and nothing. See R3. I could not check the TabArena curation record for a copy: the page as
+   fetched (tabarena.ai/dataset-curation) renders about 104 of its 991 rows, none naming SECOM, Vertebral Column
+   or Mesothelioma, which settles nothing.
+4. Size and share - PASS (by R4). 1567 rows (UCI, secom.names). Donors: "SECOM Dataset: 1567 examples 591
+   features, 104 fails"; minority 104/1567 = 0.066.
+5. License and file - PASS. CC BY 4.0 (above), deposited by the named donors (R2). DOI 10.24432/C54305; file
+   https://archive.ics.uci.edu/static/public/179/secom.zip holding secom.data (5.1 MB), secom_labels.data
+   (39.7 KB) and secom.names (4.1 KB); the API also names data_url
+   https://archive.ics.uci.edu/static/public/179/data.csv, UCI's own rendering, not the donors' files; I take the
+   zip's two donor files. 1567 rows in every source.
+6. Feasibility - PASS. 591 numeric columns, no factors: 591 <= 2,000 (fewer after dropping columns with no
+   observed value).
+Pre-fit check: listing 1567 rows and 591 predictors, one stated count each; outcome is the classification field of
+secom_labels.data, unnamed by the donors (no column name given anywhere I read); drop the time stamp; all
+predictors numeric ("Real"); missing values present, coded "NaN" (donors), kept per section 4; no per-column
+counts are listed to check against. Doubt (pre-fit only): the API's has_missing_values "no" contradicts the page,
+the old page and secom.names ("Missing Values? Yes"); the donors' statement governs.
+
+## 3. Vertebral Column, the two-class file (frame 222, UCI 212) - PASS
+
+1. Outcome - PASS. Donors (UCI page, also the archived page): "The data have been organized in two different but
+   related classification tasks ... For the second task, the categories Disk Hernia and Spondylolisthesis were
+   merged into a single category labelled as 'abnormal'. Thus, the second task consists in classifying patients
+   as belonging to one out of two categories: Normal (100 patients) or Abnormal (210 patients)", with the files
+   column_2C_weka.arff and column_2C.dat for it. The merge is the donors' own, shipped as its own file, not a
+   later curator's or this study's, so criterion 1's bar on merges does not reach it; the only binary task the
+   source defines is this one. Doubt considered: a reader could count the donors' merge as a threshold of a
+   multiclass target; I read the rule's "as the originating study or donor defined it" as admitting it.
+   Predictors as listed: six, "pelvic incidence, pelvic tilt, lumbar lordosis angle, sacral slope, pelvic radius
+   and grade of spondylolisthesis" (table names pelvic_incidence ... degree_spondylolisthesis), all Continuous;
+   target "class", labels "Normal (NO) and Abnormal (AB)".
+2. Real data - PASS. "Biomedical data set built by Dr. Henrique da Mota during a medical residence period in the
+   Group of Applied Research in Orthopaedics (GARO) of the Centre Medico-Chirurgical de Readaptation des Massues,
+   Lyon, France"; donors Barreto and Rocha Neto (Federal University of Ceara) with da Mota as source.
+3. Provenance - PASS. Lyon orthopedic patients; the seen spinal set, kyphosis (children after corrective spinal
+   surgery, rpart), is a different source. UCI searches "vertebral", "column" and "spine" return this entry only,
+   or nothing. The three-class file is the same source but not binary, so it is not a competing pool entry. See R3
+   (an OpenML or curation-record copy earlier in the frame was not checked).
+4. Size and share - PASS (by R4). 310 rows (UCI, both pages). Donors: Normal 100, Abnormal 210; minority
+   100/310 = 0.323.
+5. License and file - PASS. CC BY 4.0 (above), deposited by the creators Barreto and Neto (R2). DOI
+   10.24432/C5K89B; file https://archive.ics.uci.edu/static/public/212/vertebral+column.zip holding
+   column_2C_weka.arff (24.6 KB), column_2C.dat (11.5 KB) and the three-class pair. The two 2C files are one data
+   set in two formats, not several files to concatenate; I take column_2C_weka.arff, which names the columns, the
+   loader checking column_2C.dat against it. Not the API's data_url (static/public/212/data.csv), whose single
+   "class" column is not stated to be the two-class one. 310 rows in every source read.
+6. Feasibility - PASS. Six numeric columns.
+Pre-fit check: listing 310 rows and 6 predictors, one stated count each; outcome "class" (Normal, Abnormal); all
+predictors numeric (Continuous); no missing values ("has_missing_values: no"); no ID column.
+Unread, no cell resting on them (each settles nothing the donors' text does not): Rocha Neto, A. R. and Barreto,
+G. A. (2009), IEEE Latin America Transactions 7(4), 487-496, DOI 10.1109/TLA.2009.5349049, closed,
+rochaneto_barreto-2009.pdf; Rocha Neto, A. R., Sousa, R., Barreto, G. A. and Cardoso, J. S. (2011), IbPRIA 2011,
+LNCS 6669, 588-595, DOI 10.1007/978-3-642-21257-4_73, its INESC TEC repository copy restricted,
+rochaneto_sousa_barreto_cardoso-2011.pdf; Berthonnaud, E., Dimnet, J., Roussouly, P. and Labelle, H. (2005),
+J Spinal Disord Tech 18(1), 40-47, DOI 10.1097/01.bsd.0000117542.88865.77, closed,
+berthonnaud_dimnet_roussouly_labelle-2005.pdf.
+
+## Results
+
+Mesothelioma (207) FAIL, first at 1 (also 4); SECOM (211) PASS under S1; Vertebral Column two-class (222) PASS.
