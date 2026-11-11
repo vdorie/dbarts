@@ -34,15 +34,22 @@
 #   Rscript k-move-pricing.R ess <regime> <rep>
 #   Rscript k-move-pricing.R sbc pilot|run <prior> <regime> <rep>
 #   Rscript k-move-pricing.R stream <regime> <rep> default|dispersed <L>
-#   Rscript k-move-pricing.R r3 fingerprint <tag> | r3 check <a> <b> | r3 stream <key> <L>
+#   Rscript k-move-pricing.R r3 fingerprint <tag> | r3 check <ref> <b>... | r3 stream <key> <L>
 #   Rscript k-move-pricing.R reference run|extend|accept <cell> logistic 1 ...
 #   Rscript k-move-pricing.R guard standins|load <name>|scores|assign
 #   Rscript k-move-pricing.R guard design|pilot|more <name> | timing <name> <round>
 #   Rscript k-move-pricing.R guard fits <name> <from> <to> [tag] | read [no995] | heldout
 #   Rscript k-move-pricing.R step3 features|select [r3 size]|read|fresh
-#   Rscript k-move-pricing.R read step1pilot|step1 [build]|step2 <look>|convergence|ess|r3
+#   Rscript k-move-pricing.R read step1pilot|step1 [build [reps]]|step2 <look>
+#   Rscript k-move-pricing.R read convergence|ess|r3
 #   Rscript k-move-pricing.R check jobs|outputs <file> | conjugate|blind|eqtime
+#   Rscript k-move-pricing.R check scoring|libs|streams
 #   Rscript k-move-pricing.R jobs <phase> <file>
+# Phases, in order: timing; step1:pilot, step1:power (read before) step1:run;
+# step2:1, step2:2; ess; conv, conv:more, conv:long (each written after the
+# last is read); r3; guard:prefit, guard:refs, guard:fits; smoke.
+# Every library is built by k-move-pricing-install.sh, which stamps its
+# commit; every output records it with its shared object's md5 (libId).
 # A dataset's name in a command writes each space as %20. KMP_SMOKE=1 puts
 # three simulated stand-ins in the sealed list's place, written to
 # KMP_LOADER_SOURCE (the smoke reads no passer's file).
@@ -63,8 +70,8 @@ kmpScriptDir <- function() {
 }
 
 kmpBuild <- Sys.getenv("KMP_BUILD", Sys.getenv("KMN_BUILD"))
-if (!kmpBuild %in% c("shipped", "move", "mutant1", "mutant3", "")) {
-  stop("KMP_BUILD must be shipped, move, mutant1 or mutant3")
+if (!kmpBuild %in% c("shipped", "move", "mutant1", "mutant3", "kstudy", "")) {
+  stop("KMP_BUILD must be shipped, move, mutant1, mutant3 or kstudy")
 }
 local({
   map <- c(
@@ -78,7 +85,13 @@ local({
     }
   }
   if (nzchar(kmpBuild)) {
-    Sys.setenv(KMN_BUILD = if (kmpBuild == "shipped") "shipped" else "move")
+    Sys.setenv(
+      KMN_BUILD = if (kmpBuild %in% c("shipped", "kstudy")) {
+        "shipped"
+      } else {
+        "move"
+      }
+    )
   }
   tag <- Sys.getenv("KMP_SEED_TAG", "kmp")
   Sys.setenv(KMN_SEED_TAG = tag, KMN_HARNESS_DIR = kmpScriptDir())
@@ -86,6 +99,46 @@ local({
 source(file.path(kmpScriptDir(), "binary-k-mixing-need.R"))
 if (!requireNamespace("posterior", quietly = TRUE)) {
   stop("the posterior package is needed")
+}
+
+kmpSmoke <- nzchar(Sys.getenv("KMP_SMOKE"))
+# A fixed r replaces the measured one in equalTimeDraws and in the
+# equal-time check alike, so the check could not see it: only the smoke may
+# set it, and every output records it.
+if (nzchar(Sys.getenv("KMN_FIXED_R")) && !kmpSmoke) {
+  stop("KMN_FIXED_R is refused outside the smoke (KMP_SMOKE=1)")
+}
+
+# The library a process runs: the build's name and commit that
+# k-move-pricing-install.sh wrote into it, and the md5 of its shared object.
+libId <- local({
+  id <- NULL
+  function() {
+    if (is.null(id)) {
+      pkg <- find.package("dbarts")
+      dcf <- file.path(pkg, "kmp-build.dcf")
+      so <- Sys.glob(file.path(pkg, "libs", "dbarts.*"))
+      info <- if (file.exists(dcf)) read.dcf(dcf)[1L, ] else NULL
+      id <<- c(
+        build = kmpBuild,
+        stamped = if (is.null(info)) NA_character_ else unname(info[["Build"]]),
+        commit = if (is.null(info)) NA_character_ else unname(info[["Commit"]]),
+        patch = if (is.null(info)) NA_character_ else unname(info[["Patch"]]),
+        so = if (length(so)) unname(tools::md5sum(so[1L])) else NA_character_,
+        fixedR = Sys.getenv("KMN_FIXED_R")
+      )
+    }
+    id
+  }
+})
+
+# Every output that carries the quick flag carries the library's identity.
+kstudySaveAtomic <- saveAtomic
+saveAtomic <- function(object, path) {
+  if (is.list(object) && !is.data.frame(object) && !is.null(object$quick)) {
+    object$libId <- libId()
+  }
+  kstudySaveAtomic(object, path)
 }
 
 kmpLink <- "logistic"
@@ -550,8 +603,9 @@ kMixing <- function(k) {
 
 readingOf <- function(res, design, idx) {
   L <- poolDraws(res$arr, idx)
+  cl <- classesFrom(L, design, kmpLink)
   list(
-    summary = summarizeAll(classesFrom(L, design, kmpLink)),
+    summary = withProbMeans(summarizeAll(cl), cl),
     mixing = kMixing(if (is.null(res$k)) NULL else res$k[idx, , drop = FALSE]),
     draws = length(idx),
     maxAbsLatent = max(abs(L))
@@ -626,9 +680,34 @@ pricingLabels <- function(shipped, move) {
     plogis((a$hi + b$hi) / 2) <= interiorRange[2L]
 }
 
+# The posterior mean of the probability beside a latent row class's
+# summary (pmean), which the probability-scale errors read.
+withProbMeans <- function(summary, classes) {
+  for (nm in names(summary)) {
+    if (isTRUE(classInfo[[nm]]$latent) && ncol(classes[[nm]]) > 0L) {
+      summary[[nm]]$pmean <- colMeans(plogis(classes[[nm]]))
+    }
+  }
+  summary
+}
+
+# relabel keeping each column's probability mean.
+relabelP <- function(summary, labels) {
+  pm <- summary$fInt$pmean
+  out <- relabel(summary, labels)
+  if (!is.null(pm) && !is.null(out$fInt)) {
+    out$fInt$pmean <- pm[labels]
+    out$fTail$pmean <- pm[!labels]
+  }
+  out
+}
+
 # Per class: coverage counts at 90 percent, the squared error and the signed
-# error of the posterior mean, the interval's width and its interval score,
-# all on the scale the class is summarized on (latent for the row classes).
+# error of the posterior mean, the interval's width and its interval score on
+# the scale the class is summarized on (latent for the row classes), and the
+# same on the probability scale (sqP, errP, widthP, is90P: the posterior
+# mean of the probability, the interval's ends transformed), which rule 2's
+# ratio bar reads, as the k study scored them.
 pricingCoverage <- function(summary, truth) {
   out <- list()
   for (nm in intersect(names(summary), names(truth))) {
@@ -640,17 +719,40 @@ pricingCoverage <- function(summary, truth) {
       next
     }
     if (length(t) == 0L) {
-      out[[nm]] <- c(n = 0, cov90 = 0, sq = 0, err = 0, width = 0, is90 = 0)
+      out[[nm]] <- c(
+        n = 0,
+        cov90 = 0,
+        sq = 0,
+        err = 0,
+        width = 0,
+        is90 = 0,
+        sqP = 0,
+        errP = 0,
+        widthP = 0,
+        is90P = 0
+      )
       next
     }
     i90 <- intervalOf(s, 0.9)
+    latent <- isTRUE(classInfo[[nm]]$latent)
+    pm <- if (latent) s$pmean else s$mean
+    tp <- if (latent) plogis(t) else t
+    loP <- if (latent) plogis(i90$lo) else i90$lo
+    hiP <- if (latent) plogis(i90$hi) else i90$hi
+    if (is.null(pm)) {
+      pm <- rep(NA_real_, length(t))
+    }
     out[[nm]] <- c(
       n = length(t),
       cov90 = sum(i90$lo <= t & t <= i90$hi),
       sq = sum((s$mean - t)^2),
       err = sum(s$mean - t),
       width = sum(i90$hi - i90$lo),
-      is90 = sum(intervalScore(i90$lo, i90$hi, t, 0.9))
+      is90 = sum(intervalScore(i90$lo, i90$hi, t, 0.9)),
+      sqP = sum((pm - tp)^2),
+      errP = sum(pm - tp),
+      widthP = sum(hiP - loP),
+      is90P = sum(intervalScore(loP, hiP, tp, 0.9))
     )
   }
   out
@@ -669,7 +771,7 @@ runStep2Score <- function(cell, rep) {
   read1 <- function(fit, r) {
     s <- fit$readings[[r]]$summary
     if (!is.null(labels)) {
-      s <- relabel(s, labels)
+      s <- relabelP(s, labels)
     }
     pricingCoverage(s, truth)
   }
@@ -764,14 +866,11 @@ step1Cutoffs <- list(
   tilted = c(0.02, 0.05),
   third = c(0.2, 0.5)
 )
+# Replications a regime: the pilot 20, the power run 50 (150 a prior), the
+# main run 200 (600 a prior).
 step1Reps <- function(phase) {
-  if (phase == "pilot") {
-    if (quick) 2L else 20L
-  } else if (quick) {
-    4L
-  } else {
-    600L
-  }
+  n <- c(pilot = 20L, power = 50L, run = 200L)[[phase]]
+  if (quick) max(2L, n %/% 20L) else n
 }
 step1PilotLength <- function() tenth(20000)
 
@@ -871,7 +970,8 @@ runStep1 <- function(phase, prior, regimeId, rep) {
     st <- step1Settings(prior)
     burn <- st$burn
     thin <- st$thin
-    draws <- step1Draws
+    # bart()'s n.samples is the sweeps recorded before thinning
+    draws <- step1Draws * thin
   }
   s <- bart(
     y ~ .,
@@ -891,6 +991,9 @@ runStep1 <- function(phase, prior, regimeId, rep) {
   s$setLeafPrior(leafPriorAt(scale))
   seconds <- system.time(r <- s$run())[["elapsed"]]
   k <- as.numeric(r$k)
+  if (phase != "pilot" && length(k) != step1Draws) {
+    stop("step 1 kept ", length(k), " draws, not ", step1Draws)
+  }
   fun <- cbind(
     k = k,
     meanFit = colMeans(r$train),
@@ -943,17 +1046,34 @@ runStep1 <- function(phase, prior, regimeId, rep) {
       0
     )
     names(out$smallK) <- format(cut)
-    # rows near 0 or 1 by the fit's own draws, covered by its 5th to 95th
-    P <- plogis(r$train)
-    lo <- apply(r$train, 1L, stats::quantile, 0.05, names = FALSE)
-    hi <- apply(r$train, 1L, stats::quantile, 0.95, names = FALSE)
+    # rows near 0 or 1 by the fit's own draws, covered by the interval
+    # between the 5th and 95th of the 99 draws (order statistics, the
+    # plan's interval and its target's); the near-end rows' effective-draw
+    # ratio sets the target
+    ends <- apply(r$train, 1L, function(v) sort.int(v)[c(5L, 95L)])
+    lo <- ends[1L, ]
+    hi <- ends[2L, ]
     nearEnd <- !(plogis(lo) >= interiorRange[1L] &
       plogis(hi) <= interiorRange[2L])
     out$tailCover <- c(
       n = sum(nearEnd),
       covered = sum((lo <= d$truth$f & d$truth$f <= hi)[nearEnd])
     )
-    out$draws <- ncol(P)
+    out$tailRho <- if (any(nearEnd)) {
+      mean(vapply(
+        which(nearEnd),
+        function(i) {
+          min(
+            1,
+            posterior::ess_bulk(matrix(r$train[i, ], ncol = 1L)) / step1Draws
+          )
+        },
+        0
+      ))
+    } else {
+      NA_real_
+    }
+    out$draws <- ncol(r$train)
   }
   saveAtomic(out, step1Path(phase, prior, regimeId, rep))
   cat(sprintf(
@@ -1004,6 +1124,11 @@ readStep1Pilot <- function() {
     )
   }
   third <- !is.null(report$tilted) && report$tilted$shareDeterministic > 0.5
+  if (third) {
+    # the contingent arm's jobs wait for this file
+    ensureDir(runDir("step1"))
+    writeLines("third arm on", runDir("step1", "third-go"))
+  }
   out <- list(
     settings = settings,
     report = report,
@@ -1023,14 +1148,24 @@ readStep1Pilot <- function() {
 # effective-draw ratio; every draw finite. The early look at 150 a prior goes
 # to the confirming rerun on a p below alpha / 10.
 step1Target <- function(rho) {
-  # the 5th to 95th of 99 draws of an AR(1) chain at effective ratio rho
-  # (the plan's figures: 0.898 independent, 0.8945 at 0.5, 0.885 at 0.25)
-  approx(
-    c(0.25, 0.5, 1),
-    c(0.885, 0.8945, 0.898),
-    xout = min(max(rho, 0.25), 1),
-    rule = 2
-  )$y
+  # coverage, for an exact sampler, of the interval between the 5th and 95th
+  # of 99 draws of a stationary AR(1) chain whose effective-draw ratio
+  # (1 - phi) / (1 + phi) is rho, the truth an independent draw (the plan's
+  # 0.898 independent, about 0.8945 at 0.5 and 0.885 at 0.25)
+  rho <- min(max(rho, 0.01), 1)
+  phi <- (1 - rho) / (1 + rho)
+  B <- if (quick) 20000L else 200000L
+  withSeed(seedOf("step1-target", round(rho, 4)), {
+    x <- matrix(0, step1Draws, B)
+    x[1L, ] <- rnorm(B)
+    e <- sqrt(1 - phi^2)
+    for (t in 2:step1Draws) {
+      x[t, ] <- phi * x[t - 1L, ] + e * rnorm(B)
+    }
+    truth <- rnorm(B)
+    ends <- apply(x, 2L, function(v) sort.int(v)[c(5L, 95L)])
+    mean(ends[1L, ] <= truth & truth <= ends[2L, ])
+  })
 }
 
 sbcEnv <- new.env()
@@ -1041,6 +1176,9 @@ sbcRankUniformity <- function(...) {
   sbcEnv$rankUniformity(...)
 }
 
+# A mutant's power run reads rule 1 on the tilted prior only, at the main
+# run's alpha; `reps` keeps the first replications of each regime (50 for
+# the early look at 150 a prior).
 readStep1 <- function(build = "move", reps = NA_integer_) {
   pilot <- readChecked(runDir("step1", "settings.rds"))
   priors <- names(step1Priors)
@@ -1049,6 +1187,10 @@ readStep1 <- function(build = "move", reps = NA_integer_) {
   }
   # two rank tests on each of four functionals a prior
   alpha <- 0.05 / (8L * length(priors))
+  mutant <- build %in% c("mutant1", "mutant3")
+  if (mutant) {
+    priors <- "tilted"
+  }
   rows <- list()
   verdict <- list()
   for (prior in priors) {
@@ -1082,17 +1224,49 @@ readStep1 <- function(build = "move", reps = NA_integer_) {
     })
     se <- apply(matrix(boot, nrow = ncol(sk)), 1L, stats::sd)
     tc <- do.call(rbind, lapply(p, `[[`, "tailCover"))
-    rho <- stats::median(vapply(p, function(x) min(x$essRatio), 0))
+    draws <- vapply(p, `[[`, 0L, "draws")
+    if (any(draws != step1Draws)) {
+      stop("step 1 replications hold other than ", step1Draws, " draws")
+    }
     nTail <- sum(tc[, "n"])
     covTail <- if (nTail > 0) sum(tc[, "covered"]) / nTail else NA_real_
-    target <- step1Target(rho)
-    seTail <- if (nTail > 0) sqrt(target * (1 - target) / nTail) else NA_real_
+    # the near-end rows' effective-draw ratio, weighted by their count
+    tr <- vapply(
+      p,
+      function(x) if (is.null(x$tailRho)) NA_real_ else x$tailRho,
+      0
+    )
+    rho <- if (nTail > 0) {
+      stats::weighted.mean(tr, tc[, "n"], na.rm = TRUE)
+    } else {
+      NA_real_
+    }
+    target <- if (is.finite(rho)) step1Target(rho) else NA_real_
+    # its standard error by a bootstrap over replications, rows of one fit
+    # resampled together
+    seTail <- if (nTail > 0) {
+      bt <- withSeed(seedOf("step1-tail-boot", prior), {
+        replicate(bootstrapResamples, {
+          i <- sample.int(nrow(tc), replace = TRUE)
+          if (sum(tc[i, "n"]) > 0) {
+            sum(tc[i, "covered"]) / sum(tc[i, "n"])
+          } else {
+            NA_real_
+          }
+        })
+      })
+      stats::sd(bt, na.rm = TRUE)
+    } else {
+      NA_real_
+    }
     verdict[[prior]] <- list(
       smallK = colMeans(sk),
       smallKSe = se,
       smallKPass = all(abs(colMeans(sk)) <= 3 * se),
       tailCoverage = covTail,
       tailTarget = target,
+      tailRho = rho,
+      tailSe = seTail,
       tailN = nTail,
       tailPass = is.na(covTail) || abs(covTail - target) <= 3.29 * seTail,
       allFinite = all(vapply(p, `[[`, NA, "finite")),
@@ -1100,6 +1274,26 @@ readStep1 <- function(build = "move", reps = NA_integer_) {
     )
   }
   ranksTab <- do.call(rbind, rows)
+  if (mutant) {
+    # the power check: the mutant must flag under rule 1
+    out <- list(
+      build = build,
+      alpha = alpha,
+      ranks = ranksTab,
+      flagged = any(ranksTab$flag),
+      reps = reps,
+      quick = quick
+    )
+    saveAtomic(out, runDir("readings", sprintf("step1-%s.rds", build)))
+    print(ranksTab, row.names = FALSE)
+    cat(
+      "step 1 power:",
+      build,
+      if (out$flagged) "flagged" else "NOT flagged",
+      "\n"
+    )
+    return(invisible(out))
+  }
   pass <- !any(ranksTab$flag) &&
     all(vapply(
       verdict,
@@ -1114,7 +1308,17 @@ readStep1 <- function(build = "move", reps = NA_integer_) {
     pass = pass,
     quick = quick
   )
-  saveAtomic(out, runDir("readings", sprintf("step1-%s.rds", build)))
+  saveAtomic(
+    out,
+    runDir(
+      "readings",
+      if (is.finite(reps)) {
+        sprintf("step1-%s-first%d.rds", build, as.integer(reps))
+      } else {
+        sprintf("step1-%s.rds", build)
+      }
+    )
+  )
   print(ranksTab, row.names = FALSE)
   str(verdict)
   cat("step 1", build, if (pass) "PASS" else "FLAG", "\n")
@@ -1225,10 +1429,42 @@ classReading <- function(sc, cl, idx) {
   }
   tab <- do.call(rbind, rows)
   if (!band) {
-    sqM <- get1(armM, "sq")[ok]
-    sqS <- get1(armS, "sq")[ok]
-    isM <- get1(armM, "is90")[ok]
-    isS <- get1(armS, "is90")[ok]
+    # the bar on the probability scale; the latent scale reported beside
+    ratioOn <- function(fsq, fis) {
+      sM <- get1(armM, fsq)[ok]
+      sS <- get1(armS, fsq)[ok]
+      iM <- get1(armM, fis)[ok]
+      iS <- get1(armS, fis)[ok]
+      rm <- function(i) {
+        sqrt(sum(sM[i]) / sum(n[i])) / sqrt(sum(sS[i]) / sum(n[i]))
+      }
+      ir <- function(i) sum(iM[i]) / sum(iS[i])
+      list(
+        rmse = rm(seq_len(reps)),
+        rmseUpper = stats::quantile(
+          vapply(idx, rm, 0),
+          0.975,
+          na.rm = TRUE,
+          names = FALSE
+        ),
+        is = ir(seq_len(reps)),
+        isUpper = stats::quantile(
+          vapply(idx, ir, 0),
+          0.975,
+          na.rm = TRUE,
+          names = FALSE
+        )
+      )
+    }
+    lat <- ratioOn("sq", "is90")
+    tab$rmseRatioLatent <- lat$rmse
+    tab$rmseRatioLatentUpper <- lat$rmseUpper
+    tab$isRatioLatent <- lat$is
+    tab$isRatioLatentUpper <- lat$isUpper
+    sqM <- get1(armM, "sqP")[ok]
+    sqS <- get1(armS, "sqP")[ok]
+    isM <- get1(armM, "is90P")[ok]
+    isS <- get1(armS, "is90P")[ok]
     rmse <- function(i) {
       sqrt(sum(sqM[i]) / sum(n[i])) / sqrt(sum(sqS[i]) / sum(n[i]))
     }
@@ -1246,12 +1482,14 @@ classReading <- function(sc, cl, idx) {
     tab$isRatioUpper <- stats::quantile(bI, 0.975, na.rm = TRUE, names = FALSE)
     tab$ratiosHarmless <- tab$rmseRatioUpper < ratioBar &
       tab$isRatioUpper < ratioBar
-    tab$biasMove <- sum(get1(armM, "err")[ok]) / sum(n)
-    tab$biasShipped <- sum(get1(armS, "err")[ok]) / sum(n)
-    tab$widthMove <- sum(get1(armM, "width")[ok]) / sum(n)
-    tab$widthShipped <- sum(get1(armS, "width")[ok]) / sum(n)
+    tab$biasMove <- sum(get1(armM, "errP")[ok]) / sum(n)
+    tab$biasShipped <- sum(get1(armS, "errP")[ok]) / sum(n)
+    tab$widthMove <- sum(get1(armM, "widthP")[ok]) / sum(n)
+    tab$widthShipped <- sum(get1(armS, "widthP")[ok]) / sum(n)
     tab$rmseMove <- sqrt(sum(sqM) / sum(n))
     tab$rmseShipped <- sqrt(sum(sqS) / sum(n))
+    tab$rmseMoveLatent <- sqrt(sum(get1(armM, "sq")[ok]) / sum(n))
+    tab$rmseShippedLatent <- sqrt(sum(get1(armS, "sq")[ok]) / sum(n))
   }
   tab
 }
@@ -1366,6 +1604,17 @@ readStep2 <- function(look) {
   harmA <- any(tab$set == "A" & tab$status == "harm shown")
   harmB <- any(tab$set == "B" & tab$status == "harm shown")
   unresolved <- unique(paste(tab$regime, tab$class)[tab$status == "unresolved"])
+  # the real-data guard is one more class of rule 2: unresolved until its
+  # reading says harmless (a harm it shows stands only once confirmed)
+  guardFile <- runDir("readings", "guard.rds")
+  guardVerdict <- if (file.exists(guardFile)) {
+    readChecked(guardFile)$verdict
+  } else {
+    "not read"
+  }
+  if (!identical(guardVerdict, "harmless")) {
+    unresolved <- c(unresolved, paste0("R2 guard (", guardVerdict, ")"))
+  }
   timing <- if (file.exists(timingFile())) readRDS(timingFile()) else NULL
   costCell <- !is.null(timing) && any(timing$costBarExceeded, na.rm = TRUE)
   costTooHigh <- (harmB && !harmA && gainMet) || costCell
@@ -1378,6 +1627,14 @@ readStep2 <- function(look) {
   } else {
     "the move on for every logistic fit it reaches"
   }
+  # a harm frames only once confirmed on fresh seeds (a rerun in a run
+  # directory of its own); until then the framing it leads to is preliminary
+  if (harmA || harmB) {
+    framing <- paste0(
+      "preliminary (a harm shown, not yet confirmed on fresh seeds): ",
+      framing
+    )
+  }
   res <- list(
     look = look,
     table = tab,
@@ -1388,6 +1645,7 @@ readStep2 <- function(look) {
     costCell = costCell,
     costTooHigh = costTooHigh,
     unresolved = unresolved,
+    guardVerdict = guardVerdict,
     framing = framing,
     status = status,
     quick = quick
@@ -1614,6 +1872,156 @@ mixingAt <- function(m) {
   )
 }
 
+# The scorer of one fit at one length as first written: the pooled draws of
+# the prefix, its classes, their summaries (kept for the equality check).
+streamSummaryAt <- function(arr, bl, labels, L) {
+  Ld <- poolDraws(arr, seq_len(L))
+  cl <- classesFrom(Ld, bl, kmpLink)
+  if (L < convBandFrom()) {
+    cl <- cl[setdiff(names(cl), bandClasses)]
+  }
+  summ <- withProbMeans(summarizeAll(cl), cl)
+  if (!is.null(labels)) {
+    summ <- relabelP(summ, labels)
+  }
+  summ
+}
+
+# The same summaries at every length from one pass: every class is a
+# per-draw function of the latent draws and a prefix's pooled draws are rows
+# of the longest's in the same chain-major order, so the classes are built
+# once and sliced; each column is ordered once and a prefix's order is the
+# longest's restricted to the prefix's rows (ties keep their row order, as
+# order() does). The quantiles are R's type 7, computed as quantile.default
+# computes them, and the bands from the ranks as summarizeDraws forms them,
+# so every summary is bit-identical to streamSummaryAt's.
+streamSummaries <- function(arr, bl, labels, lengths) {
+  nChains <- dim(arr)[1L]
+  Lmax <- max(lengths)
+  clAll <- classesFrom(poolDraws(arr, seq_len(Lmax)), bl, kmpLink)
+  sweepOf <- rep.int(seq_len(Lmax), nChains)
+  ords <- lapply(clAll, function(Q) {
+    if (ncol(Q) == 0L) {
+      return(NULL)
+    }
+    o <- apply(Q, 2L, order)
+    if (!is.matrix(o)) matrix(o, nrow(Q), ncol(Q)) else o
+  })
+  lapply(lengths, function(L) {
+    keep <- sweepOf <= L
+    rows <- which(keep)
+    localOf <- integer(length(keep))
+    localOf[rows] <- seq_along(rows)
+    names1 <- names(clAll)
+    if (L < convBandFrom()) {
+      names1 <- setdiff(names1, bandClasses)
+    }
+    summ <- lapply(names1, function(nm) {
+      prefixSummary(clAll[[nm]], nm, rows, keep, localOf, ords[[nm]])
+    })
+    names(summ) <- names1
+    for (nm in c("fInt", "fTail")) {
+      if (!is.null(summ[[nm]])) {
+        summ[[nm]]$cols <- attr(clAll[[nm]], "cols")
+      }
+    }
+    for (nm in names1) {
+      if (isTRUE(classInfo[[nm]]$latent) && ncol(clAll[[nm]]) > 0L) {
+        summ[[nm]]$pmean <- colMeans(plogis(clAll[[nm]][rows, , drop = FALSE]))
+      }
+    }
+    if (!is.null(labels)) {
+      summ <- relabelP(summ, labels)
+    }
+    summ
+  })
+}
+
+# summarizeClass on the prefix rows of Q, given Q's column orders.
+prefixSummary <- function(Qall, name, rows, keep, localOf, ordAll) {
+  info <- classInfo[[name]]
+  Q <- Qall[rows, , drop = FALSE]
+  S <- nrow(Q)
+  m <- ncol(Q)
+  if (m == 0L) {
+    return(list(
+      q = matrix(0, length(probsKept), 0L),
+      mean = numeric(),
+      sd = numeric(),
+      S = S
+    ))
+  }
+  o <- matrix(localOf[ordAll[keep[ordAll]]], S, m)
+  col <- rep(seq_len(m), each = S)
+  sorted <- matrix(Q[cbind(as.vector(o), col)], S, m)
+  index <- 1 + max(S - 1L, 0) * probsKept
+  lo <- floor(index)
+  hi <- ceiling(index)
+  qs <- sorted[lo, , drop = FALSE]
+  xh <- sorted[hi, , drop = FALSE]
+  h <- matrix(index - lo, length(probsKept), m)
+  i <- which((index > lo) & (xh != qs))
+  qs[i] <- (1 - h[i]) * qs[i] + h[i] * xh[i]
+  if (!is.null(colnames(Q))) {
+    dimnames(qs) <- list(NULL, colnames(Q))
+  }
+  out <- list(
+    q = qs,
+    mean = colMeans(Q),
+    sd = apply(Q, 2L, stats::sd),
+    S = S
+  )
+  if (isTRUE(info$band)) {
+    out$bands <- prefixBands(sorted, o, name)
+  }
+  out
+}
+
+# summarizeDraws' simultaneous bands (and per-unit bands for bandUnit)
+# from a prefix's sorted columns and their orders.
+prefixBands <- function(sorted, o, name) {
+  S <- nrow(sorted)
+  m <- ncol(sorted)
+  levels <- c(0.9, 0.95)
+  tail <- min(S, ceiling(0.06 * S) + 2L)
+  ranks <- matrix(0L, S, m)
+  ranks[cbind(as.vector(o), rep(seq_len(m), each = S))] <- rep.int(
+    seq_len(S),
+    m
+  )
+  ext <- pmax(ranks, S + 1L - ranks)
+  if (name == "bandUnit") {
+    groupSize <- 6L
+    units <- m %/% groupSize
+    ext3 <- array(ext, c(S, groupSize, units))
+    eg <- ext3[, 1L, ]
+    for (k in seq_len(groupSize)[-1L]) {
+      eg <- pmax(eg, ext3[, k, ])
+    }
+    eg <- matrix(eg, S, units)
+    bands <- lapply(levels, function(l) {
+      pos <- ceiling(l * S)
+      kStar <- apply(eg, 2L, function(v) sort.int(v, partial = pos)[pos])
+      kCol <- rep(kStar, each = groupSize)
+      list(
+        lo = sorted[cbind(S + 1L - kCol, seq_len(m))],
+        hi = sorted[cbind(kCol, seq_len(m))]
+      )
+    })
+  } else {
+    extreme <- ext[cbind(seq_len(S), max.col(ext, "first"))]
+    bands <- lapply(levels, function(l) {
+      kStar <- sort.int(extreme)[ceiling(l * S)]
+      if (S + 1L - kStar > tail) {
+        stop("band level outside the stored tails")
+      }
+      list(lo = sorted[S + 1L - kStar, ], hi = sorted[kStar, ])
+    })
+  }
+  names(bands) <- c("0.9", "0.95")
+  bands
+}
+
 runStream <- function(cell, rep, start, Lmax) {
   if (!kmpBuild %in% c("shipped", "move")) {
     stop("a stream belongs to the shipped or the move build")
@@ -1632,6 +2040,7 @@ runStream <- function(cell, rep, start, Lmax) {
   kAll <- matrix(0, Lmax, convChains)
   seconds <- numeric(convChains)
   fits <- vector("list", nFits)
+  scoring <- logical()
   for (f in seq_len(nFits)) {
     chainIds <- (f - 1L) * per + seq_len(per)
     runs <- lapply(chainIds, function(ch) {
@@ -1648,17 +2057,24 @@ runStream <- function(cell, rep, start, Lmax) {
       diag[[chainIds[j]]] <- diagValues(runs[[j]]$draws, bl, index)
     }
     rm(runs)
-    fits[[f]] <- lapply(lengths, function(L) {
+    summaries <- streamSummaries(arr, bl, labels, lengths)
+    if (kmpSmoke) {
+      same <- vapply(
+        seq_along(lengths),
+        function(li) {
+          identical(
+            summaries[[li]],
+            streamSummaryAt(arr, bl, labels, lengths[li])
+          )
+        },
+        NA
+      )
+      scoring <- c(scoring, same)
+    }
+    fits[[f]] <- lapply(seq_along(lengths), function(li) {
+      L <- lengths[li]
       idx <- seq_len(L)
-      Ld <- poolDraws(arr, idx)
-      cl <- classesFrom(Ld, bl, kmpLink)
-      if (L < convBandFrom()) {
-        cl <- cl[setdiff(names(cl), bandClasses)]
-      }
-      summ <- summarizeAll(cl)
-      if (!is.null(labels)) {
-        summ <- relabel(summ, labels)
-      }
+      summ <- summaries[[li]]
       dv <- simplify2array(lapply(chainIds, function(ch) {
         diag[[ch]][idx, , drop = FALSE]
       }))
@@ -1729,6 +2145,7 @@ runStream <- function(cell, rep, start, Lmax) {
     both = both,
     seconds = seconds,
     diagIndex = index,
+    scoringSame = scoring,
     quick = quick
   )
   saveAtomic(out, streamPath(cell, rep, start))
@@ -1742,6 +2159,37 @@ runStream <- function(cell, rep, start, Lmax) {
     sum(seconds)
   ))
   invisible(out)
+}
+
+# The regimes whose first look goes on to 100 replications (the plan's
+# stop): a row class with a planned standard error whose per-fit coverage
+# standard error at 500 or 1,000 sweeps, default start, either library,
+# exceeds 1.5 times its planned value at the look's count (step 2's
+# planned figure at its full count, scaled to the replications read).
+convMoreRegimes <- function() {
+  f <- runDir("readings", "convergence.rds")
+  if (!file.exists(f)) {
+    stop("the convergence first look is read before its second is written")
+  }
+  tab <- readChecked(f)$coverage
+  at <- tab[
+    tab$start == "default" & tab$L %in% tenth(c(500L, 1000L)),
+    ,
+    drop = FALSE
+  ]
+  more <- vapply(
+    convRegimes,
+    function(id) {
+      t <- at[at$regime == id & at$class %in% names(plannedSe[[id]]), ]
+      if (nrow(t) == 0L) {
+        return(FALSE)
+      }
+      planned <- plannedSe[[id]][t$class] * sqrt(step2Looks[[id]][2L] / t$reps)
+      any(t$perfitSe > 1.5 * planned, na.rm = TRUE)
+    },
+    NA
+  )
+  convRegimes[more]
 }
 
 # Whether a regime's streams run on to 8,000 for a build: k's R-hat over a
@@ -1791,7 +2239,13 @@ readConvergence <- function() {
           NA
         }
         lengths <- sort(unique(unlist(lapply(st, `[[`, "lengths"))))
+        # seconds are a user's fit of chainsPer chains on one thread
+        chainsPer <- st[[1L]]$chainsPerFit
         for (L in lengths) {
+          # a type-7 90 percent interval of n exact independent draws covers
+          # 0.9 (n - 1) / (n + 1) in expectation, the curves' floor
+          nDraws <- L * chainsPer
+          exactCov <- 0.9 * (nDraws - 1) / (nDraws + 1)
           perRep <- lapply(st, function(s) {
             i <- match(L, s$lengths)
             if (is.na(i)) NULL else lapply(s$fits, `[[`, i)
@@ -1836,10 +2290,13 @@ readConvergence <- function() {
                   perfit = perfit,
                   sq = get("sq"),
                   err = get("err"),
-                  width = get("width")
+                  width = get("width"),
+                  sqP = get("sqP"),
+                  errP = get("errP"),
+                  widthP = get("widthP")
                 )
               },
-              numeric(6L)
+              numeric(9L)
             ))
             pooled <- function(i) sum(agg[i, "cov"]) / sum(agg[i, "n"])
             pf <- function(i) mean(agg[i, "perfit"], na.rm = TRUE)
@@ -1850,9 +2307,10 @@ readConvergence <- function() {
               start = start,
               build = which,
               L = L,
-              seconds = L * sps,
+              seconds = L * sps * chainsPer,
               class = cl,
               reps = reps,
+              exactCoverage = exactCov,
               pooled = pooled(seq_len(reps)),
               pooledLo = stats::quantile(
                 bP,
@@ -1879,9 +2337,13 @@ readConvergence <- function() {
                 na.rm = TRUE,
                 names = FALSE
               ),
-              width = sum(agg[, "width"]) / sum(agg[, "n"]),
-              rmse = sqrt(sum(agg[, "sq"]) / sum(agg[, "n"])),
-              bias = sum(agg[, "err"]) / sum(agg[, "n"])
+              perfitSe = stats::sd(bF, na.rm = TRUE),
+              width = sum(agg[, "widthP"]) / sum(agg[, "n"]),
+              rmse = sqrt(sum(agg[, "sqP"]) / sum(agg[, "n"])),
+              bias = sum(agg[, "errP"]) / sum(agg[, "n"]),
+              widthLatent = sum(agg[, "width"]) / sum(agg[, "n"]),
+              rmseLatent = sqrt(sum(agg[, "sq"]) / sum(agg[, "n"])),
+              biasLatent = sum(agg[, "err"]) / sum(agg[, "n"])
             )
           }
           kFit <- unlist(lapply(perRep, function(fl) {
@@ -1914,11 +2376,11 @@ readConvergence <- function() {
             start = start,
             build = which,
             L = L,
-            seconds = L * sps,
+            seconds = L * sps * chainsPer,
             kRhatFitMedian = stats::median(kFit, na.rm = TRUE),
             kEssFitMedian = stats::median(kEss, na.rm = TRUE),
             kEssPerSecond = stats::median(kEss, na.rm = TRUE) /
-              (L * sps * st[[1L]]$chainsPerFit),
+              (L * sps * chainsPer),
             kRhatAcrossMedian = stats::median(kAcross, na.rm = TRUE),
             kRhatAcrossShareBelow = mean(kAcross < 1.01, na.rm = TRUE),
             rowRhatAcrossP90 = stats::quantile(
@@ -2054,17 +2516,30 @@ r3Fingerprint <- function(tag) {
     )
   }
   saveAtomic(
-    list(tag = tag, lib = find.package("dbarts"), fingerprints = out),
+    list(tag = tag, lib = libId(), fingerprints = out),
     runDir("r3", sprintf("fingerprint-%s.rds", tag))
   )
   cat("fingerprint", tag, length(out), "datasets\n")
 }
 
-r3Check <- function(a, b) {
-  fa <- readRDS(runDir("r3", sprintf("fingerprint-%s.rds", a)))$fingerprints
-  fb <- readRDS(runDir("r3", sprintf("fingerprint-%s.rds", b)))$fingerprints
-  keys <- union(names(fa), names(fb))
-  same <- vapply(keys, function(k) identical(fa[[k]], fb[[k]]), NA)
+# Each pricing library's fingerprints against the reference's (the k
+# study's engine, built from its archived tree): a dataset is used when
+# every library makes the model the k study's did.
+r3Check <- function(reference, others) {
+  fp <- function(tag) {
+    readRDS(runDir("r3", sprintf("fingerprint-%s.rds", tag)))$fingerprints
+  }
+  fa <- fp(reference)
+  fbs <- lapply(others, fp)
+  keys <- unique(c(names(fa), unlist(lapply(fbs, names))))
+  same <- vapply(
+    keys,
+    function(k) {
+      !is.null(fa[[k]]) &&
+        all(vapply(fbs, function(fb) identical(fa[[k]], fb[[k]]), NA))
+    },
+    NA
+  )
   saveAtomic(
     list(used = keys[same], dropped = keys[!same]),
     runDir("r3", "model-check.rds")
@@ -2114,8 +2589,22 @@ runR3Stream <- function(key, Lmax) {
       q95 = q[which.min(abs(comp$probs - 0.95)), ]
     )
   }
-  ref <- lapply(intersect(c("fInt", "fTail"), names(comp$rows)), refRow)
-  names(ref) <- intersect(c("fInt", "fTail"), names(comp$rows))
+  # the row classes the reference holds: fInt and fTail (latent, at their
+  # columns), or, on the effect regimes, ite (every unit, each draw's
+  # difference of probabilities, as classesFrom forms it)
+  have <- intersect(c("fInt", "fTail", "ite"), names(comp$rows))
+  ref <- lapply(have, refRow)
+  names(ref) <- have
+  rowsOf <- function(Ld, nm, cols) {
+    if (nm == "ite") {
+      n <- ncol(Ld) %/% 2L
+      Q <- plogis(Ld[, seq_len(n), drop = FALSE]) -
+        plogis(Ld[, n + seq_len(n), drop = FALSE])
+    } else {
+      Q <- Ld
+    }
+    if (is.null(cols)) Q else Q[, cols, drop = FALSE]
+  }
   kRef <- c(
     as.vector(evenRows(comp$k$shipped$k, nrow(as.matrix(comp$k$move$k)))),
     as.vector(comp$k$move$k)
@@ -2134,8 +2623,9 @@ runR3Stream <- function(key, Lmax) {
     res[[f]] <- lapply(lengths, function(L) {
       Ld <- poolDraws(arr, seq_len(L))
       kv <- as.vector(kM[seq_len(L), , drop = FALSE])
-      byClass <- lapply(ref, function(r) {
-        Q <- Ld[, r$cols, drop = FALSE]
+      byClass <- lapply(have, function(nm) {
+        r <- ref[[nm]]
+        Q <- rowsOf(Ld, nm, r$cols)
         q <- apply(Q, 2L, stats::quantile, c(0.05, 0.95), names = FALSE)
         c(
           mean = mean((colMeans(Q) - r$mean)^2 / r$var),
@@ -2143,6 +2633,7 @@ runR3Stream <- function(key, Lmax) {
           q95 = mean((q[2L, ] - r$q95)^2 / r$var)
         )
       })
+      names(byClass) <- have
       list(
         L = L,
         k = (mean(kv) - mean(kRef))^2 / stats::var(kRef),
@@ -2186,6 +2677,7 @@ readR3 <- function() {
       }
       rows[[length(rows) + 1L]] <- data.frame(
         key = x$key,
+        regime = sub("-r[0-9]+$", "", x$key),
         build = x$build,
         L = x$lengths[li],
         estimand = names(vals),
@@ -2194,19 +2686,33 @@ readR3 <- function() {
     }
   }
   tab <- do.call(rbind, rows)
-  agg <- stats::aggregate(error ~ build + L + estimand, tab, mean)
-  w <- stats::reshape(
-    agg,
-    idvar = c("L", "estimand"),
-    timevar = "build",
-    direction = "wide"
-  )
-  if (all(c("error.move", "error.shipped") %in% names(w))) {
-    w$ratio <- w$error.move / w$error.shipped
+  wide <- function(agg, id) {
+    w <- stats::reshape(
+      agg,
+      idvar = id,
+      timevar = "build",
+      direction = "wide"
+    )
+    if (all(c("error.move", "error.shipped") %in% names(w))) {
+      w$ratio <- w$error.move / w$error.shipped
+    }
+    w[do.call(order, unname(as.list(w[rev(id)]))), , drop = FALSE]
   }
-  w <- w[order(w$estimand, w$L), ]
+  # per regime: the average over the regime's datasets; overall: the
+  # average of the regime averages, so no regime weighs by its count
+  byRegime <- wide(
+    stats::aggregate(error ~ build + regime + L + estimand, tab, mean),
+    c("regime", "L", "estimand")
+  )
+  overallAgg <- stats::aggregate(
+    error ~ build + L + estimand,
+    stats::aggregate(error ~ build + regime + L + estimand, tab, mean),
+    mean
+  )
+  w <- wide(overallAgg, c("L", "estimand"))
   out <- list(
     perDataset = tab,
+    byRegime = byRegime,
     table = w,
     used = tryCatch(r3Used(), error = function(e) NULL),
     quick = quick
@@ -2237,7 +2743,7 @@ checkJobs <- function(path) {
       cat("job", x[1L], "waits for a later or missing job\n")
       ok <- FALSE
     }
-    if (!grepl("^@(shipped|move|mutant1|mutant3) ", x[6L])) {
+    if (!grepl("^@(shipped|move|mutant1|mutant3|kstudy) ", x[6L])) {
       cat("job", x[1L], "names no build\n")
       ok <- FALSE
     }
@@ -2271,6 +2777,167 @@ checkJobs <- function(path) {
 # about 0.90, R-hat about 1, bulk effective draws about the draws held, and
 # the posterior mean's squared error about that of as many independent
 # draws.
+# runStream fed exact draws: a stub streamChain returns, for every column,
+# independent normal draws about a center that is the truth plus one normal
+# error a replication (shared by its chains), so each latent row's interval
+# covers its truth with probability 0.9 (n - 1) / (n + 1) at n pooled draws,
+# R-hat is about 1 and the posterior mean's error has sd s sqrt(1 + 1 / n).
+# Run on one stored replication of a regime (its design and step 2 labels),
+# its outputs written to a directory of their own.
+checkStreamExact <- function(cell = "S1", reps = 30L, s = 0.5) {
+  design <- loadDesign(cell, kmpLink, 1L)
+  t <- design$truth
+  truth <- if (design$task %in% c("effect", "s9")) {
+    c(t$f$t1, t$f$t0)
+  } else {
+    c(t$f$train, t$f$held)
+  }
+  center <- truth
+  stub <- function(design, seed, start, L) {
+    withSeed(seed, {
+      z <- matrix(rnorm(L * length(center), sd = s), L, length(center))
+      list(
+        draws = sweep(z, 2L, center, `+`),
+        k = rnorm(L),
+        seconds = 0
+      )
+    })
+  }
+  dir <- runDir("checks", "stream-exact")
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  env <- environment(runStream)
+  saved <- mget(c("streamChain", "streamPath", "diagPath"), envir = env)
+  on.exit(
+    for (nm in names(saved)) {
+      assign(nm, saved[[nm]], envir = env)
+    },
+    add = TRUE
+  )
+  r <- 0L
+  assign("streamChain", stub, envir = env)
+  assign(
+    "streamPath",
+    function(...) file.path(dir, sprintf("r%03d.rds", r)),
+    envir = env
+  )
+  assign(
+    "diagPath",
+    function(...) file.path(dir, sprintf("r%03d.f32", r)),
+    envir = env
+  )
+  Lmax <- max(convLengths()[convLengths() <= tenth(2000L)])
+  out <- vector("list", reps)
+  for (r in seq_len(reps)) {
+    center <- truth +
+      withSeed(seedOf("stream-exact", cell, r), rnorm(length(truth), sd = s))
+    out[[r]] <- runStream(cell, 1L, "default", Lmax)
+  }
+  per <- out[[1L]]$chainsPerFit
+  lengths <- out[[1L]]$lengths
+  ok <- TRUE
+  for (li in seq_along(lengths)) {
+    L <- lengths[li]
+    n <- L * per
+    byRep <- vapply(
+      out,
+      function(x) {
+        v <- lapply(x$fits, function(f) f[[li]]$coverage$fInt)
+        c(
+          cov = sum(vapply(v, `[[`, 0, "cov90")) / sum(vapply(v, `[[`, 0, "n")),
+          sq = sum(vapply(v, `[[`, 0, "sq")) / sum(vapply(v, `[[`, 0, "n")),
+          rhat = x$across[[li]]$k[["rhat"]]
+        )
+      },
+      numeric(3L)
+    )
+    expect <- 0.9 * (n - 1) / (n + 1)
+    covSe <- stats::sd(byRep["cov", ]) / sqrt(reps)
+    rmse <- sqrt(mean(byRep["sq", ]))
+    rmseExpect <- s * sqrt(1 + 1 / n)
+    rhat <- stats::median(byRep["rhat", ])
+    good <- abs(mean(byRep["cov", ]) - expect) <= 4 * covSe + 1e-12 &&
+      abs(rmse / rmseExpect - 1) < 0.1 &&
+      (L < 50L || rhat < 1.02)
+    cat(sprintf(
+      "stream exact L %4d: coverage %.4f (exact %.4f, se %.4f), rmse %.3f (%.3f), k R-hat %.3f %s\n",
+      L,
+      mean(byRep["cov", ]),
+      expect,
+      covSe,
+      rmse,
+      rmseExpect,
+      rhat,
+      if (good) "ok" else "FAIL"
+    ))
+    ok <- ok && good
+  }
+  cat("stream exact:", if (ok) "ok" else "FAILED", "\n")
+  if (ok) {
+    writeLines(format(Sys.time()), file.path(dir, "passed"))
+  }
+  ok
+}
+
+# That the one-pass stream scorer gave summaries identical to the scorer as
+# first written at every length of every fit the smoke ran (runStream
+# compares them under KMP_SMOKE).
+checkScoring <- function() {
+  files <- list.files(
+    runDir("conv"),
+    "[.]rds$",
+    full.names = TRUE,
+    recursive = TRUE
+  )
+  same <- unlist(lapply(files, function(f) readRDS(f)$scoringSame))
+  ok <- length(files) > 0L && length(same) > 0L && all(same)
+  cat(sprintf(
+    "scoring: %d stream files, %d fit lengths compared, %d identical: %s\n",
+    length(files),
+    length(same),
+    sum(same),
+    if (ok) "ok" else "FAIL"
+  ))
+  ok
+}
+
+# That every output carrying a library identity names one commit and one
+# shared object per build, every identity is stamped, and no output was made
+# with a fixed scale (KMN_FIXED_R).
+checkLibs <- function() {
+  files <- list.files(runDir(), "[.]rds$", full.names = TRUE, recursive = TRUE)
+  ids <- list()
+  for (f in files) {
+    o <- tryCatch(readRDS(f), error = function(e) NULL)
+    if (is.list(o) && !is.null(o$libId)) {
+      ids[[f]] <- o$libId
+    }
+  }
+  if (length(ids) == 0L) {
+    cat("libs: no output carries a library identity: FAIL\n")
+    return(FALSE)
+  }
+  tab <- do.call(rbind, lapply(ids, function(x) as.data.frame(as.list(x))))
+  ok <- TRUE
+  for (b in unique(tab$build)) {
+    t <- tab[tab$build == b, , drop = FALSE]
+    one <- length(unique(t$commit)) == 1L && length(unique(t$so)) == 1L
+    stamped <- all(!is.na(t$stamped) & t$stamped == b)
+    fixed <- any(nzchar(t$fixedR))
+    cat(sprintf(
+      "libs: %s: %d outputs, commit %s, so %s, %s%s\n",
+      b,
+      nrow(t),
+      paste(unique(substr(t$commit, 1L, 9L)), collapse = "/"),
+      paste(unique(substr(t$so, 1L, 8L)), collapse = "/"),
+      if (stamped) "stamped" else "UNSTAMPED",
+      if (fixed) ", FIXED R" else ""
+    ))
+    ok <- ok && one && stamped && !fixed
+  }
+  cat(sprintf("libs: %s\n", if (ok) "ok" else "FAIL"))
+  ok
+}
+
 checkConjugate <- function() {
   withSeed(seedOf("conjugate"), {
     rows <- 30L
@@ -2364,21 +3031,27 @@ checkConjugate <- function() {
 
 # Equal time as run: every step 2 shipped fit and guard shipped fit holds
 # the draws r from the timing record gives (Verification).
+# Whether an output was made with KMN_FIXED_R set (or carries no identity
+# to say it was not).
+fixedRUsed <- function(x) {
+  is.null(x$libId) || nzchar(x$libId[["fixedR"]])
+}
+
 checkEqualTime <- function() {
   ok <- TRUE
   files <- Sys.glob(runDir("p2fits", "*", "r*-shipped.rds"))
   for (f in files) {
     x <- readChecked(f)
-    if (x$drawsPerChain != equalTimeDraws(x$cell)) {
-      cat("unequal time:", f, "\n")
+    if (x$drawsPerChain != equalTimeDraws(x$cell) || fixedRUsed(x)) {
+      cat("unequal time or fixed r:", f, "\n")
       ok <- FALSE
     }
   }
   gfiles <- Sys.glob(runDir("guard", "*", "shipped-fit*.rds"))
   for (f in grep("-grid", gfiles, invert = TRUE, value = TRUE)) {
     x <- readChecked(f)
-    if (x$drawsPerChain != equalTimeDraws(guardCell(x$name))) {
-      cat("unequal time:", f, "\n")
+    if (x$drawsPerChain != equalTimeDraws(guardCell(x$name)) || fixedRUsed(x)) {
+      cat("unequal time or fixed r:", f, "\n")
       ok <- FALSE
     }
   }
@@ -2504,7 +3177,12 @@ kmpJobId <- function(...) jobId(...)
 # conv, r3, guard:prefit, guard:refs, guard:fits, guard:read, step3.
 kmpWriteJobs <- function(phase, path) {
   jobs <- list()
+  written <- character()
+  # a dependency on a job of an earlier phase's file is met by the phases'
+  # order (each written after the last is read), so only this file's are kept
   add <- function(id, deps, cell, cmd, gate = character(), mem = 2) {
+    deps <- deps[sub("^~", "", deps) %in% written]
+    written <<- c(written, id)
     jobs[[length(jobs) + 1L]] <<- paste(
       id,
       if (length(deps)) paste(deps, collapse = ",") else "-",
@@ -2632,7 +3310,7 @@ kmpWriteJobs <- function(phase, path) {
   essJobs <- function() {
     ids <- character()
     for (id in essRegimes) {
-      for (rep in seq_len(if (smoke) 1L else 5L)) {
+      for (rep in seq_len(if (smoke) 1L else 10L)) {
         for (which in c("shipped", "move")) {
           ids <- c(
             ids,
@@ -2648,62 +3326,184 @@ kmpWriteJobs <- function(phase, path) {
     }
     add("read-ess", paste0("~", ids), "read", "@shipped read ess")
   }
-  step1Jobs <- function(phase1, builds = "move") {
+  # step 1: the pilot (the move, every prior); the power run (mutants 1
+  # and 3, the tilted prior, 50 a regime) read before the main run; the main
+  # run (200 a regime, the contingent arm gated on the pilot's trigger), its
+  # early look at 150 a prior and its reading
+  step1Jobs <- function(phase1) {
     ids <- character()
-    for (b in builds) {
-      for (prior in names(step1Priors)) {
-        for (id in step1Regimes) {
-          for (rep in seq_len(if (smoke) 1L else step1Reps(phase1))) {
-            ids <- c(
-              ids,
-              add(
-                kmpJobId("sbc", phase1, b, prior, id, rep),
-                if (phase1 == "run") "read-step1pilot" else character(),
+    sbc <- function(
+      b,
+      ph,
+      prior,
+      deps,
+      gate = character(),
+      reps = step1Reps(ph)
+    ) {
+      for (id in step1Regimes) {
+        for (rep in seq_len(reps)) {
+          ids <<- c(
+            ids,
+            add(
+              kmpJobId("sbc", ph, b, prior, id, rep),
+              deps,
+              id,
+              sprintf(
+                "@%s sbc %s %s %s %d",
+                b,
+                if (ph == "power") "run" else ph,
+                prior,
                 id,
-                sprintf("@%s sbc %s %s %s %d", b, phase1, prior, id, rep)
-              )
+                rep
+              ),
+              gate
             )
-          }
+          )
         }
       }
     }
     if (phase1 == "pilot") {
+      for (prior in names(step1Priors)) {
+        sbc("move", "pilot", prior, character())
+      }
       add("read-step1pilot", paste0("~", ids), "read", "@move read step1pilot")
+    } else if (phase1 == "power") {
+      for (b in c("mutant1", "mutant3")) {
+        ids <- character()
+        sbc(b, "power", "tilted", if (smoke) "read-step1pilot" else character())
+        add(
+          kmpJobId("read", "step1", b),
+          paste0("~", ids),
+          "read",
+          sprintf("@%s read step1 %s", b, b)
+        )
+      }
     } else {
-      add("read-step1", paste0("~", ids), "read", "@move read step1")
-    }
-  }
-  convJobs <- function() {
-    Lmax <- max(convLengths()[convLengths() <= tenth(2000L)])
-    ids <- character()
-    for (id in convRegimes) {
-      for (rep in seq_len(if (smoke) 1L else lookCount(id, 1L))) {
-        for (start in c("default", if (rep <= convDispersedReps) "dispersed")) {
-          for (which in c("shipped", "move")) {
-            ids <- c(
-              ids,
-              add(
-                kmpJobId("stream", id, rep, start, which),
-                kmpJobId("score", id, rep),
-                id,
-                sprintf("@%s stream %s %d %s %d", which, id, rep, start, Lmax)
-              )
+      deps <- if (smoke) {
+        c("read-step1pilot", "~read-step1-mutant1", "~read-step1-mutant3")
+      } else {
+        character()
+      }
+      if (!smoke) {
+        for (b in c("mutant1", "mutant3")) {
+          f <- runDir("readings", sprintf("step1-%s.rds", b))
+          if (!file.exists(f)) {
+            stop(
+              "step 1's power run (",
+              b,
+              ") is read before its main run is written"
+            )
+          }
+          if (!isTRUE(readChecked(f)$flagged)) {
+            warning(
+              b,
+              " was not flagged: step 1 is restated before its main run"
             )
           }
         }
       }
+      for (prior in c("default", "tilted")) {
+        sbc("move", "run", prior, deps)
+      }
+      sbc("move", "run", "third", deps, gate = "step1/third-go")
+      early <- step1Reps("power")
+      add(
+        "read-step1-early",
+        paste0("~", ids),
+        "read",
+        sprintf("@move read step1 move %d", early)
+      )
+      add(
+        "read-step1",
+        c(paste0("~", ids), "~read-step1-early"),
+        "read",
+        "@move read step1"
+      )
     }
-    add("read-conv", paste0("~", ids), "read", "@shipped read convergence")
+  }
+  # the convergence measure: the first look (50 a regime, the dispersed
+  # start at 25, to 2,000 sweeps); the second look (to 100 in a regime the
+  # first look's standard errors send on, both starts' rule); the long
+  # streams (rerun from the start to 8,000, same seeds, where streamsRunOn
+  # says so for a library, its dispersed streams lengthened with it)
+  convJobs <- function(look = "first") {
+    L2 <- max(convLengths()[convLengths() <= tenth(2000L)])
+    L8 <- max(convLengths())
+    first <- if (smoke) 1L else 50L
+    ids <- character()
+    stream <- function(id, rep, start, which, Lmax, tag) {
+      ids <<- c(
+        ids,
+        add(
+          kmpJobId(tag, id, rep, start, which),
+          c(kmpJobId("score", id, rep), if (smoke) "check-streams"),
+          id,
+          sprintf("@%s stream %s %d %s %d", which, id, rep, start, Lmax)
+        )
+      )
+    }
+    dispersed <- min(first, convDispersedReps)
+    gate <- runDir("checks", "stream-exact", "passed")
+    if (!smoke && look == "first" && !file.exists(gate)) {
+      stop("check streams passes before the convergence phase is written")
+    }
+    if (look == "first") {
+      for (id in convRegimes) {
+        for (rep in seq_len(first)) {
+          for (start in c("default", if (rep <= dispersed) "dispersed")) {
+            for (which in c("shipped", "move")) {
+              stream(id, rep, start, which, L2, "stream")
+            }
+          }
+        }
+      }
+    } else if (look == "more") {
+      for (id in convMoreRegimes()) {
+        for (rep in seq.int(first + 1L, 2L * first)) {
+          for (which in c("shipped", "move")) {
+            stream(id, rep, "default", which, L2, "stream")
+          }
+        }
+      }
+    } else {
+      for (id in convRegimes) {
+        for (which in c("shipped", "move")) {
+          if (!streamsRunOn(id, which, first)) {
+            next
+          }
+          reps <- sum(file.exists(vapply(
+            seq_len(2L * first),
+            function(r) streamPath(id, r, "default", which),
+            ""
+          )))
+          for (rep in seq_len(reps)) {
+            for (start in c("default", if (rep <= dispersed) "dispersed")) {
+              stream(id, rep, start, which, L8, "stream8k")
+            }
+          }
+        }
+      }
+    }
+    if (length(ids) == 0L) {
+      return(invisible(NULL))
+    }
+    add(
+      paste0("read-conv-", look),
+      paste0("~", ids),
+      "read",
+      "@shipped read convergence"
+    )
   }
   r3Jobs <- function(keys) {
-    a <- add(
-      "r3-fp-shipped",
+    r0 <- add(
+      "r3-fp-kstudy",
       character(),
       "r3",
-      "@shipped r3 fingerprint shipped"
+      "@kstudy r3 fingerprint kstudy"
     )
+    a <- add("r3-fp-shipped", r0, "r3", "@shipped r3 fingerprint shipped")
     b <- add("r3-fp-move", a, "r3", "@move r3 fingerprint move")
-    ck <- add("r3-check", b, "r3", "@shipped r3 check shipped move")
+    ck <- add("r3-check", b, "r3", "@shipped r3 check kstudy shipped move")
     ids <- character()
     for (key in keys) {
       for (which in c("shipped", "move")) {
@@ -2801,9 +3601,15 @@ kmpWriteJobs <- function(phase, path) {
     }
     c(last = last, accept = prevAcc)
   }
-  guardFitJobs <- function(name, after) {
+  guardFitJobs <- function(name, after, step3 = FALSE) {
     cell <- guardCell(name)
-    n0 <- if (quick) 4L else guardFitsStart
+    n0 <- if (quick) {
+      4L
+    } else if (step3) {
+      step3Fits
+    } else {
+      guardFitsStart
+    }
     ids <- character()
     for (which in c("shipped", "move")) {
       ids <- c(
@@ -2815,6 +3621,11 @@ kmpWriteJobs <- function(phase, path) {
           sprintf("@%s guard fits %s 1 %d", which, shQuoteName(name), n0)
         )
       )
+    }
+    # step 3's fits: 20 a library, no pilot raise (20 more only to confirm
+    # a miss, written by hand with a tag)
+    if (step3) {
+      return(ids)
     }
     p <- add(
       kmpJobId("gpilot", cell),
@@ -2860,7 +3671,14 @@ kmpWriteJobs <- function(phase, path) {
       step2Jobs(1L, sm)
       essJobs()
       step1Jobs("pilot")
+      step1Jobs("power")
       step1Jobs("run")
+      add(
+        "check-streams",
+        kmpJobId("score", "S1", 1L),
+        "S1",
+        "@move check streams"
+      )
       convJobs()
       r3Jobs(head(tryCatch(r3Keys(), error = function(e) character()), 1L))
       # the guard on three stand-in datasets, never a passer
@@ -2912,8 +3730,11 @@ kmpWriteJobs <- function(phase, path) {
     "step2:2" = step2Jobs(2L, character()),
     ess = essJobs(),
     "step1:pilot" = step1Jobs("pilot"),
-    "step1:run" = step1Jobs("run", c("move", "mutant1", "mutant3")),
-    conv = convJobs(),
+    "step1:power" = step1Jobs("power"),
+    "step1:run" = step1Jobs("run"),
+    conv = convJobs("first"),
+    "conv:more" = convJobs("more"),
+    "conv:long" = convJobs("long"),
     r3 = r3Jobs(r3Keys()),
     "guard:prefit" = {
       loads <- vapply(
@@ -2937,6 +3758,9 @@ kmpWriteJobs <- function(phase, path) {
       }
     },
     "guard:fits" = {
+      if (!file.exists(runDir("step3", "commit.rds"))) {
+        stop("the guard's fits are written after step 3 is committed")
+      }
       add(
         "timing-summarize",
         character(),
@@ -2955,12 +3779,12 @@ kmpWriteJobs <- function(phase, path) {
     step3 = {
       for (nm in guardNames("r3")) {
         r <- guardRefJobs(nm, character())
-        guardFitJobs(nm, r[["accept"]])
+        guardFitJobs(nm, r[["accept"]], step3 = TRUE)
       }
     },
     stop("no phase ", phase)
   )
-  lines <- unlist(jobs)
+  lines <- as.character(unlist(jobs))
   writeLines(lines, path)
   cat(sprintf("%d jobs written to %s\n", length(lines), path))
 }
@@ -3018,7 +3842,7 @@ kmpMain <- function(args) {
     r3 = switch(
       a[1L],
       fingerprint = r3Fingerprint(a[2L]),
-      check = r3Check(a[2L], a[3L]),
+      check = r3Check(a[2L], a[-(1:2)]),
       stream = runR3Stream(a[2L], int(3L)),
       stop("no r3 action ", a[1L])
     ),
@@ -3055,7 +3879,10 @@ kmpMain <- function(args) {
     read = switch(
       a[1L],
       step1pilot = readStep1Pilot(),
-      step1 = readStep1(if (nzchar(opt(2L))) a[2L] else "move"),
+      step1 = readStep1(
+        if (nzchar(opt(2L))) a[2L] else "move",
+        if (nzchar(opt(3L))) int(3L) else NA_integer_
+      ),
       step2 = readStep2(int(2L)),
       convergence = readConvergence(),
       ess = readEss(),
@@ -3070,6 +3897,9 @@ kmpMain <- function(args) {
         eqtime = checkEqualTime(),
         outputs = checkOutputs(a[2L]),
         blind = checkPricingBlind(),
+        scoring = checkScoring(),
+        streams = checkStreamExact(),
+        libs = checkLibs(),
         stop("no check ", a[1L])
       )
       if (!isTRUE(ok)) {
