@@ -1578,13 +1578,17 @@ items
     (a gate). A bridge cleanup slice after threaded-chains D2 lands
     (same files); it also carries the C9 wording of count-fallback-
     wording. Not built.
-  stan4bart-mixing-summary-flag: (dec-B797 revising dec-B776) built;
-    one question stays open. dec-B797 reads the 1.1 bar as the one
-    dbarts' summary uses, but dbarts' summary prints "Note: some R-hat
-    values exceed 1.01; chains may not have converged." for the same
-    split rank-normalized statistic, so stan4bart's summary flags at
-    1.1 where dbarts' does at 1.01. A maintainer decision: keep 1.1,
-    or move stan4bart to 1.01 and the dbarts form.
+  rhat-values-only: (dec-B800, revising dec-B797's flag and dbarts'
+    1.01 note) dbarts' and stan4bart's summaries print each R-hat as a
+    value, with no star, bar or note; the help in both says R-hat
+    compares chains with their pooled spread, that at the defaults
+    BART's chains disagree on sigma, k and single predictions, and
+    that averaged estimands mix far better, with code to read R-hat on
+    the estimand a user reports. Not built.
+  rhat-known-estimands: (dec-B800) where a package knows the
+    estimand (bartCause's treatment effects, stan4bart's fixed
+    effects), measure their R-hats at the defaults and bring whether
+    a flag at a standard bar is informative there. Not measured.
   collapsed-move-vectorized-likelihood-timing: (dec-B789; the
     maintainer: "make sure we don't forget the vectorization timing")
     the collapsed move's likelihood evaluator keeps its scalar row-order
