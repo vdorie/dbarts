@@ -51,6 +51,11 @@ void misc_computeIndexedFloatSufficientStatisticsFast(const float* restrict x, c
 void misc_computeWeightedFloatSufficientStatisticsFast(const float* restrict x, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
 void misc_computeIndexedWeightedFloatSufficientStatisticsFast(const float* restrict x, const misc_index_t* restrict indices, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
 
+/// log |Gamma(x)|, bit for bit the C library's lgamma(x), and safe to call
+/// from concurrent threads, which lgamma is not: it writes the process-wide
+/// signgam. Every log-gamma the engine takes goes through here.
+double misc_logGamma(double x);
+
 #ifdef __cplusplus
 }
 #endif

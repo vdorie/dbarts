@@ -1261,13 +1261,17 @@ static int channelRecorderCallback(void* context, const DrawInfo* draw) {
 // threads, each carried channel is non-null on every call, every other one is
 // null, and each equals what a twin storing every channel recorded at the
 // same draw. So storing or not moves no draw either. A variance forest's
-// sigma is NaN in the draw and in the stored slab.
+// sigma is NaN in the draw and in the stored slab. The variance forest's
+// moves and the negative binomial's log-likelihood take log-gammas on both
+// workers, which a ThreadSanitizer build reports should either reach a
+// process-wide global.
 static void testDrawCallbackCarriesEveryChannel() {
   const size_t n = 120, p = 3, nTest = 15, numChains = 2, numBurnIn = 5,
                numSamples = 3;
   std::uint64_t savedRngState = rngState;
   rngState = 20261107u;
-  std::vector<double> x(n * p), y(n), z(n), ordinal(n), xTest(nTest * p);
+  std::vector<double> x(n * p), y(n), z(n), ordinal(n), counts(n),
+    xTest(nTest * p);
   for (double& v : x) v = runif01();
   for (double& v : xTest) v = runif01();
   for (size_t i = 0; i < n; ++i) {
@@ -1276,10 +1280,11 @@ static void testDrawCallbackCarriesEveryChannel() {
       (0.2 + x[i + n]) * (runif01() - 0.5);
     double s = x[i] + 0.4 * (runif01() - 0.5);
     ordinal[i] = s < 0.35 ? 1.0 : s < 0.65 ? 2.0 : 3.0;
+    counts[i] = std::floor(6.0 * x[i] * (1.0 + z[i]));
   }
   rngState = savedRngState;
 
-  enum Arm { dartArm, ordinalArm, varianceArm, bcfArm };
+  enum Arm { dartArm, ordinalArm, varianceArm, nbinomArm, bcfArm };
   struct ArmSpec {
     Arm arm;
     const char* name;
@@ -1293,6 +1298,8 @@ static void testDrawCallbackCarriesEveryChannel() {
      always | seenTest | seenLogLikelihood | seenThresholds},
     {varianceArm, "variance forest",
      always | seenTest | seenVariance | seenVarianceTest | seenLogLikelihood},
+    {nbinomArm, "negative binomial, drawn shape",
+     always | seenTest | seenLogLikelihood},
     {bcfArm, "BCF", always | seenForestFits | seenGlue}};
 
   for (const ArmSpec& spec : arms) {
@@ -1318,12 +1325,16 @@ static void testDrawCallbackCarriesEveryChannel() {
         if (spec.arm == dartArm) options.useDart = true;
         if (spec.arm == ordinalArm) options.numCategories = 3;
         if (spec.arm == varianceArm) options.numVarianceTrees = 3;
+        if (spec.arm == nbinomArm) options.shape = -1.0;
+        const double* response = spec.arm == ordinalArm ? ordinal.data()
+          : spec.arm == nbinomArm                       ? counts.data()
+                                                        : y.data();
+        ResponseFamily family = spec.arm == ordinalArm ? ResponseFamily::ordinal
+          : spec.arm == nbinomArm ? ResponseFamily::nbinom
+                                  : ResponseFamily::gaussian;
         sampler = std::make_unique<ConstantLeafSampler>(
-          x.data(), spec.arm == ordinalArm ? ordinal.data() : y.data(), n, p,
-          nullptr, nullptr,
-          spec.arm == ordinalArm ? ResponseFamily::ordinal
-                                 : ResponseFamily::gaussian,
-          1.0, 3.0, 0.37804942330213542, options, rngs.data());
+          x.data(), response, n, p, nullptr, nullptr, family, 1.0, 3.0,
+          0.37804942330213542, options, rngs.data());
       }
       sampler->setTestPredictors(xTest.data(), nTest);
       return sampler;

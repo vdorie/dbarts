@@ -78,7 +78,7 @@ NMATH_LIB := $(SA_BUILD)/nmath/libnmath.a
 NMATH_CPPFLAGS := -DMATHLIB_STANDALONE -include errno.h -include $(NMATH_DIR)/prefix.h \
                   -I$(NMATH_DIR)/include
 
-all: header-compiles test_bartcore r-math-symbols standalone-config standalone-math
+all: header-compiles test_bartcore r-math-symbols signgam-free standalone-config standalone-math
 
 # -Wno-unused-function: the header's one static inline helper
 # (dbarts_dense_predictor_source) has no caller when the header is compiled
@@ -191,6 +191,22 @@ r-math-symbols:
 	fi; \
 	echo "r-math-symbols: $$so calls R's $(R_MATH_NAMES)"
 
+# The package's dbarts.so calls no log-gamma that writes the process-wide
+# signgam, which chains on worker threads would race on: every one goes
+# through misc_logGamma, the reentrant form. A ThreadSanitizer run sees the
+# race only on a path its suites reach; this reads the symbols.
+SIGNGAM_NAMES := lgamma lgammaf lgammal gamma gammaf
+signgam-free:
+	@so=../../src/dbarts.so; \
+	if [ ! -f $$so ]; then echo "error: $$so not found; run 'R CMD INSTALL .' first" >&2; exit 1; fi; \
+	undefined=$$(nm -u $$so); \
+	for name in $(SIGNGAM_NAMES); do \
+	  if echo "$$undefined" | grep -q -E "^ *U? *_?$$name\$$"; then \
+	    echo "error: $$so calls $$name, which writes signgam; use misc_logGamma" >&2; exit 1; \
+	  fi; \
+	done; \
+	echo "signgam-free: $$so calls none of $(SIGNGAM_NAMES)"
+
 # The checked-in configuration headers define what configure's define, value
 # for value. In a tree configure has run in, a misc or external source reads
 # configure's config.h, not the checked-in one, so no build here would notice
@@ -252,6 +268,7 @@ clean:
 	rm -f build-standalone/nmath/qt.o build-standalone/nmath/stirlerr.o
 	rm -f build-standalone/nmath/toms708.o build-standalone/nmath/libnmath.a
 	rm -f build-standalone/misc/linearAlgebra.o build-standalone/misc/moments.o
+	rm -f build-standalone/misc/logGamma.o
 	rm -f build-standalone/misc/partition.o build-standalone/misc/simd.o
 	rm -f build-standalone/misc/thread.o build-standalone/misc/linearAlgebra_neon.o
 	rm -f build-standalone/misc/partition_neon.o build-standalone/misc/linearAlgebra_sse2.o
@@ -271,4 +288,4 @@ clean:
 	if [ -d build-standalone/external ]; then rmdir build-standalone/external; fi
 	if [ -d build-standalone ]; then rmdir build-standalone; fi
 
-.PHONY: all header-compiles run clean standalone-math r-math-symbols standalone-config FORCE
+.PHONY: all header-compiles run clean standalone-math r-math-symbols signgam-free standalone-config FORCE

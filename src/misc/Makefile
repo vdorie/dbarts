@@ -50,8 +50,8 @@ simd.source.neon = $(simd.source.neon.$(have.neon))
 simd.sources = $(simd.source.avx2) $(simd.source.neon)
 simd.objects = $(simd.sources:.c=.o)
 
-LOCAL_SOURCES=linearAlgebra.c moments.c partition.c simd.c thread.c $(simd.sources)
-LOCAL_OBJECTS=linearAlgebra.o moments.o partition.o simd.o thread.o $(simd.objects)
+LOCAL_SOURCES=linearAlgebra.c logGamma.c moments.c partition.c simd.c thread.c $(simd.sources)
+LOCAL_OBJECTS=linearAlgebra.o logGamma.o moments.o partition.o simd.o thread.o $(simd.objects)
 
 all : library
 
@@ -105,6 +105,9 @@ compile.linearAlgebra_neon = $(linearAlgebra_neon.$(have.neon))
 linearAlgebra_neon.o : linearAlgebra_neon.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra_neon.c -o linearAlgebra_neon.c
 	@$(compile.linearAlgebra_neon)
+
+logGamma.o : logGamma.c $(INCLUDE_DIR)/misc/stats.h
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@
 
 moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h $(INCLUDE_DIR)/misc/simd.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c $< -o $@

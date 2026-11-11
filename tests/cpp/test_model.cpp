@@ -420,6 +420,50 @@ static double logVarianceMarginalQuadrature(double n, double ssr, double df,
   return maxLog + std::log(sum * h / 3.0);
 }
 
+// The engine's log-gamma is the C library's lgamma bit for bit, so no draw
+// moved when the engine stopped calling lgamma, over the arguments the engine
+// takes (half-integers, integers plus one, grid values plus counts, the
+// Dirichlet grid's small and large concentrations) and over negative, pole
+// and non-finite ones; and it leaves signgam as it was, which lgamma itself
+// does not, so concurrent chains do not race on it.
+static void testLogGammaIsLibmWithoutSigngam() {
+  std::vector<double> xs = {0.0, -0.0, 1.0, 2.0, -1.0, -2.0, HUGE_VAL,
+                            -HUGE_VAL, std::numeric_limits<double>::quiet_NaN(),
+                            DBL_MIN, DBL_MAX, 4.9e-324};
+  for (int i = 1; i <= 4000; ++i) {
+    xs.push_back(0.5 * i);
+    xs.push_back(static_cast<double>(i) + 1.0);
+    xs.push_back(-0.5 * i + 0.25);
+  }
+  // r grid values plus counts, and m (nu + 1) / 2 over the df grid
+  for (double r : {0.5, 1.0, 2.0, 5.0, 10.0, 25.0, 100.0})
+    for (int c = 0; c <= 500; ++c) xs.push_back(c + r);
+  for (double nu : {3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0})
+    for (int m = 1; m <= 200; ++m) xs.push_back(m * 0.5 * (nu + 1.0));
+  // log-spaced over the whole positive range
+  for (int e = -30000; e <= 30000; ++e) xs.push_back(std::pow(10.0, e / 100.0));
+
+  std::size_t differing = 0;
+  for (double x : xs) {
+    double ours = misc_logGamma(x), theirs = std::lgamma(x);
+    bool same = (std::isnan(ours) && std::isnan(theirs)) ||
+                std::memcmp(&ours, &theirs, sizeof ours) == 0;
+    if (!same && differing++ < 5)
+      printf("  misc_logGamma(%a) = %a, lgamma %a\n", x, ours, theirs);
+  }
+  check(differing == 0, "misc_logGamma is the C library's lgamma, bit for bit");
+
+  // volatile, so neither call is folded at compile time; Gamma(-0.5) < 0
+  volatile double negative = -0.5;
+  signgam = 7;
+  misc_logGamma(negative);
+  bool untouched = signgam == 7;
+  std::lgamma(negative);
+  check(untouched && signgam == -1,
+        "misc_logGamma leaves signgam alone, which lgamma sets");
+  printf("ok: misc_logGamma is lgamma's value without its signgam write\n");
+}
+
 // (a) the scale marginal matches direct quadrature over (n, ssr), and the
 // node-context own-span accumulation reproduces the direct form over a split.
 static void testVarianceLeafMarginal() {
@@ -11085,6 +11129,7 @@ void runModelTests(ext_rng* rng) {
   testChiKHyperprior(rng);
   testChiKEmptyLeafAccounting(rng);
   testSigmaPosteriorDf(rng);
+  testLogGammaIsLibmWithoutSigngam();
   testVarianceLeafMarginal();
   testVarianceLeafDraw();
   testVarianceLeafCalibration();

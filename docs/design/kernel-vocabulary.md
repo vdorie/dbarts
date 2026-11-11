@@ -132,6 +132,11 @@ Backfitting state maintenance (`totalFits` updates), all over `double`:
 Adaptive radix tree (misc/adaptiveRadixTree.h), binary IO, string utilities,
 thread managers themselves. Not part of the per-observation contract.
 
+`misc_logGamma` (misc/stats.h, src/misc/logGamma.c) is the engine's one
+log-gamma: the C library's own value, bit for bit, through its reentrant
+form, since `lgamma` writes the process-wide `signgam` and chains on worker
+threads would race on it.
+
 ## Planned additions (generalized core)
 
 Each lands with a scalar reference implementation first (same table slot),

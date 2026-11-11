@@ -107,7 +107,11 @@ R's console there. A build that defines `DBARTS_HOST_STANDALONE` gets a copy
 of R's routines (standalone/nmath, outside the package tarball, renamed so it
 never clashes with R's) and standard output instead; tests/cpp's
 standalone-math target is that build's recipe, and its nmath suite holds the
-copy to R's values.
+copy to R's values. The log-gamma is the C library's in either build, taken
+through [`misc_logGamma`](../src/misc/logGamma.c), its reentrant form, since
+`lgamma` itself writes a process-wide global that chains on worker threads
+would race on; tests/cpp's signgam-free target refuses a `dbarts.so` that
+calls `lgamma`.
 
 ## Dispatch tiers
 
@@ -552,7 +556,8 @@ sampler.
 
 `Sampler::run` (sampler.hpp) runs chains on as many `std::thread` workers as
 `numThreads` and the chain count allow. While running, a chain reads the
-shared `ColumnStore` but never writes it, never calls R, and never touches
+shared `ColumnStore` but never writes it, never calls R or a C library
+function that writes process-wide state (`lgamma`, for one), and never touches
 another chain, and the per-sweep hook it calls on its own thread reaches that
 chain alone, so results are bitwise identical at any thread count. Two execution paths across chains, and one pool
 inside a chain:

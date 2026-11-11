@@ -368,8 +368,8 @@ struct ConstantVarianceLeaf {
     if (n == 0.0) return 0.0;
     double priorScale = degreesOfFreedom * scale;
     return 0.5 * degreesOfFreedom * std::log(0.5 * priorScale) -
-           std::lgamma(0.5 * degreesOfFreedom) +
-           std::lgamma(0.5 * (n + degreesOfFreedom)) -
+           misc_logGamma(0.5 * degreesOfFreedom) +
+           misc_logGamma(0.5 * (n + degreesOfFreedom)) -
            0.5 * (n + degreesOfFreedom) * std::log(0.5 * (ssr + priorScale));
   }
 
@@ -1549,7 +1549,7 @@ inline double monotoneLogAdjacentShare(const std::vector<double>& firstDist,
   std::size_t a = firstDist.size(), b = secondDist.size();
   logFactorial.resize(a + b + 1);
   for (std::size_t i = 0; i <= a + b; ++i)
-    logFactorial[i] = std::lgamma(static_cast<double>(i) + 1.0);
+    logFactorial[i] = misc_logGamma(static_cast<double>(i) + 1.0);
   auto logChoose = [&logFactorial](std::size_t n, std::size_t k) {
     return logFactorial[n] - logFactorial[k] - logFactorial[n - k];
   };
@@ -1580,7 +1580,7 @@ inline double monotoneLogNormalizer(const Tree& tree, const ColumnStore& data,
   for (const MonotoneOrderComponent& c : s.order.components)
     if (c.size > 1)
       total += monotoneLogExtensions(c, s, false) -
-               std::lgamma(static_cast<double>(c.size) + 1.0);
+               misc_logGamma(static_cast<double>(c.size) + 1.0);
   return total;
 }
 
@@ -4699,7 +4699,7 @@ private:
       double lambda = static_cast<double>(k + 1) / static_cast<double>(gridSize + 1);
       double alphaK = lambda * rho / (1.0 - lambda);
       gridAlpha_[k] = alphaK;
-      gridConstant_[k] = std::lgamma(alphaK) - p * std::lgamma(alphaK / p) +
+      gridConstant_[k] = misc_logGamma(alphaK) - p * misc_logGamma(alphaK / p) +
                          (betaA - 1.0) * std::log(lambda) +
                          (betaB - 1.0) * std::log(1.0 - lambda);
       gridLogPrior_[k] = (betaA - 1.0) * std::log(lambda) +
@@ -6979,7 +6979,7 @@ struct ResidualDfPrior {
     double priorTotal = 0.0;
     for (std::size_t k = 0; k < gridSize; ++k) {
       double halfNu = 0.5 * grid[k];
-      kernel_[k] = halfNu * std::log(halfNu) - std::lgamma(halfNu);
+      kernel_[k] = halfNu * std::log(halfNu) - misc_logGamma(halfNu);
       logPrior_[k] = grid[k] * std::exp(-0.1 * grid[k]);  // gamma(2, 0.1) kernel
       priorTotal += logPrior_[k];
     }
@@ -7028,12 +7028,12 @@ struct ResidualDfPrior {
                              std::size_t n, double* out) {
     for (std::size_t k = 0; k < gridSize; ++k) {
       double halfShape = 0.5 * (grid[k] + 1.0);
-      double lgammaHalfShape = std::lgamma(halfShape);
+      double lgammaHalfShape = misc_logGamma(halfShape);
       double total = 0.0;
       for (std::size_t i = 0; i < n; ++i) {
         if (in[i] == 0) continue;
         double m = counts != nullptr ? counts[i] : 1.0;
-        total += m * lgammaHalfShape - std::lgamma(m * halfShape);
+        total += m * lgammaHalfShape - misc_logGamma(m * halfShape);
       }
       out[k] = total;
     }
@@ -7457,12 +7457,12 @@ struct NBShapePrior {
         counts != nullptr ? counts[i] : 1.0;
     }
     for (std::size_t k = 0; k < gridSize; ++k) {
-      double lgammaR = std::lgamma(grid[k]);
+      double lgammaR = misc_logGamma(grid[k]);
       double L = 0.0;
       for (std::size_t c = 0; c <= maxCount; ++c)
         if (histogram[c] != 0.0)
           L += histogram[c] *
-               (std::lgamma(static_cast<double>(c) + grid[k]) - lgammaR);
+               (misc_logGamma(static_cast<double>(c) + grid[k]) - lgammaR);
       kernel_[k] = L - total * std::log(grid[k]);
     }
   }
@@ -7753,7 +7753,7 @@ public:
   void computeLogLikelihood(const double* totalFits, double,
                             std::size_t numObservations,
                             double* out) const override {
-    double lgammaR = std::lgamma(r_);
+    double lgammaR = misc_logGamma(r_);
     for (std::size_t i = 0; i < numObservations; ++i) {
       if (!isActive(i)) {
         out[i] = std::numeric_limits<double>::quiet_NaN();
@@ -7761,7 +7761,7 @@ public:
       }
       double psi = totalFits[i] + anchor(i);
       double y = y_[i];
-      out[i] = std::lgamma(y + r_) - lgammaR - std::lgamma(y + 1.0) -
+      out[i] = misc_logGamma(y + r_) - lgammaR - misc_logGamma(y + 1.0) -
                y * logOnePlusExp(-psi) - r_ * logOnePlusExp(psi);
       if (weights_ != nullptr) out[i] *= weights_[i];
     }

@@ -570,6 +570,14 @@ A16. **The callback names the channels it reads** (ruled 2026-11-10, "Use your r
     pays for no log-likelihood or test pass it never reads. The scalars are always filled, being free and
     having no NULL. Alternative, the plan's first course: time the log-likelihood scratch and add a second
     registration entry only for a cost above noise.
+A17. **One log-gamma, the C library's reentrant form** (`misc_logGamma`), after the TSan job caught chains
+    racing on `signgam` through `lgamma`. Bitwise `lgamma`'s value wherever R builds: `lgamma_r` on glibc,
+    musl, macOS and the BSDs, declared in the C file since each library hides it behind its own feature
+    macro, and libmingwex's `__lgamma_r` on Windows, the function its `lgamma` wraps, exported since 2012
+    but declared in no header. No configure check: every Unix C library R builds on has `lgamma_r`, and one
+    without fails the install's load test by name. Alternatives: a lock around `lgamma` (bitwise, but a lock
+    on the per-draw negative binomial path and the variance forest's moves), or an own implementation
+    (lock-free, but last-bit changes, so every draw moves on every build).
 
 ## Risks and the objections answered
 
