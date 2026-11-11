@@ -262,7 +262,8 @@ forestPriorLines <- function(
   if (length(labels) != length(priors)) {
     labels <- names(priors)
   }
-  latent <- family %in% c("probit", "logistic")
+  latent <- family %in%
+    c("probit", "logistic", "hazard.probit", "hazard.logistic")
   header <- if (full) {
     paste0(
       "forests, sd ",
@@ -492,6 +493,41 @@ forestEffectDraws <- function(fits, glue, multiplier, basis) {
   effects
 }
 
+## The same effects as changes in probability, each draw's at each row, from
+## `eta`, the draws-by-rows link-scale fit as it stands, with the link's
+## distribution `cdf` and its density `density`. A factor's effect is the
+## probability with the row's forest term at the second level less that at
+## the first; a numeric column's is the slope of the probability per unit of
+## the column, the density at the row's fit times the link-scale effect.
+## Averaged last, so each is a posterior of the quantity itself. Returns the
+## list forestEffectDraws does, in its order.
+forestProbabilityDraws <- function(
+  eta,
+  fits,
+  glue,
+  multiplier,
+  basis,
+  cdf,
+  density
+) {
+  if (multiplier == "factor") {
+    if (nlevels(basis) != ncol(glue)) {
+      return(list())
+    }
+    own <- glue[, as.integer(basis), drop = FALSE]
+    first <- eta - (own - glue[, 1L]) * fits
+    base <- cdf(first)
+    lapply(seq_len(ncol(glue))[-1L], function(column) {
+      cdf(first + (glue[, column] - glue[, 1L]) * fits) - base
+    })
+  } else {
+    slope <- density(eta)
+    lapply(seq_len(ncol(glue)), function(column) {
+      slope * (glue[, column] * fits)
+    })
+  }
+}
+
 ## One effect's summary: the average over the rows in the likelihood and its
 ## spread across them (sd), each taken per draw, so each is a posterior of the
 ## quantity itself, then the median and the 5% and 95% quantiles summary()
@@ -540,10 +576,25 @@ effectScaleText <- function(family) {
   )
 }
 
+## The distribution and density of the link a binary response's forests add
+## on, as a list; NULL for a response with no probability (gaussian).
+effectLink <- function(family) {
+  switch(
+    as.character(family)[1L],
+    probit = ,
+    hazard.probit = list(cdf = stats::pnorm, density = stats::dnorm),
+    logistic = ,
+    hazard.logistic = list(cdf = stats::plogis, density = stats::dlogis),
+    NULL
+  )
+}
+
 ## A fit's forests' effects per unit of their bases, from its per-forest fits
 ## and amplitudes: a data frame of one row for each column of each forest with
-## a basis (forest, label, effect, and effectSummary's columns), with the rows
-## it averages over and the scale as attributes; NULL for a fit with no forest
+## a basis (forest, label, effect, and effectSummary's columns, then, for a
+## binary response, probability.kind, "change" or "slope", and effectSummary's
+## columns again prefixed "probability."), with the rows it averages over and
+## the scale as attributes; NULL for a fit with no forest
 ## that has a basis, and, for one that has but kept no per-forest fits, the
 ## string "dropped".
 fitForestEffects <- function(fit) {
@@ -578,18 +629,34 @@ fitForestEffects <- function(fit) {
   if (length(counts) != dim(fits)[2L]) {
     counts <- rep_len(1, dim(fits)[2L])
   }
+  link <- effectLink(fit[["family"]])
+  eta <- if (!is.null(link) && !is.null(fit[["yhat.train"]])) {
+    reshapeChainedChannel(fit$yhat.train, chains, TRUE, 1L)
+  }
   rows <- lapply(has, function(k) {
+    own <- glue[, glueForest == forestNames[k], drop = FALSE]
     effects <- forestEffectDraws(
       fits[,, k],
-      glue[, glueForest == forestNames[k], drop = FALSE],
+      own,
       multipliers[k],
       fit$bases[[k]]
     )
+    probabilities <- if (!is.null(eta)) {
+      forestProbabilityDraws(
+        eta,
+        fits[,, k],
+        own,
+        multipliers[k],
+        fit$bases[[k]],
+        link$cdf,
+        link$density
+      )
+    }
     do.call(
       rbind,
       Map(
-        function(draws, what) {
-          cbind(
+        function(draws, what, index) {
+          one <- cbind(
             data.frame(
               forest = k,
               label = labels[k],
@@ -598,9 +665,28 @@ fitForestEffects <- function(fit) {
             ),
             effectSummary(draws, rowsIn, counts)
           )
+          if (!is.null(probabilities)) {
+            probability <- effectSummary(
+              probabilities[[index]],
+              rowsIn,
+              counts
+            )
+            names(probability) <- paste0("probability.", names(probability))
+            one <- cbind(
+              one,
+              probability.kind = if (multipliers[k] == "factor") {
+                "change"
+              } else {
+                "slope"
+              },
+              probability
+            )
+          }
+          one
         },
         effects,
-        names(effects)
+        names(effects),
+        seq_along(effects)
       )
     )
   })
@@ -661,25 +747,51 @@ forestEffectLines <- function(effects) {
   }
   rows <- attr(effects, "rows")
   observations <- attr(effects, "observations")
-  lines <- vapply(
+  lines <- unlist(lapply(
     seq_len(nrow(effects)),
     function(row) {
       one <- effects[row, ]
-      paste0(
-        "  ",
-        one$forest,
-        " ",
-        one$label,
-        ", ",
-        one$effect,
-        ": average ",
-        shown(one$average, one$average.q5, one$average.q95),
-        ", sd across rows ",
-        shown(one$spread, one$spread.q5, one$spread.q95)
+      c(
+        paste0(
+          "  ",
+          one$forest,
+          " ",
+          one$label,
+          ", ",
+          one$effect,
+          ": average ",
+          shown(one$average, one$average.q5, one$average.q95),
+          ", sd across rows ",
+          shown(one$spread, one$spread.q5, one$spread.q95)
+        ),
+        if (!is.null(one[["probability.kind"]])) {
+          paste0(
+            "    ",
+            if (identical(one$probability.kind, "change")) {
+              paste0("change in probability, ", one$effect)
+            } else {
+              paste0(
+                "slope of probability per unit",
+                if (one$effect != "per unit") paste0(", ", one$effect)
+              )
+            },
+            ": average ",
+            shown(
+              one$probability.average,
+              one$probability.average.q5,
+              one$probability.average.q95
+            ),
+            ", sd across rows ",
+            shown(
+              one$probability.spread,
+              one$probability.spread.q5,
+              one$probability.spread.q95
+            )
+          )
+        }
       )
-    },
-    ""
-  )
+    }
+  ))
   c(
     paste0(
       "effect of one unit of each basis, ",

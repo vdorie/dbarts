@@ -36,8 +36,16 @@
   each forest's own fits times the coefficient on its basis, which is what
   \code{predict} gives with the basis one unit higher less the basis as it
   stands; a fit that kept no per-forest fits (\code{keepFits = FALSE}) says so
-  in one line instead. A change in probability is \code{predict}'s job (\code{predict} with
-  the basis one unit up less \code{predict} as it stands). Where the weights
+  in one line instead. On a binary (probit or logistic), binomial or discrete-time
+  hazard response, a second line under each effect gives it as a probability: for
+  a factor the change in probability from its first level to its second, for a
+  numeric basis the slope of the probability per unit of the basis (as
+  \code{marginaleffects::avg_slopes} reports it), each an average and an sd
+  across rows computed per draw and row from the kept fits and averaged last,
+  so the average is the posterior of the mean change in probability. A 0/1
+  numeric basis has a slope that is not the 0 to 1 contrast, which
+  \code{factor(z)} as the basis gives exactly. A gaussian response has no such
+  line. Where the weights
   are counts of identical rows (the count families' default, and gaussian with
   \code{weights.type = "frequency"}), the average and the sd across rows, as
   the forest line's column mean and sd, count each row at its count, as the
@@ -104,8 +112,10 @@
   forest has a basis, a data frame with a row for each effect (columns
   \code{forest}, \code{label}, \code{effect}, \code{average},
   \code{average.q5}, \code{average.q95}, \code{spread}, \code{spread.q5} and
-  \code{spread.q95}, with the number of rows averaged over and the scale as
-  attributes \code{"rows"} and \code{"scale"}) or the string \code{"dropped"}
+  \code{spread.q95}, and, for a binary, binomial or hazard response,
+  \code{probability.kind} (\code{"change"} or \code{"slope"}) and the same
+  six summaries prefixed \code{probability.}, with the number of rows averaged
+  over and the scale as attributes \code{"rows"} and \code{"scale"}) or the string \code{"dropped"}
   for a fit that kept no per-forest fits. \code{stats} has columns \code{variable}, \code{mean}, \code{median},
   \code{sd}, \code{mad}, \code{q5}, \code{q95}, \code{rhat},
   \code{ess_bulk}, and \code{ess_tail} - the same columns

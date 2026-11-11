@@ -480,3 +480,133 @@ expect_true(grepl(
   effectsHeader(1, "training rows", 2L, TRUE),
   fixed = TRUE
 ))
+
+# a binary, binomial or hazard fit adds a change-in-probability line under each
+# link-scale line, per draw and row from the kept fits and averaged last: a
+# factor basis the change from its first level to its second, a numeric basis
+# the slope of the probability per unit. A gaussian fit has none.
+probabilityOf <- function(effects, forest) {
+  as.numeric(effects[
+    effects$forest == forest,
+    paste0(
+      "probability.",
+      c(
+        "average",
+        "average.q5",
+        "average.q95",
+        "spread",
+        "spread.q5",
+        "spread.q95"
+      )
+    )
+  ])
+}
+expect_null(effects[["probability.kind"]])
+expect_false(any(grepl("in probability|of probability", printed)))
+
+# probit: a numeric basis against the finite difference of predict's
+# probabilities (exact to rounding, the basis entering linearly), a factor
+# against predict's probabilities at its two levels
+db$g <- g
+fProbit <- fit(
+  yb ~
+    forest(x1 + x2) +
+    forest(x1 + x2 + x3, basis = z) +
+    forest(x1 + x3, basis = g),
+  data = db,
+  weights = w
+)
+effectsP <- summary(fProbit)$effects
+step <- 1e-6
+evAt <- function(data) predict(fProbit, newdata = data, type = "ev")
+slopeDraws <- (evAt(transform(db, z = z + step)) - evAt(db)) / step
+expect_equal(
+  probabilityOf(effectsP, 2L),
+  quantities(slopeDraws),
+  tolerance = 1e-4
+)
+levelAt <- function(level) {
+  evAt(transform(db, g = factor(level, levels = c("a", "b"))))
+}
+expect_equal(
+  probabilityOf(effectsP, 3L),
+  quantities(levelAt("b") - levelAt("a")),
+  tolerance = 1e-8
+)
+expect_identical(effectsP$probability.kind, c("slope", "change"))
+printedP <- capture.output(print(summary(fProbit)))
+atP <- grep("^effect of one unit of each basis", printedP)
+expect_identical(length(printedP) - atP, 4L)
+expect_true(grepl(
+  "^    slope of probability per unit: average ",
+  printedP[atP + 2L]
+))
+expect_true(grepl(
+  "^    change in probability, level b against a: average ",
+  printedP[atP + 4L]
+))
+expect_true(grepl(
+  paste0(
+    "average ",
+    shownText(probabilityOf(effectsP, 2L)[1:3]),
+    ", sd across rows ",
+    shownText(probabilityOf(effectsP, 2L)[4:6])
+  ),
+  printedP[atP + 2L],
+  fixed = TRUE
+))
+# a hazard fit, by hand from its own kept fits: the link's distribution at
+# the draw's latent fit, the amplitude and the forest's fit
+for (hazardFamily in c("hazard", "hazard.logistic")) {
+  cdf <- if (hazardFamily == "hazard") pnorm else plogis
+  density <- if (hazardFamily == "hazard") dnorm else dlogis
+  h$doseF <- factor(h$dose, levels = c(0, 1))
+  hz <- bart(
+    survival::Surv(time, status) ~
+      x1 +
+      forest(x2, basis = dose) +
+      forest(x2, basis = doseF),
+    data = h,
+    family = hazardFamily,
+    n.chains = 2L,
+    n.samples = 20L,
+    n.burn = 10L,
+    n.trees = 10L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+  effectsH <- summary(hz)$effects
+  eta <- hz$yhat.train
+  fits <- hz$forestFits
+  glue <- hz$glue
+  forestNames <- dimnames(fits)[[3L]]
+  glueOf <- function(k) {
+    glue[, attr(glue, "forest") == forestNames[k], drop = FALSE]
+  }
+  qH <- function(difference) {
+    q <- function(v) quantile(v, c(0.5, 0.05, 0.95), names = FALSE)
+    c(q(rowMeans(difference)), q(apply(difference, 1L, sd)))
+  }
+  # numeric basis: the density at the latent fit times the forest's
+  # link-scale effect, per draw and row
+  slopeH <- density(eta) * (glueOf(2L)[, 1L] * fits[,, 2L])
+  expect_equal(probabilityOf(effectsH, 2L), qH(slopeH), tolerance = 1e-10)
+  # factor basis: the row's term moved to the first level and to the second
+  level <- as.integer(hz$bases[[3L]])
+  gl <- glueOf(3L)
+  atLevel <- function(column) {
+    cdf(eta + (gl[, column] - gl[, level]) * fits[,, 3L])
+  }
+  expect_equal(
+    probabilityOf(effectsH, 3L),
+    qH(atLevel(2L) - atLevel(1L)),
+    tolerance = 1e-10
+  )
+  expect_identical(effectsH$probability.kind, c("slope", "change"))
+  printedH <- capture.output(print(summary(hz)))
+  expect_true(any(startsWith(
+    printedH,
+    "forests, sd on the latent scale (error sd "
+  )))
+  expect_false(any(grepl("response's units", printedH, fixed = TRUE)))
+}
