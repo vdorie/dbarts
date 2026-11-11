@@ -284,9 +284,10 @@ expect_true(grepl(
 ))
 
 # The floor that keeps an exact fit's rounding noise off the estimate is
-# relative to the estimate's own scale: the largest |y| over the rows in, each
-# times the square root of its weight under precision weights; 1.5e-8 itself
-# only for an all-zero response. A sound estimate in any units is lm's.
+# 2^16 eps relative to the estimate's own scale: the largest |y| over the rows
+# in, each times the square root of its weight under precision weights; 2^16
+# eps itself only for an all-zero response. A sound estimate in any units is
+# lm's.
 set.seed(17)
 x.fl <- matrix(rnorm(60L), 30L)
 y.fl <- drop(x.fl %*% c(1, -2)) + rnorm(30L)
@@ -296,7 +297,7 @@ counts.fl <- rep(c(1, 2, 3), 10L)
 sigma.fl <- function(y, ...) {
   dbarts(x.fl, y, ..., control = control.ss, n.trees = 5L)$data@sigma
 }
-eps.fl <- sqrt(.Machine$double.eps)
+eps.fl <- 2^16 * .Machine$double.eps
 for (scale in c(1e-9, 1e-12)) {
   tiny <- scale * y.fl
   expect_identical(sigma.fl(tiny), summary(lm(tiny ~ x.fl))$sigma)
@@ -321,6 +322,11 @@ expect_identical(
   eps.fl * max(abs(exact.fl))
 )
 expect_identical(sigma.fl(rep(0, 30L)), eps.fl)
+# a spread of about 1 beside a mean of 1.7e9 is a sound estimate, 47 times
+# the floor and far above an exact fit's rounding noise: lm's sigma
+y.large <- 1.7e9 + y.fl
+expect_true(summary(lm(y.large ~ x.fl))$sigma < 2)
+expect_identical(sigma.fl(y.large), summary(lm(y.large ~ x.fl))$sigma)
 
 # A fold's floor reads its training rows on the same scale: every fold's
 # regression is exact, and under precision weights each floor is the largest

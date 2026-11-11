@@ -93,9 +93,9 @@ plainSigma <- suppressWarnings(dbarts(x, rep(1.0, n)))$data@sigma
 expect_false(is.na(plainSigma))
 expect_true(plainSigma > 0)
 # tolerance = 0: the default relative tolerance would call a host's raw
-# rounding noise (~1e-15) "equal to" this floor (~1e-8) too, since both are
-# tiny; only an exact comparison pins the floor itself
-expect_equal(plainSigma, sqrt(.Machine$double.eps), tolerance = 0)
+# rounding noise (~1e-15) "equal to" this floor (~1.5e-11) too, since both
+# are tiny; only an exact comparison pins the floor itself
+expect_equal(plainSigma, 2^16 * .Machine$double.eps, tolerance = 0)
 
 # --- it runs, and reports K softmax probabilities ---------------------------
 samples <- sampler$run(6L, 8L)

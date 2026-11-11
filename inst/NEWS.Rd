@@ -598,9 +598,11 @@
             leaves no residual degrees of freedom, as with more columns
             than rows (each row counted once under frequency weights, not
             as often as its weight), the fit starts from the standard
-            deviation of the response, weighted as the regression is (\code{sd(y)} at unit
-            weights), saying so in a line under \code{verbose} and in its
-            \code{summary}; 0.9-34 stopped.
+            deviation of the response, weighted as the regression is
+            (\code{sd(y)} at unit weights, and over the rows of positive
+            weight where frequency weights total at most 1, up to the
+            rounding of their sum), saying so in a line under
+            \code{verbose} and in its \code{summary}; 0.9-34 stopped.
       \item \code{xbart}'s \code{sigest} may be a function, called on
             each fold's training rows.
       \item Draws a sampler has saved (\code{keepTrees}) keep their
@@ -1147,13 +1149,12 @@
       \item The starting estimate of \code{sigma} no longer depends on the
             machine's linear algebra library: an exactly fit response could
             give an estimate of 0, which the sampler then refused. Such an
-            estimate is now raised to a floor of about 1.5e-8 times the
-            largest absolute response less its offset (under precision
-            weights, of the square root of the weight times it), and an
-            estimate above the floor is 0.9-34's. A response with a mean far
-            above its spread (a mean of 1.7e9 beside a standard deviation
-            of 1) can start at the floor, where \code{lm} and 0.9-34 give
-            the spread.
+            estimate is now raised to a floor of \eqn{2^{16}}{2^16} times
+            the machine epsilon (about 1.5e-11) times the largest absolute
+            response less its offset (under precision weights, each times
+            the square root of its weight), below which only rounding
+            noise falls; an estimate above the floor, including that of a
+            mean far above its spread, is 0.9-34's.
       \item \code{plot.bart}, \code{plot.pd2bart} and tree plots restore the
             caller's graphical parameters.
       \item Sampler methods. \code{$setResponse} and \code{$setData} check

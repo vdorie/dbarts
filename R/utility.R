@@ -1184,7 +1184,9 @@ rawPredictorMatrix <- function(x) {
 ## coefficients and residual sum of squares are the weighted fit's. The
 ## regression is defined by the distinct rows of positive weight less the
 ## rank, as under precision weights, so a fit saturated on its distinct rows
-## has none however its rows are counted.
+## has none however its rows are counted, and its degrees of freedom are
+## read past the rounding of the counts' sum (exceedsCountRounding), so a fit
+## saturated up to that rounding has none either.
 residualStandardError <- function(y, x, weights, offset, frequency = FALSE) {
   keep <- !is.na(y)
   if (!is.null(weights)) {
@@ -1215,8 +1217,10 @@ residualStandardError <- function(y, x, weights, offset, frequency = FALSE) {
     sum(fit$weights * residual^2)
   }
   if (frequency && !is.null(weights)) {
-    df <- sum(weights) - fit$rank
-    return(if (fit$df.residual > 0 && df > 0) sqrt(rss / df) else NaN)
+    total <- sum(weights)
+    df <- total - fit$rank
+    defined <- fit$df.residual > 0 && exceedsCountRounding(df, total)
+    return(if (defined) sqrt(rss / df) else NaN)
   }
   sqrt(rss / fit$df.residual)
 }
@@ -1763,11 +1767,12 @@ sparseSigmaRoutine <- function(front) {
   unitNorm <- function(squaredNorms) {
     Matrix::Diagonal(x = 1 / sqrt(replace(squaredNorms, squaredNorms == 0, 1)))
   }
-  # the rows the degrees of freedom count: under frequency the weights' sum;
-  # the regression is defined by the distinct rows however they are counted
+  # the rows the degrees of freedom count: under frequency the weights' sum,
+  # read past its rounding; the regression is defined by the distinct rows
+  # however they are counted
   count <- if (is.null(front$count)) n else front$count
   result <- function(residual, rank) {
-    sigma <- if (rank < n && rank < count) {
+    sigma <- if (rank < n && exceedsCountRounding(count - rank, count)) {
       sqrt(sum(residual^2) / (count - rank))
     } else {
       NA_real_
@@ -1917,8 +1922,9 @@ sparseResidualStandardError <- function(
 ## cases can be scarce when missingness is scattered, and the estimate just
 ## anchors the residual variance prior. Where the design leaves no residual
 ## degrees of freedom there is no regression and the sd of the response less
-## its offset stands in, weighted as the regression is (floorSigmaEstimate);
-## a condition of class dbartsSigmaFallback is signaled
+## its offset stands in, weighted as the regression is except under counts
+## that total at most one observation (floorSigmaEstimate); a condition of
+## class dbartsSigmaFallback is signaled
 ## first, for a caller that records it. Not a message class: a handler that
 ## muffles messages would find no restart.
 estimateSigmaFromLinearModel <- function(
@@ -1955,7 +1961,7 @@ estimateSigmaFromLinearModel <- function(
   weights <- residualOfRowsIn(data@weights, data@weights)
   if (!is.finite(sigma)) {
     signalCondition(
-      sigmaFallbackCondition(isWeightedStandIn(weights), frequency)
+      sigmaFallbackCondition(isWeightedStandIn(weights, frequency), frequency)
     )
   }
   floorSigmaEstimate(sigma, residual, weights, frequency)
@@ -1979,12 +1985,16 @@ sigmaFallbackCondition <- function(weighted, frequency = FALSE) {
 }
 
 ## What the stand-in for the starting sigma is called: the sd of the response,
-## and where weights other than 1 are read the sigma of the intercept-only
-## weighted regression, the sd of a row of weight 1, or under 'frequency' the
-## sd of the rows written out.
+## under 'frequency' each row counted once; and where weights other than 1 are
+## read the sigma of the intercept-only weighted regression, the sd of a row of
+## weight 1, or under 'frequency' the sd of the rows written out.
 standInWords <- function(weighted, frequency = FALSE) {
   if (!weighted) {
-    "the sd of the response"
+    if (frequency) {
+      "the sd of the response, each row counted once"
+    } else {
+      "the sd of the response"
+    }
   } else if (frequency) {
     "the sd of the response with each row written out as often as its weight"
   } else {
@@ -1996,9 +2006,26 @@ standInWords <- function(weighted, frequency = FALSE) {
 }
 
 ## Whether the stand-in for the starting sigma reads its weights: some weight
-## of a row in is other than 1. 'weights' are those of the rows in.
-isWeightedStandIn <- function(weights) {
-  !is.null(weights) && !all(weights == 1)
+## of a row in is other than 1 and, under 'frequency', the counts total more
+## than one observation past the rounding of their sum; at most one leaves the
+## rows written out no sd. 'weights' are those of the rows in.
+isWeightedStandIn <- function(weights, frequency = FALSE) {
+  !is.null(weights) &&
+    !all(weights == 1) &&
+    (!frequency || exceedsCountRounding(sum(weights) - 1, sum(weights)))
+}
+
+## The size, relative to the quantity it is read against, below which the
+## starting sigma takes a value for rounding noise: 2^16 eps, thousands of
+## times what an exact fit's residuals or a sum of counts carries.
+sigmaRoundingScale <- 2^16 * .Machine$double.eps
+
+## Whether 'difference', a quantity less a count of observations, is positive
+## past the rounding of the counts' sum 'total' it was taken from. A sum of
+## counts that ought to be a whole number, as 20 counts of 0.05 to 1, is off
+## by its terms' rounding, which would otherwise decide a side.
+exceedsCountRounding <- function(difference, total) {
+  difference > sigmaRoundingScale * total
 }
 
 ## What a fit records where the sd of the response stood in for its starting
@@ -2040,7 +2067,9 @@ sigmaDesignMatrix <- function(x) {
 ## the sd of the response less its offset, weighted where 'weights' (those of
 ## the rows of 'residual', all positive) are given; sd() itself where every
 ## one is 1, so unit weights give the unweighted fit's starting sigma to the
-## bit. The floor reads the residual on the estimate's own scale: under
+## bit, and where counts total at most one observation, whose rows written
+## out leave no sd (isWeightedStandIn). sd() of one row is NA, which the
+## floor replaces. The floor reads the residual on the estimate's own scale: under
 ## precision weights each row's times the square root of its weight, the
 ## noise of a row of weight 1; counts leave that scale as it is.
 floorSigmaEstimate <- function(
@@ -2050,7 +2079,7 @@ floorSigmaEstimate <- function(
   frequency = FALSE
 ) {
   if (!is.finite(sigma)) {
-    sigma <- if (!isWeightedStandIn(weights)) {
+    sigma <- if (!isWeightedStandIn(weights, frequency)) {
       sd(residual)
     } else {
       weightedSd(residual, weights, frequency)
@@ -2067,7 +2096,7 @@ floorSigmaEstimate <- function(
 ## sigma of lm(x ~ 1, weights = weights), or under 'frequency' over the
 ## weights' sum less one, the sd of each value written out as many times as
 ## its weight counts. NA where that count is at most 1, as sd() of one value
-## is.
+## is; the stand-in passes counts that total more than 1 past rounding.
 weightedSd <- function(x, weights, frequency = FALSE) {
   total <- sum(weights)
   rows <- if (frequency) total else length(x)
@@ -2083,15 +2112,17 @@ weightedSd <- function(x, weights, frequency = FALSE) {
 ## value it lands on is a property of the host's BLAS kernel; the sampler
 ## refuses a non-positive sigma outright, so a host-dependent noise floor
 ## would make dbarts() itself succeed or fail by hardware. Floor the final
-## estimate (raw fit or the marginal fallback) at a relative epsilon of the
+## estimate (raw fit or the marginal fallback) at sigmaRoundingScale times the
 ## largest 'residual', on the estimate's scale, so it is host-independent and
-## does not depend on the units the response is written in; an all-zero
-## residual has no scale and takes the epsilon itself. sd() of a length-1
+## does not depend on the units the response is written in, and binds only
+## where the estimate is at the level of rounding noise: an exact fit's is a
+## few tens of eps times the largest residual. An all-zero residual has no
+## scale and takes sigmaRoundingScale itself. sd() of a length-1
 ## residual is itself NA (undefined, not merely small); re-check finiteness
 ## rather than let that NA reach the comparison.
 floorMarginalSigma <- function(sigma, residual) {
   scale <- max(abs(residual))
-  sigmaFloor <- sqrt(.Machine$double.eps) * if (scale > 0) scale else 1
+  sigmaFloor <- sigmaRoundingScale * if (scale > 0) scale else 1
   if (!is.finite(sigma) || sigma < sigmaFloor) sigmaFloor else sigma
 }
 

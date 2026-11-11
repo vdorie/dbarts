@@ -332,9 +332,9 @@ expect_true(any(grepl(
   utils::capture.output(print(summary(saturated))),
   fixed = TRUE
 )))
-# counts of 1 write out nothing: the unweighted fit's words
+# counts of 1 write out nothing: the sd of the response, each row counted once
 expect_true(any(grepl(
-  "(Starting sigma: the sd of the response;",
+  "(Starting sigma: the sd of the response, each row counted once;",
   utils::capture.output(print(summary(quick(
     y ~ a + b,
     small,
@@ -421,6 +421,171 @@ expect_equal(
   sqrt(sum(0.1 * (fracY - mean(fracY))^2) / (sum(rep(0.1, 20)) - 1)),
   tolerance = 1e-12
 )
+# counts that total at most one observation, up to the rounding of their sum,
+# leave the rows written out no sd: the sd of the rows of positive weight,
+# each counted once, by both routines and whichever side of 1 the sum lands
+# on. Totals of exactly 1 and of 1 + 2^-52 by construction, 20 counts of 0.05
+# as they round, and 0.8; a row of weight 0 stays out
+set.seed(5)
+oneX <- matrix(rnorm(42), 21)
+oneY <- drop(oneX %*% c(1, -1)) + rnorm(21)
+oneY[21] <- 100
+oneCounts <- list(
+  exact = c(rep(0.0625, 16), rep(0, 5)),
+  above = c(0.0625 + 2^-52, rep(0.0625, 15), rep(0, 5)),
+  rounded = c(rep(0.05, 20), 0),
+  below = c(rep(0.04, 20), 0)
+)
+expect_identical(sum(oneCounts$exact), 1)
+expect_identical(sum(oneCounts$above), 1 + 2^-52)
+oneWords <- "the sd of the response, each row counted once"
+for (rule in c("dense", "sparse")) {
+  for (total in names(oneCounts)) {
+    oneConditions <- character()
+    oneWarnings <- character()
+    oneSigma <- withCallingHandlers(
+      dbarts(
+        oneX,
+        oneY,
+        weights = oneCounts[[total]],
+        weights.type = "frequency",
+        sigest = rule
+      )$data@sigma,
+      dbartsSigmaFallback = function(condition) {
+        oneConditions <<- c(oneConditions, conditionMessage(condition))
+      },
+      warning = function(condition) {
+        oneWarnings <<- c(oneWarnings, conditionMessage(condition))
+        invokeRestart("muffleWarning")
+      }
+    )
+    # the rows of weight 0 are said once, and nothing else
+    expect_identical(length(oneWarnings), 1L, info = paste(rule, total))
+    expect_true(
+      grepl("'weights' of 0 are left out", oneWarnings[1L], fixed = TRUE),
+      info = paste(rule, total)
+    )
+    expect_identical(
+      oneSigma,
+      sd(oneY[oneCounts[[total]] > 0]),
+      info = paste(rule, total)
+    )
+    expect_identical(
+      oneConditions,
+      paste0("the starting sigma is ", oneWords),
+      info = paste(rule, total)
+    )
+  }
+}
+# and the verbose line and the summary say so
+oneLines <- character()
+invisible(utils::capture.output(withCallingHandlers(
+  oneFit <- bart(
+    oneX[1:16, ],
+    oneY[1:16],
+    weights = oneCounts$above[1:16],
+    weights.type = "frequency",
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = TRUE
+  ),
+  message = function(m) {
+    oneLines <<- c(oneLines, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  }
+)))
+expect_true(any(grepl(
+  paste0("starting sigma is ", oneWords, " ("),
+  oneLines,
+  fixed = TRUE
+)))
+expect_false(isTRUE(attr(oneFit$sigest.fallback, "weighted")))
+expect_true(any(grepl(
+  paste0("(Starting sigma: ", oneWords, ";"),
+  utils::capture.output(print(summary(oneFit))),
+  fixed = TRUE
+)))
+# each of xbart's folds, whose training rows' counts total less than 1, takes
+# the sd of those rows the same way
+oneFolds <- function(rule) {
+  original <- dbarts:::floorSigmaEstimate
+  calls <- list()
+  recording <- function(sigma, residual, weights = NULL, frequency = FALSE) {
+    result <- original(sigma, residual, weights, frequency)
+    calls[[length(calls) + 1L]] <<- list(residual = residual, result = result)
+    result
+  }
+  assignInNamespace("floorSigmaEstimate", recording, "dbarts")
+  on.exit(assignInNamespace("floorSigmaEstimate", original, "dbarts"))
+  invisible(xbart(
+    oneX[1:20, ],
+    oneY[1:20],
+    weights = oneCounts$rounded[1:20],
+    weights.type = "frequency",
+    sigest = rule,
+    n.reps = 1L,
+    n.test = 3L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.threads = 1L,
+    seed = 3L,
+    verbose = FALSE
+  ))
+  Filter(function(call) length(call$residual) < 20L, calls)
+}
+for (rule in c("dense", "sparse")) {
+  folds <- oneFolds(rule)
+  expect_equal(length(folds), 3L, info = rule)
+  for (fold in folds) {
+    expect_identical(fold$result, sd(fold$residual), info = rule)
+  }
+}
+# a regression whose counts total its rank up to rounding is saturated, as
+# one totaling it exactly is: three coefficients and sixteen rows counted
+# 3/16, totaling 3 and 3 + 2^-50, so the rows written out stand in
+satX <- oneX[1:16, ]
+satY <- oneY[1:16]
+satCounts <- list(
+  exact = rep(0.1875, 16),
+  above = c(0.1875 + 2^-50, rep(0.1875, 15))
+)
+expect_identical(sum(satCounts$above), 3 + 2^-50)
+for (total in names(satCounts)) {
+  counts <- satCounts[[total]]
+  expect_true(
+    is.nan(dbarts:::residualStandardError(satY, satX, counts, NULL, TRUE)),
+    info = total
+  )
+  expect_true(
+    is.na(dbarts:::sparseResidualStandardError(
+      satY,
+      dbarts:::startingSigmaDesign(satX, "sparse", NULL),
+      counts,
+      NULL,
+      frequency = TRUE
+    )),
+    info = total
+  )
+  center <- sum(counts * satY) / sum(counts)
+  for (rule in c("dense", "sparse")) {
+    expect_equal(
+      dbarts(
+        satX,
+        satY,
+        weights = counts,
+        weights.type = "frequency",
+        sigest = rule
+      )$data@sigma,
+      sqrt(sum(counts * (satY - center)^2) / (sum(counts) - 1)),
+      tolerance = 1e-12,
+      info = paste(rule, total)
+    )
+  }
+}
 # a fold's estimate, the routine xbart runs on each fold's training rows
 trainRows <- sort(sample(n, 30L))
 foldExpanded <- rep(trainRows, w[trainRows])
@@ -553,7 +718,25 @@ rm(
   fracX,
   fracY,
   fracWarnings,
-  fracSigma
+  fracSigma,
+  oneX,
+  oneY,
+  oneCounts,
+  oneWords,
+  oneConditions,
+  oneWarnings,
+  oneSigma,
+  oneLines,
+  oneFit,
+  oneFolds,
+  folds,
+  fold,
+  satX,
+  satY,
+  satCounts,
+  counts,
+  center,
+  total
 )
 
 # ---- a training row's draw is one observation --------------------------------

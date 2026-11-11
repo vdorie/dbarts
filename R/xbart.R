@@ -1258,7 +1258,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     rowsInWeights <- residualOfRowsIn(weights, weights)
     if (route != "marginal" && !is.finite(sigma)) {
       numSigmaFallbacks <<- numSigmaFallbacks + 1L
-      if (isWeightedStandIn(rowsInWeights)) {
+      if (isWeightedStandIn(rowsInWeights, frequency)) {
         numWeightedFallbacks <<- numWeightedFallbacks + 1L
       }
     }

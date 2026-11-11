@@ -70,7 +70,11 @@ warnings.n1 <- captureWarnings(
 )
 expect_equal(length(warnings.n1), 1L)
 expect_true(grepl("indistinguishable", conditionMessage(warnings.n1[[1L]])))
-expect_equal(sampler.n1$data@sigma, sqrt(.Machine$double.eps), tolerance = 0)
+expect_equal(
+  sampler.n1$data@sigma,
+  2^16 * .Machine$double.eps,
+  tolerance = 0
+)
 samples.n1 <- sampler.n1$run(10L, 10L)
 expect_true(all(is.finite(samples.n1$train)))
 expect_true(all(is.finite(samples.n1$sigma)))
@@ -92,10 +96,10 @@ warnings.const <- captureWarnings(
 # degenerate-response warning should reach here.
 expect_equal(length(warnings.const), 1L)
 expect_true(grepl("indistinguishable", conditionMessage(warnings.const[[1L]])))
-# the constant response's own residual sets the floor: sqrt(eps) * max|y|
+# the constant response's own residual sets the floor: 2^16 eps * max|y|
 expect_equal(
   sampler.const$data@sigma,
-  sqrt(.Machine$double.eps) * 3.0,
+  2^16 * .Machine$double.eps * 3.0,
   tolerance = 0
 )
 # the transform's window is centered on the constant, c - 0.5 to c + 0.5, so the

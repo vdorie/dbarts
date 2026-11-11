@@ -1126,7 +1126,7 @@ exact[out] <- 100
 floored <- sampler(exact, weights = w)
 expect_equal(
   floored$data@sigma,
-  sqrt(.Machine$double.eps) * max(abs(exact[rows.in])),
+  2^16 * .Machine$double.eps * max(abs(exact[rows.in])),
   tolerance = 1e-12
 )
 # rows out with residual degrees of freedom left: the dense design's sigest
