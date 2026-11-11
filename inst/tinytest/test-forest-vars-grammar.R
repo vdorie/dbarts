@@ -195,30 +195,84 @@ expect_identical(
   )
 )
 
-# ~ 1 names no predictor: refused with the remedy; an intercept term beside a
+# every spelling of no variance forest gives the constant model, draws equal to
+# leaving variance out: ~ 1 and an empty selection read as NULL and FALSE do
+constantVariance <- function(variance, door = dbarts, ...) {
+  set.seed(11L)
+  sampler <- if (missing(variance)) {
+    door(y ~ x1 + x2 + x3, frame, control = control, n.trees = 6L, ...)
+  } else {
+    door(
+      y ~ x1 + x2 + x3,
+      frame,
+      variance = variance,
+      control = control,
+      n.trees = 6L,
+      ...
+    )
+  }
+  sampler$run()
+}
+left <- constantVariance()
+expect_true(is.null(left$s.train) && is.null(dim(left$sigma)))
+for (spelling in list(
+  NULL,
+  FALSE,
+  ~1,
+  character(0L),
+  integer(0L),
+  logical(0L)
+)) {
+  fit <- constantVariance(spelling)
+  expect_identical(fit$train, left$train, info = deparse(spelling))
+  expect_identical(fit$sigma, left$sigma, info = deparse(spelling))
+  expect_null(fit$s.train, info = deparse(spelling))
+}
+# the front door reads them alike
+set.seed(4L)
+bartLeft <- bart(
+  frame[2:4],
+  frame$y,
+  n.trees = 6L,
+  n.burn = 4L,
+  n.samples = 8L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 3L
+)
+for (spelling in list(~1, character(0L), integer(0L), FALSE)) {
+  fit <- bart(
+    frame[2:4],
+    frame$y,
+    variance = spelling,
+    n.trees = 6L,
+    n.burn = 4L,
+    n.samples = 8L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = 3L
+  )
+  expect_identical(
+    fit$yhat.train,
+    bartLeft$yhat.train,
+    info = deparse(spelling)
+  )
+  expect_true(is.null(dim(fit$sigma)), info = deparse(spelling))
+}
+# ~ 0 and varianceForest(~ 1) stay refused; an intercept term beside a
 # predictor is refused as varianceForest() refuses it
 expect_true(grepl(
-  "omit variance for a constant variance, or write ~ . for every column",
-  refusal(eval(withVariance(~1))),
+  "names no predictor",
+  refusal(eval(withVariance(~0))),
   fixed = TRUE
 ))
-# an empty vector states nothing, so it is refused as forest()'s is, naming
-# the way to a constant variance; the matrix interface reads it alike
-for (empty in list(character(0L), integer(0L), logical(0L))) {
-  expect_equal(
-    refusal(eval(withVariance(empty))),
-    paste0(
-      "'variance' names no predictor; leave it out or write variance = FALSE ",
-      "for a constant variance"
-    ),
-    info = class(empty)
-  )
-}
-expect_error(
-  dbarts(as.matrix(frame[2:4]), frame$y, variance = character(0L)),
-  "variance = FALSE",
+expect_true(grepl(
+  "an intercept term",
+  refusal(eval(withVariance(quote(varianceForest(~1))))),
   fixed = TRUE
-)
+))
 for (written in c("~ x2 - 1", "~ 0 + x2")) {
   expect_true(
     grepl(

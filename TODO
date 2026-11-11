@@ -1513,15 +1513,11 @@ items
     the other doors use; three or more stay multinomial. About 10
     lines, a test and help; the dbartsData help is corrected beside it
     (a flat offset is taken with counts). Not built.
-  variance-constant-formula: (dec-B736, revising dec-B699 for one
-    formula and the call of dec-A315) variance = ~ 1 fits the
-    constant-variance model, as if variance were left out;
-    varianceForest(~ 1) and ~ 0 stay refused. About 5 lines, a test
-    and help. Agent calls beside it: the intercept refusals name the
-    variance formula, not a forest() call, and the help names variance
-    = FALSE. variance = character(0) and integer(0) are ruled too
-    (dec-B794, see variance-empty-selection). No draws move. Not
-    built.
+  variance-constant-hurdle-door: family = "hurdle.lognormal" refuses any
+    variance that is not NULL or FALSE, so variance = ~ 1 or character(0)
+    is refused there though it means no variance forest everywhere else
+    (dec-B736, dec-B794); the test reads the unresolved argument. A
+    few lines.
   weighted-sigma-line-wording: agent fix from the 2026-11-10 sitting
     (dec-A302, call C16 of dec-A438): the verbose, summary and xbart
     fold lines no longer call the weighted stand-in "the weighted sd
@@ -1620,11 +1616,6 @@ items
     limit is not read is reversed. Verify once by hand in a Linux
     container with a memory limit (the bench box). The sitting's R
     fixes batch. Not built.
-  variance-empty-selection: (dec-B794, closing the open question of
-    dec-B736) variance = character(0) and integer(0) fit the constant
-    variance, as ~ 1 and NULL do, where main fits every column and
-    doors-1111 refuses; one branch in place of the stop, 2 tests and a
-    help sentence. Built with variance-constant-formula on doors-1111
     before it lands, or right after. Not built.
   stan4bart-mixing-summary-flag: (dec-B797 revising dec-B776; dec-B796
     for the sampler diagnostics) no end-of-fit mixing warning: fit$mixing

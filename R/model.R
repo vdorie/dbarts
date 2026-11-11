@@ -1010,7 +1010,7 @@ resolveMonotone <- function(spec, data) {
 
 # Resolve the `variance` heteroscedastic selector to 1-based model-matrix
 # column indices for the variance forest, or NULL for a homoscedastic fit.
-# NULL/FALSE -> no variance forest; TRUE or ~. -> every column; a one-sided
+# NULL/FALSE, an empty selection or ~ 1 -> no variance forest; TRUE or ~. -> every column; a one-sided
 # formula (read as varianceForest()'s first argument is), character names, or
 # numeric indices -> that subset (factor terms
 # expand to their indicator columns, the resolveMonotone precedent). Returns
@@ -1038,28 +1038,29 @@ resolveVarianceColumns <- function(variance, data, argument = "variance") {
   if (isTRUE(variance)) {
     return(seq_len(numColumns))
   }
-  # an empty vector states nothing, which is a constant variance or every
-  # column; forest()'s own empty selection is refused the same way
+  # an empty selection is the empty set of predictors, the constant variance, as
+  # variance = ~ 1 is; forest()'s own empty selection is refused
   if (is.atomic(variance) && length(variance) == 0L) {
-    stop(
-      "'",
-      argument,
-      "' names no predictor; leave it out or write variance = FALSE for a ",
-      "constant variance",
-      call. = FALSE
-    )
+    return(NULL)
   }
   if (inherits(variance, "formula")) {
     # read exactly as varianceForest()'s first argument is, by the one
     # grammar: the terms matched to the fit's column labels
+    if (
+      argument == "variance" &&
+        length(variance) == 2L &&
+        identical(variance[[2L]], 1)
+    ) {
+      return(NULL)
+    }
     code <- captureForestVars(variance, "the 'variance' formula")
     code$unbound <- all.vars(code$expr)
     if (length(code$unbound) == 0L) {
       stop(
         "the 'variance' formula '",
         paste(deparse(variance, width.cutoff = 500L), collapse = " "),
-        "' names no predictor; omit variance for a constant variance, or ",
-        "write ~ . for every column",
+        "' names no predictor; write variance = ~ 1 or FALSE for a ",
+        "constant variance, or ~ . for every column",
         call. = FALSE
       )
     }
