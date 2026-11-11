@@ -127,7 +127,7 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  dbarts::dbartsData(y ~ a/b, escapedData),
+  dbarts::dbartsData(y ~ a / b, escapedData),
   interactionReason,
   fixed = TRUE
 )
