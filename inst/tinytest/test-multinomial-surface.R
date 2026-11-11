@@ -836,6 +836,31 @@ multinomialRefuses(x2, y2, "monotone", monotone = c(1, 0))
 # 2-level response is probit, which already refuses a variance forest for
 # an unrelated reason; K = 3 isolates the multinomial-specific refusal
 multinomialRefuses(x3, y3, "variance", variance = TRUE)
+# a variance that states no predictor is no variance forest, as left out
+multinomialFit <- function(...) {
+  bart(
+    x3,
+    y3,
+    family = "multinomial",
+    ...,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = 2L
+  )
+}
+multinomialLeft <- multinomialFit()
+expect_false(is.null(multinomialLeft$yhat.train))
+for (spelling in list(FALSE, ~1, character(0L))) {
+  expect_identical(
+    multinomialFit(variance = spelling)$yhat.train,
+    multinomialLeft$yhat.train,
+    info = deparse(spelling)
+  )
+}
 
 expect_error(extract(fit3, type = "bart"), "non-identified")
 expect_error(fitted(fit3, type = "bart"), "non-identified")

@@ -1611,7 +1611,6 @@ items
     limit is not read is reversed. Verify once by hand in a Linux
     container with a memory limit (the bench box). The sitting's R
     fixes batch. Not built.
-    before it lands, or right after. Not built.
   stan4bart-mixing-summary-flag: (dec-B797 revising dec-B776; dec-B796
     for the sampler diagnostics) no end-of-fit mixing warning: fit$mixing
     is kept, summary() flags an R-hat over 1.1 ("* over 1.1: the
