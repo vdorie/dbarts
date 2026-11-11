@@ -107,7 +107,11 @@ expect_identical(length(s2$data@bases), 2L)
 oneForest <- dbarts(s2$data, n.trees = 5L, control = ctl, seed = 3L)
 expect_identical(length(oneForest$model@forests), 1L)
 expect_null(oneForest$data@bases)
-expect_identical(draws(oneForest), fitDraws(y ~ x1 + x2, d))
+# the data keep the starting sigma their sampler regressed on its basis
+expect_identical(
+  draws(oneForest),
+  fitDraws(y ~ x1 + x2, d, sigest = s2$data@sigma)
+)
 plainTwo <- list(forest(n.trees = 4L), forest(n.trees = 3L))
 twoPlain <- function(data) {
   sampler <- dbarts(data, forests = plainTwo, control = ctl, seed = 3L)
@@ -117,13 +121,14 @@ twoPlain <- function(data) {
     draws(sampler)
   )
 }
-byStated <- {
+byStatedWith <- function(...) {
   sampler <- dbarts(
     y ~ x1 + x2,
     d,
     forests = plainTwo,
     control = ctl,
-    seed = 3L
+    seed = 3L,
+    ...
   )
   list(
     vapply(sampler$model@forests, methods::slot, 1L, "n.trees"),
@@ -131,8 +136,12 @@ byStated <- {
     draws(sampler)
   )
 }
+byStated <- byStatedWith()
 expect_identical(byStated[1:2], list(c(4L, 3L), TRUE))
-expect_identical(twoPlain(s2$data), byStated)
+expect_identical(
+  twoPlain(s2$data),
+  byStatedWith(sigest = s2$data@sigma)
+)
 # a data object built by the caller, from a frame or a matrix, alike
 expect_identical(twoPlain(frameObject), byStated)
 expect_identical(
@@ -169,10 +178,8 @@ expect_identical(
 )
 
 # ---- D4: a held basis keeps its recorded scale, matched by name ----
-# a door estimates the starting sigma again from the data it is handed, by a
-# regression on each forest's basis, and on the swapped column that estimate
-# can round differently, by the BLAS, from the one s3 holds; stated at both
-# creations, the two samplers below differ only by the record under test
+# a door handed a sampler's data keeps the starting sigma those data hold, so
+# the two samplers below differ only by the record under test
 s3 <- dbarts(
   y ~ x1 + x2,
   d,
@@ -183,8 +190,7 @@ s3 <- dbarts(
   ),
   n.trees = 5L,
   control = ctl,
-  seed = 3L,
-  sigest = 0.3
+  seed = 3L
 )
 recorded <- dbarts:::dataBasisScale(s3$data)[[2L]]
 expect_equal(recorded, sd(d$dose))
@@ -194,8 +200,7 @@ kept <- dbarts(
   forests = list(forest(), forest(basis = dose), forest(basis = factor(z))),
   n.trees = 5L,
   control = ctl,
-  seed = 3L,
-  sigest = 0.3
+  seed = 3L
 )
 expect_identical(dbarts:::dataBasisScale(kept$data)[[2L]], recorded)
 expect_identical(kept$data@bases[[2L]], s3$data@bases[[2L]])
@@ -643,6 +648,7 @@ expect_identical(
   fitDraws(
     y ~ x1 + x2,
     d,
+    sigest = s1$data@sigma,
     forests = list(forest(), do.call(forest, list(basis = d$y)))
   )
 )
@@ -681,6 +687,7 @@ expect_identical(
     y ~ x1 + x2,
     d,
     subset = keep,
+    sigest = sFirst$data@sigma,
     forests = list(forest(), do.call(forest, list(basis = d$x2 * mix)))
   )
 )

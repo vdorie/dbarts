@@ -1799,7 +1799,19 @@ dbarts <- function(
   }
 
   data <- applyCutSettings(data, copies, !is.null(hazardPeriods))
-  data@sigma <- sigest
+  # a data object handed over carries the starting estimate its sampler used,
+  # which stays unless 'sigest' gives another or a rule to estimate by, as
+  # dbartsSpec() keeps it; an unset one is estimated during resolution
+  data@sigma <- if (
+    is.na(sigest) &&
+      sigestRule == "auto" &&
+      !is.null(dataObject) &&
+      !is.na(dataObject@sigma)
+  ) {
+    dataObject@sigma
+  } else {
+    sigest
+  }
 
   # Every basis is built now, on the rows the data object kept, a hazard
   # fit's repeated over each subject's periods (buildFitBases). data@bases is
