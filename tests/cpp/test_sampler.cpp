@@ -914,17 +914,17 @@ static void testStoppedRunKeepsEarlierDraws() {
     auto sampler = make(1, rngs);
     sampler->run(10, capacity, none);
     std::vector<std::vector<ServedDraw>> before = served(*sampler);
-    SweepCallback inBurnIn = [](size_t, size_t sweep, bool) {
+    auto inBurnIn = [](ChainView&, size_t, size_t sweep, bool) {
       return sweep == 3;
     };
-    check(sampler->run(10, capacity, none, {}, inBurnIn) &&
+    check(sampler->run(10, capacity, none, {}, sweepHookOf(inBurnIn)) &&
             sampler->filledSavedDraws() == capacity &&
             servesNewestOf(*sampler, before),
           "stopped run: a stop in burn-in leaves every saved draw");
-    SweepCallback atKept = [](size_t, size_t sweep, bool) {
+    auto atKept = [](ChainView&, size_t, size_t sweep, bool) {
       return sweep == 5;
     };
-    check(sampler->run(0, capacity, none, {}, atKept) &&
+    check(sampler->run(0, capacity, none, {}, sweepHookOf(atKept)) &&
             sampler->filledSavedDraws() == capacity - 5 &&
             servesNewestOf(*sampler, before),
           "stopped run: a stop before kept sweep 5 keeps run 1's newest "
@@ -958,7 +958,7 @@ static void testStoppedRunKeepsEarlierDraws() {
     sampler->run(10, capacity / 2, none);
     bool refused = false;
     ConstantLeafSampler& outer = *sampler;
-    SweepCallback reenter = [&](size_t, size_t sweep, bool) {
+    auto reenter = [&](ChainView&, size_t, size_t sweep, bool) {
       if (sweep == 1) {
         try {
           Results inner;
@@ -969,7 +969,7 @@ static void testStoppedRunKeepsEarlierDraws() {
       }
       return false;
     };
-    bool canceled = sampler->run(0, 2, none, {}, reenter);
+    bool canceled = sampler->run(0, 2, none, {}, sweepHookOf(reenter));
     check(!canceled && refused &&
             sampler->filledSavedDraws() == capacity / 2 + 2,
           "stopped run: a run inside a sweep hook is refused, and the outer "
@@ -1999,11 +1999,12 @@ static void testRefreshInterruptScope() {
     int calls = 0;
     bool hookReturned = false;
     std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
-    SweepCallback hook = [&](size_t, size_t, bool) {
+    auto body = [&](ChainView&, size_t, size_t, bool) {
       sampler.setWeights(w2.data());
       hookReturned = true;
       return false;
     };
+    SweepHook hook = sweepHookOf(body);
     bool stopped =
       sampler.chain(0).run(1, 0, none, nullptr, 0, &cancel, &hook);
     check(stopped && hookReturned && calls == 2,
@@ -2169,11 +2170,12 @@ static void testLatentsDrawnFirst() {
       b->run(5, 0, results);
 
       std::vector<unsigned char> atHook;
-      SweepCallback hook = [&](size_t, size_t, bool) {
+      auto body = [&](ChainView&, size_t, size_t, bool) {
         apply(*a);
         atHook = serialized(rngA);
         return false;
       };
+      SweepHook hook = sweepHookOf(body);
       a->chain(0).run(1, 0, results, nullptr, 0, nullptr, &hook);
       apply(*b);
       check(serialized(rngB) == atHook,
@@ -17073,6 +17075,456 @@ static void testForestTreePriorMatchesCreation() {
   printf("ok: per-forest tree prior install matches creation\n");
 }
 
+namespace {
+// The sweep hook through the chain view: the per-sweep conditioning a larger
+// sampler does on dbarts' own threads, one chain at a time.
+
+/// The fixture the hook tests share: four chains over the mutation data with
+/// test rows, gaussian or probit, generated from a private stream so the
+/// suites after this one draw what they drew before it existed.
+struct HookData {
+  static constexpr size_t n = 120, nTest = 20, numChains = 4;
+  std::vector<double> x, y, binary, xTest;
+  HookData() {
+    std::uint64_t saved = rngState;
+    rngState = 0x2545f4914f6cdd1dull;
+    makeMutationData(x, y, n);
+    std::vector<double> unused;
+    makeMutationData(xTest, unused, nTest);
+    rngState = saved;
+    binary.resize(n);
+    for (size_t i = 0; i < n; ++i) binary[i] = y[i] > 1.0 ? 1.0 : 0.0;
+  }
+};
+
+/// A sampler over HookData and the generators it borrows, released in that
+/// order.
+struct HookSampler {
+  std::vector<ext_rng*> rngs;
+  std::unique_ptr<ConstantLeafSampler> sampler;
+  HookSampler(const HookData& data, ResponseFamily family, size_t numThreads,
+              size_t capacity = 0) {
+    rngs = makeDrawRngs(HookData::numChains, 6100);
+    SamplerOptions options;
+    options.numTrees = 15;
+    options.numChains = HookData::numChains;
+    options.numThreads = numThreads;
+    options.keepTrees = capacity > 0;
+    options.numSamplesToStore = capacity;
+    const double* y = family == ResponseFamily::probit ? data.binary.data()
+                                                        : data.y.data();
+    sampler = std::make_unique<ConstantLeafSampler>(
+      data.x.data(), y, HookData::n, 2, nullptr, nullptr, family, 1.0, 3.0,
+      0.37804942330213542, options, rngs.data());
+    sampler->setTestPredictors(data.xTest.data(), HookData::nTest);
+  }
+  ~HookSampler() {
+    sampler.reset();
+    destroyDrawRngs(rngs);
+  }
+};
+
+/// Every per-draw channel a run records, chain-major, numDraws per chain.
+struct HookChannels {
+  size_t numDraws;
+  std::vector<double> sigma, train, test, logLikelihood;
+  std::vector<std::uint32_t> varcount;
+  explicit HookChannels(size_t numDraws)
+    : numDraws(numDraws),
+      sigma(HookData::numChains * numDraws),
+      train(HookData::numChains * numDraws * HookData::n),
+      test(HookData::numChains * numDraws * HookData::nTest),
+      logLikelihood(HookData::numChains * numDraws * HookData::n),
+      varcount(HookData::numChains * numDraws * 2) {}
+  Results results() {
+    Results r;
+    r.sigma = sigma.data();
+    r.trainingFits = train.data();
+    r.testFits = test.data();
+    r.logLikelihood = logLikelihood.data();
+    r.variableCounts = varcount.data();
+    return r;
+  }
+  /// Copies a one-draw run's channels in as draw \p d of every chain.
+  void place(const HookChannels& one, size_t d) {
+    auto put = [&](const auto& from, auto& to, size_t width) {
+      for (size_t c = 0; c < HookData::numChains; ++c)
+        std::copy(from.begin() + c * width, from.begin() + (c + 1) * width,
+                  to.begin() + (c * numDraws + d) * width);
+    };
+    put(one.sigma, sigma, 1);
+    put(one.train, train, HookData::n);
+    put(one.test, test, HookData::nTest);
+    put(one.logLikelihood, logLikelihood, HookData::n);
+    put(one.varcount, varcount, 2);
+  }
+  bool operator==(const HookChannels& other) const {
+    return sameBits(sigma, other.sigma) && sameBits(train, other.train) &&
+           sameBits(test, other.test) &&
+           sameBits(logLikelihood, other.logLikelihood) &&
+           varcount == other.varcount;
+  }
+};
+
+/// A toy Gibbs step outside the sampler, one per chain: each chain's next
+/// offset and sigma are a fixed function of its own last draw, which the
+/// draw callback records on the chain's own thread.
+struct ToyGibbs {
+  bool setsSigma;
+  std::vector<std::vector<double>> lastTrain, offset;
+  std::vector<double> lastSigma;
+  std::vector<char> hasDraw;
+  explicit ToyGibbs(bool setsSigma)
+    : setsSigma(setsSigma),
+      lastTrain(HookData::numChains, std::vector<double>(HookData::n)),
+      offset(HookData::numChains, std::vector<double>(HookData::n)),
+      lastSigma(HookData::numChains), hasDraw(HookData::numChains, 0) {}
+  /// Fills chain c's offset buffer and returns its next sigma.
+  double step(size_t c) {
+    for (size_t i = 0; i < HookData::n; ++i)
+      offset[c][i] = 0.3 * lastTrain[c][i] - 0.05 * static_cast<double>(c + 1);
+    return 0.5 * lastSigma[c] + 0.2;
+  }
+};
+int toyGibbsDraw(void* context, const DrawInfo* draw) {
+  ToyGibbs& gibbs = *static_cast<ToyGibbs*>(context);
+  size_t c = draw->chainIndex;
+  std::copy(draw->train, draw->train + HookData::n, gibbs.lastTrain[c].begin());
+  gibbs.lastSigma[c] = draw->sigma;
+  gibbs.hasDraw[c] = 1;
+  return 0;
+}
+int toyGibbsSweep(void* context, ChainView& chain, size_t c, size_t, bool) {
+  ToyGibbs& gibbs = *static_cast<ToyGibbs*>(context);
+  if (!gibbs.hasDraw[c]) return 0;
+  double sigma = gibbs.step(c);
+  chain.setOffsetHoldingScale(gibbs.offset[c].data());
+  if (gibbs.setsSigma) chain.setSigma(sigma);
+  return 0;
+}
+}  // namespace
+
+/// The toy Gibbs step made inside one run through the sweep hook equals the
+/// same step made between one-sweep runs through Chain::setOffset and
+/// Chain::setSigma, in every channel, at 1, 2, 3 and 4 threads (3 leaves one
+/// worker two chains). Probit carries the offset into its latents, which the
+/// sweep draws after the hook.
+static void testSweepHookMatchesOneSweepRuns() {
+  const HookData data;
+  const size_t numSweeps = 6;
+  const ResponseFamily families[] = {ResponseFamily::gaussian,
+                                     ResponseFamily::probit};
+  for (ResponseFamily family : families) {
+    bool gaussian = family == ResponseFamily::gaussian;
+    const char* label = gaussian ? "gaussian" : "probit";
+
+    HookChannels reference(numSweeps);
+    {
+      HookSampler fixture(data, family, 1);
+      ToyGibbs gibbs(gaussian);
+      DrawHook record{&toyGibbsDraw, &gibbs};
+      for (size_t s = 0; s < numSweeps; ++s) {
+        for (size_t c = 0; c < HookData::numChains; ++c) {
+          if (!gibbs.hasDraw[c]) continue;
+          double sigma = gibbs.step(c);
+          fixture.sampler->chain(c).setOffset(gibbs.offset[c].data(), false);
+          if (gibbs.setsSigma) fixture.sampler->chain(c).setSigma(sigma);
+        }
+        HookChannels one(1);
+        Results results = one.results();
+        fixture.sampler->run(0, 1, results, {}, {}, record);
+        reference.place(one, s);
+      }
+    }
+
+    HookChannels unhooked(numSweeps);
+    {
+      HookSampler fixture(data, family, 1);
+      Results results = unhooked.results();
+      fixture.sampler->run(0, numSweeps, results);
+    }
+    check(!(unhooked == reference),
+          (std::string("sweep hook (") + label +
+           "): the toy step moves the draws it is checked by").c_str());
+
+    for (size_t numThreads = 1; numThreads <= 4; ++numThreads) {
+      HookSampler fixture(data, family, numThreads);
+      ToyGibbs gibbs(gaussian);
+      HookChannels hooked(numSweeps);
+      Results results = hooked.results();
+      bool stopped = true;
+      bool canceled = fixture.sampler->run(
+        0, numSweeps, results, {}, SweepHook{&toyGibbsSweep, &gibbs},
+        DrawHook{&toyGibbsDraw, &gibbs}, &stopped);
+      check(!canceled && !stopped && hooked == reference,
+            (std::string("sweep hook (") + label + ", " +
+             std::to_string(numThreads) +
+             " threads): every channel equals the one-sweep runs'").c_str());
+    }
+  }
+  printf("ok: a sweep hook equals one-sweep runs at 1 to 4 threads\n");
+}
+
+namespace {
+/// Stops chain \p chain at sweep \p sweep, or throws there.
+struct HookStop {
+  size_t chain = 1, sweep = 3;
+  bool throws = false;
+};
+int hookStopSweep(void* context, ChainView&, size_t c, size_t sweep, bool) {
+  const HookStop& stop = *static_cast<const HookStop*>(context);
+  if (c != stop.chain || sweep != stop.sweep) return 0;
+  if (stop.throws) throw std::runtime_error("sweep hook refused");
+  return 1;
+}
+/// The draw callback's stop at the same place: after chain's draw sweep - 1,
+/// which is the last one a hook stop before sweep lets it make.
+int hookStopDraw(void* context, const DrawInfo* draw) {
+  const HookStop& stop = *static_cast<const HookStop*>(context);
+  return draw->chainIndex == stop.chain && draw->drawIndex + 1 == stop.sweep
+           ? 1 : 0;
+}
+}  // namespace
+
+/// A hook's nonzero return stops the run as a draw callback's does, and is
+/// reported as a callback's stop, not an interrupt; a hook's exception comes
+/// back to the caller after the join, inline and from a worker, and leaves the
+/// store as a stop does.
+static void testSweepHookStopAndThrow() {
+  const HookData data;
+  const size_t capacity = 8;
+  Results none;
+  auto served = [](const ConstantLeafSampler& sampler) {
+    std::vector<std::vector<ServedDraw>> draws;
+    for (size_t c = 0; c < sampler.numChains(); ++c)
+      draws.push_back(servedDraws(sampler, c));
+    return draws;
+  };
+
+  // inline: chain 0 runs its four sweeps whole, chain 1 stops before sweep
+  // 3, chains 2 and 3 never start - the store exactly as a draw callback's
+  // stop leaves it, the four slots chain 0 wrote dropped
+  {
+    HookStop stop;
+    const size_t numSweeps = 4;
+    HookSampler byHook(data, ResponseFamily::gaussian, 1, capacity);
+    HookSampler byDraw(data, ResponseFamily::gaussian, 1, capacity);
+    byHook.sampler->run(5, capacity, none);
+    byDraw.sampler->run(5, capacity, none);
+    bool stopped = false;
+    bool canceled =
+      byHook.sampler->run(0, numSweeps, none, []() { return false; },
+                          SweepHook{&hookStopSweep, &stop}, DrawHook(),
+                          &stopped);
+    bool drawStopped = false;
+    byDraw.sampler->run(0, numSweeps, none, {}, SweepHook(),
+                        DrawHook{&hookStopDraw, &stop}, &drawStopped);
+    check(canceled && stopped && drawStopped,
+          "sweep hook stop: reported as a callback's stop");
+    check(byHook.sampler->filledSavedDraws() ==
+              byDraw.sampler->filledSavedDraws() &&
+            byHook.sampler->currentSampleNum() ==
+              byDraw.sampler->currentSampleNum() &&
+            byHook.sampler->filledSavedDraws() == capacity - numSweeps,
+          "sweep hook stop: the store's cursor and counts are a draw "
+          "callback's stop's");
+    bool same = true;
+    for (size_t c = 0; c < HookData::numChains; ++c) {
+      std::vector<ServedDraw> a = servedDraws(*byHook.sampler, c);
+      std::vector<ServedDraw> b = servedDraws(*byDraw.sampler, c);
+      same &= a.size() == b.size();
+      for (size_t d = 0; same && d < a.size(); ++d)
+        same &= sameServedDraw(a[d], b[d]);
+    }
+    check(same, "sweep hook stop: the store serves a draw callback's stop's "
+                "draws");
+  }
+
+  // on workers: every chain stops at its next boundary, the cursor stays and
+  // the slots chain 1 began are dropped
+  {
+    HookStop stop;
+    HookSampler fixture(data, ResponseFamily::gaussian, 4, capacity);
+    fixture.sampler->run(5, capacity, none);
+    std::vector<std::vector<ServedDraw>> before = served(*fixture.sampler);
+    size_t cursor = fixture.sampler->currentSampleNum();
+    bool stopped = false;
+    bool canceled = fixture.sampler->run(0, capacity, none, {},
+                                         SweepHook{&hookStopSweep, &stop},
+                                         DrawHook(), &stopped);
+    check(canceled && stopped &&
+            fixture.sampler->currentSampleNum() == cursor &&
+            fixture.sampler->filledSavedDraws() <= capacity - stop.sweep &&
+            servesNewestOf(*fixture.sampler, before),
+          "sweep hook stop on workers: reported as a callback's stop, and the "
+          "store keeps the earlier run's newest draws");
+  }
+
+  // an interrupt with a hook registered is not reported as the hook's stop
+  {
+    HookStop never;
+    never.chain = HookData::numChains;
+    HookSampler fixture(data, ResponseFamily::gaussian, 2);
+    bool stopped = true;
+    bool canceled = fixture.sampler->run(0, 4, none, []() { return true; },
+                                         SweepHook{&hookStopSweep, &never},
+                                         DrawHook(), &stopped);
+    check(canceled && !stopped,
+          "sweep hook stop: an interrupt is not reported as the hook's stop");
+  }
+
+  // a throw comes back after the join, inline and from a worker, and leaves
+  // the store as a stop does and the sampler running on
+  for (size_t numThreads : {size_t(1), size_t(4)}) {
+    HookStop thrower;
+    thrower.chain = 2;
+    thrower.sweep = 2;
+    thrower.throws = true;
+    HookSampler fixture(data, ResponseFamily::gaussian, numThreads, capacity);
+    fixture.sampler->run(5, capacity, none);
+    std::vector<std::vector<ServedDraw>> before = served(*fixture.sampler);
+    size_t cursor = fixture.sampler->currentSampleNum();
+    std::string message;
+    try {
+      fixture.sampler->run(0, capacity, none, {},
+                           SweepHook{&hookStopSweep, &thrower});
+    } catch (const std::runtime_error& error) {
+      message = error.what();
+    }
+    std::string label = std::string("sweep hook throw (") +
+                        std::to_string(numThreads) + " threads): ";
+    check(message == "sweep hook refused" && !fixture.sampler->isRunning(),
+          (label + "the exception reaches the caller").c_str());
+    check(fixture.sampler->currentSampleNum() == cursor &&
+            servesNewestOf(*fixture.sampler, before),
+          (label + "the store is a stop's").c_str());
+    std::vector<double> sigma(HookData::numChains * 3);
+    Results after;
+    after.sigma = sigma.data();
+    bool canceled = fixture.sampler->run(0, 3, after);
+    bool finite = true;
+    for (double s : sigma) finite &= std::isfinite(s) && s > 0.0;
+    check(!canceled && finite, (label + "the sampler runs on").c_str());
+  }
+  printf("ok: a sweep hook's stop and throw\n");
+}
+
+namespace {
+/// Writes chain \p target's offset through the view and nothing else, and
+/// records whether the sampler read as running inside every call.
+struct OneChainOffset {
+  size_t target = 2;
+  std::vector<double> offset;
+  const ConstantLeafSampler* sampler = nullptr;
+  std::atomic<bool> sawIdle{false};
+};
+int oneChainOffsetSweep(void* context, ChainView& chain, size_t c, size_t,
+                        bool) {
+  OneChainOffset& write = *static_cast<OneChainOffset*>(context);
+  if (!write.sampler->isRunning())
+    write.sawIdle.store(true, std::memory_order_relaxed);
+  if (c == write.target) chain.setOffsetHoldingScale(write.offset.data());
+  return 0;
+}
+}  // namespace
+
+/// Chain c's offset write through its view leaves every other chain's working
+/// response and draws bit for bit, and moves chain c's.
+static void testSweepHookChainIsolation() {
+  const HookData data;
+  const size_t numSweeps = 3;
+  OneChainOffset write;
+  write.offset.resize(HookData::n);
+  for (size_t i = 0; i < HookData::n; ++i)
+    write.offset[i] = 0.4 * std::sin(static_cast<double>(i));
+
+  HookSampler hooked(data, ResponseFamily::gaussian, 2);
+  HookSampler plain(data, ResponseFamily::gaussian, 2);
+  write.sampler = hooked.sampler.get();
+  HookChannels withWrite(numSweeps), without(numSweeps);
+  Results a = withWrite.results(), b = without.results();
+  hooked.sampler->run(0, numSweeps, a, {},
+                      SweepHook{&oneChainOffsetSweep, &write});
+  plain.sampler->run(0, numSweeps, b);
+
+  bool othersKept = true, targetMoved = false;
+  const size_t width = numSweeps * HookData::n;
+  for (size_t c = 0; c < HookData::numChains; ++c) {
+    const double* wa = TestPeer::workingResponse(hooked.sampler->chain(c));
+    const double* wb = TestPeer::workingResponse(plain.sampler->chain(c));
+    bool sameWorking =
+      std::memcmp(wa, wb, HookData::n * sizeof(double)) == 0;
+    bool sameFits = std::memcmp(withWrite.train.data() + c * width,
+                                without.train.data() + c * width,
+                                width * sizeof(double)) == 0 &&
+                    withWrite.sigma[c * numSweeps] ==
+                      without.sigma[c * numSweeps];
+    if (c == write.target) targetMoved = !sameWorking && !sameFits;
+    else othersKept &= sameWorking && sameFits;
+  }
+  check(othersKept, "sweep hook isolation: chain 2's offset write leaves every "
+                    "other chain's working response and draws");
+  check(targetMoved, "sweep hook isolation: and moves chain 2's");
+  check(!write.sawIdle.load(),
+        "sweep hook isolation: the sampler reads as running inside the hook, "
+        "on a worker");
+  printf("ok: a sweep hook's write reaches its chain alone\n");
+}
+
+namespace {
+/// Each chain's draw latents, copied at its last draw.
+struct LatentCopy {
+  std::vector<std::vector<double>> latents =
+    std::vector<std::vector<double>>(HookData::numChains);
+  std::atomic<int> nullDraws{0};
+};
+int latentCopyDraw(void* context, const DrawInfo* draw) {
+  LatentCopy& copy = *static_cast<LatentCopy*>(context);
+  if (draw->latents == nullptr) {
+    copy.nullDraws.fetch_add(1, std::memory_order_relaxed);
+    return 0;
+  }
+  copy.latents[draw->chainIndex].assign(draw->latents,
+                                        draw->latents + draw->numObservations);
+  return 0;
+}
+}  // namespace
+
+/// DrawInfo's latents are the chain's own augmentation values, the ones the
+/// sampler reports after the run; null where the family augments none.
+static void testDrawInfoLatents() {
+  const HookData data;
+  {
+    HookSampler fixture(data, ResponseFamily::probit, 2);
+    Results none;
+    fixture.sampler->run(3, 0, none);
+    LatentCopy copy;
+    fixture.sampler->run(0, 1, none, {}, SweepHook(),
+                         DrawHook{&latentCopyDraw, &copy});
+    bool equal = copy.nullDraws.load() == 0, distinct = true;
+    for (size_t c = 0; c < HookData::numChains; ++c) {
+      const double* live = fixture.sampler->latents(c);
+      equal &= copy.latents[c].size() == HookData::n &&
+               std::equal(copy.latents[c].begin(), copy.latents[c].end(),
+                          live);
+      if (c > 0) distinct &= copy.latents[c] != copy.latents[0];
+    }
+    check(equal && distinct,
+          "draw latents: each chain's draw carries the latents the sampler "
+          "reports for that chain");
+  }
+  {
+    HookSampler fixture(data, ResponseFamily::gaussian, 2);
+    Results none;
+    LatentCopy copy;
+    fixture.sampler->run(0, 1, none, {}, SweepHook(),
+                         DrawHook{&latentCopyDraw, &copy});
+    check(copy.nullDraws.load() == static_cast<int>(HookData::numChains),
+          "draw latents: null where the family augments none");
+  }
+  printf("ok: a draw carries its chain's latents\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testFitsWithoutOffset();
   testBCFTauModeratorRestriction(rng);
@@ -17118,6 +17570,10 @@ void runSamplerTests(ext_rng* rng) {
   testDrawCallbackVarcountForests();
   testDrawCallbackBCFNullChannels();
   testDrawCallbackCarriesEveryChannel();
+  testSweepHookMatchesOneSweepRuns();
+  testSweepHookStopAndThrow();
+  testSweepHookChainIsolation();
+  testDrawInfoLatents();
   testEndToEndProbit(rng);
   testMultiChain();
   testTestFitThreadInvariance();

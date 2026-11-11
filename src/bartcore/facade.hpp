@@ -154,9 +154,11 @@ public:
   virtual bool run(std::size_t numBurnIn, std::size_t numSamples,
                    Results& results,
                    const std::function<bool()>& pollInterrupt = {},
-                   const SweepCallback& onSweep = {},
+                   const SweepHook& onSweep = SweepHook(),
                    const DrawHook& onDraw = DrawHook(),
                    bool* stoppedByCallback = nullptr) = 0;
+  /// Whether a run is in flight (Sampler::isRunning).
+  virtual bool isRunning() const = 0;
   /// The two response-side swaps report whether a transform they were asked
   /// to re-derive was kept instead (ResponseUpdateResult).
   virtual ResponseUpdateResult setOffset(const double* offset,
@@ -606,12 +608,13 @@ public:
 
   bool run(std::size_t numBurnIn, std::size_t numSamples, Results& results,
            const std::function<bool()>& pollInterrupt = {},
-           const SweepCallback& onSweep = {},
+           const SweepHook& onSweep = SweepHook(),
            const DrawHook& onDraw = DrawHook(),
            bool* stoppedByCallback = nullptr) override {
     return impl_.run(numBurnIn, numSamples, results, pollInterrupt, onSweep,
                      onDraw, stoppedByCallback);
   }
+  bool isRunning() const override { return impl_.isRunning(); }
   ResponseUpdateResult setOffset(const double* offset,
                                  bool updateScale) override {
     return impl_.setOffset(offset, updateScale);

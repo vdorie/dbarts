@@ -33,7 +33,7 @@ namespace {
 
 /// One enumerator per SamplerBase pure virtual, in declaration order.
 enum class FacadeVirtual {
-  shape, run, setOffset, setResponse, setWeights, weights, setSurvivalStatus,
+  shape, run, isRunning, setOffset, setResponse, setWeights, weights, setSurvivalStatus,
   setSigma, setTestData, setTestOffset, setData, rederiveStandardization,
   setPredictor,
   updatePredictor, setCutPoints, updatePredictorPerObservation,
@@ -102,9 +102,10 @@ public:
   SPY_RET(SamplerShape, shape, () const, ())
   SPY_RET(bool, run,
           (std::size_t b, std::size_t s, Results& r,
-           const std::function<bool()>& p, const SweepCallback& c,
+           const std::function<bool()>& p, const SweepHook& c,
            const DrawHook& d, bool* stopped),
           (b, s, r, p, c, d, stopped))
+  SPY_RET(bool, isRunning, () const, ())
   SPY_RET(ResponseUpdateResult, setOffset, (const double* o, bool u), (o, u))
   SPY_RET(ResponseUpdateResult, setResponse, (const double* y, bool u),
           (y, u))
@@ -626,18 +627,31 @@ const Row rows[] = {
     Results results;
     // the callback and the interrupt poll are arguments of this virtual too:
     // one fires per sweep, the other never asks to stop
+    auto count = [&sweeps](ChainView&, std::size_t, std::size_t, bool) {
+      ++sweeps;
+      return false;
+    };
     bool stoppedEarly = f.g.base().run(
-      1, 1, results, []() { return false; },
-      [&sweeps](std::size_t, std::size_t, bool) {
-        ++sweeps;
-        return false;
-      });
+      1, 1, results, []() { return false; }, sweepHookOf(count));
     check(!stoppedEarly && sweeps == 2 * f.g.impl().numChains(),
           "facade run: every chain sweeps twice and nothing stops early");
     check(f.g.impl().filledSavedDraws() == filled + 1 &&
             f.g.impl().currentSampleNum() ==
               (cursor + 1) % Fixtures::capacity,
           "facade run: the recorded draw lands in the impl's own store");
+  }},
+  {FacadeVirtual::isRunning, "isRunning", [](Fixtures& f) {
+    // read from inside a run's sweep hook, which is where a run is in flight;
+    // a burn-in sweep saves nothing, so the store the later rows read is kept
+    bool inside = false;
+    auto probe = [&](ChainView&, std::size_t, std::size_t, bool) {
+      inside = f.g.base().isRunning();
+      return false;
+    };
+    Results results;
+    f.g.base().run(1, 0, results, {}, sweepHookOf(probe));
+    check(inside && !f.g.base().isRunning(),
+          "facade isRunning: true inside a run's hook, false after it");
   }},
   {FacadeVirtual::setOffset, "setOffset", [](Fixtures& f) {
     double scale = f.g.impl().fitScale();
@@ -1136,16 +1150,16 @@ const Row rows[] = {
     // the sweep hook counts iterations, which is what thinning multiplies
     std::size_t sweeps = 0;
     Results results;
-    auto count = [&sweeps](std::size_t, std::size_t, bool) {
+    auto count = [&sweeps](ChainView&, std::size_t, std::size_t, bool) {
       ++sweeps;
       return false;
     };
     f.d.base().setNumThin(3);
-    f.d.base().run(0, 1, results, {}, count);
+    f.d.base().run(0, 1, results, {}, sweepHookOf(count));
     check(sweeps == 3, "facade setNumThin: one kept draw costs three sweeps");
     f.d.base().setNumThin(1);
     sweeps = 0;
-    f.d.base().run(0, 1, results, {}, count);
+    f.d.base().run(0, 1, results, {}, sweepHookOf(count));
     check(sweeps == 1, "facade setNumThin: and one again when it is reset");
   }},
   {FacadeVirtual::setVerbose, "setVerbose", [](Fixtures& f) {

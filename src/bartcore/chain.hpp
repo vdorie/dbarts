@@ -638,14 +638,44 @@ struct Results {
   }
 };
 
-/// A host's per-sweep conditioning hook, invoked before every sweep on the
-/// running thread with the chain index, the 0-based sweep counter, and whether
-/// the sweep is discarded burn-in; returns true to stop the run early, exactly
-/// as shouldCancel does. Only set when chains run inline: worker-thread chains
-/// must not call into R.
-using SweepCallback =
-  std::function<bool(std::size_t chainIndex, std::size_t sweepIndex,
-                     bool isBurnIn)>;
+/// One chain's conditioning state, as a sweep hook reaches it: the two writes
+/// a Gibbs step outside the sampler makes between sweeps, on this chain alone.
+/// Neither re-derives the response transform, draws from the generator,
+/// allocates or touches the shared tree store, so a write here and the same
+/// write made between two runs leave the chain in the same state.
+class ChainView {
+public:
+  /// Installs \p offset, numObservations values borrowed until the next
+  /// install, with the response transform held. The caller has checked the
+  /// values are finite and that the sampler's response conduit takes an
+  /// offset at all.
+  virtual void setOffsetHoldingScale(const double* offset) = 0;
+  /// Holds the residual standard deviation at \p sigmaOriginalScale until the
+  /// chain's next sigma draw. Unguarded: the caller refuses a family that pins
+  /// sigma, and a variance forest drops the write.
+  virtual void setSigma(double sigmaOriginalScale) = 0;
+
+protected:
+  ~ChainView() = default;
+};
+
+/// A host's per-sweep conditioning hook, invoked before every sweep of every
+/// chain on the thread that owns the chain - a worker whenever chains run on
+/// workers - after the cancel check and before the augmentation draw, with a
+/// view of that chain alone, its index, the 0-based sweep counter of this run
+/// and whether the sweep is discarded burn-in. Nonzero stops the run exactly
+/// as a draw callback's nonzero return does. Calls for different chains may
+/// run concurrently and the engine takes no lock; a hook must not reach any
+/// chain but the one it is handed, nor the sampler.
+using SweepCallback = int (*)(void* context, ChainView& chain,
+                              std::size_t chainIndex, std::size_t sweepIndex,
+                              bool isBurnIn);
+
+/// A sweep hook with the context handed back to it.
+struct SweepHook {
+  SweepCallback fn = nullptr;
+  void* context = nullptr;
+};
 
 /// The per-draw array channels a chain's fit carries and its coupling defines
 /// (Chain::carriedChannels): the predicates behind DrawInfo's null pointers,
@@ -707,6 +737,10 @@ struct DrawInfo {
   const double* ordinalThresholds = nullptr;   // numOrdinalThresholds
   // numPredictors x numVariableCountForests, forest-major within the draw
   const std::uint32_t* varcount = nullptr;
+  // numObservations: the augmentation values this draw's trees were drawn
+  // from, the chain's own (Chain::latents); null where the family augments
+  // none
+  const double* latents = nullptr;
   double sigma = 0.0;
   double k = 0.0;
   double shape = 0.0;
@@ -1061,7 +1095,7 @@ inline bool convertFlatLinearTree(std::vector<FlatNode>& tree,
 /// initializeSavedTrees, flattenTree, printTree, printSavedTree,
 /// addFlatPredictions, getState, setState, and stateIsValid.
 template <IntegrableLeafModel L, typename ResidT = double>
-class Chain {
+class Chain final : public ChainView {
 public:
   static_assert(std::is_same_v<ResidT, double> || std::is_same_v<ResidT, float>,
                 "the residual storage type is fp64 (default) or opt-in fp32");
@@ -2290,9 +2324,9 @@ public:
   /// printEvery kept iterations.
   /// Runs the chain, returning true if it stopped early because shouldCancel
   /// (polled once per sweep, called only on the thread that owns this chain),
-  /// onSweep or onDraw asked it to. None of the three touches sampled state or
-  /// draws from the generator, so a run with none set is bitwise identical to
-  /// one without them.
+  /// onSweep or onDraw asked it to. None of the three draws from the
+  /// generator, and only onSweep changes state, through this chain's view, so
+  /// a run with none set is bitwise identical to one without them.
   ///
   /// A normalized leaf's order count also polls shouldCancel, every few
   /// down-sets, and can stop the run in the middle of a sweep: the move puts
@@ -2316,7 +2350,7 @@ public:
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            ProgressSink* progress = nullptr, size_t chainIndex = 0,
            const std::function<bool()>* shouldCancel = nullptr,
-           const SweepCallback* onSweep = nullptr,
+           const SweepHook* onSweep = nullptr,
            const DrawHook* onDraw = nullptr) {
     // the cancel function lives in the caller's frame, so it is cleared on
     // every way out
@@ -2680,7 +2714,7 @@ public:
   bool runSweeps(size_t numBurnIn, size_t numSamples, Results& results,
                  ProgressSink* progress, size_t chainIndex,
                  const std::function<bool()>* shouldCancel,
-                 const SweepCallback* onSweep, const DrawHook* onDraw) {
+                 const SweepHook* onSweep, const DrawHook* onDraw) {
     size_t n = data_.numObservations;
     size_t numThin = options_.numThin;
 
@@ -2690,9 +2724,10 @@ public:
       // half-applied. The results filled so far are discarded by the caller.
       if (shouldCancel != nullptr && (*shouldCancel)()) return true;
       // the host's conditioning hook fires unthrottled before the sweep it
-      // conditions; returning true stops as shouldCancel does
+      // conditions; nonzero stops as shouldCancel does
       if (onSweep != nullptr &&
-          (*onSweep)(chainIndex, iteration, iteration / numThin < numBurnIn))
+          onSweep->fn(onSweep->context, *this, chainIndex, iteration,
+                      iteration / numThin < numBurnIn) != 0)
         return true;
 
       bool record = (iteration + 1) % numThin == 0 &&
@@ -3019,6 +3054,12 @@ public:
     if (updateScale) translateNamedSds();
     restateSavedDraws(previousScale, previousShift, kept);
   }
+  /// The sweep hook's offset write: setOffset with the transform held and no
+  /// saved slot named, so neither the variance forest's anchor nor a saved
+  /// draw moves and the shared tree store is not touched.
+  void setOffsetHoldingScale(const double* offset) override {
+    setOffset(offset, false);
+  }
   /// A vector zeroing rows a GROWN forest already split on can leave leaves
   /// that hold only zero-weight rows. That is a legal state under every vector:
   /// emptiness is membership, so such a leaf enters no likelihood term, scores
@@ -3121,7 +3162,7 @@ public:
   /// scale and the variance surface carries the residual scale from there - so
   /// every write is dropped, which is what closes the internal callers that
   /// have no error channel.
-  void setSigma(double sigmaOriginalScale) {
+  void setSigma(double sigmaOriginalScale) override {
     if (varianceForest_) return;
     sigma_ = sigmaOriginalScale / response_->sigmaScale();
   }
@@ -9623,6 +9664,7 @@ private:
       ? response_->shape() : std::numeric_limits<double>::quiet_NaN();
     draw.residualDf = response_->carriesResidualDf()
       ? response_->residualDf() : std::numeric_limits<double>::quiet_NaN();
+    draw.latents = response_->latents();
   }
 
   void storeSample(Results& results, size_t sampleNum) {

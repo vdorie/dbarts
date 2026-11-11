@@ -103,6 +103,19 @@ inline bool sameBits(const std::vector<double>& a,
                                    a.size() * sizeof(double)) == 0);
 }
 
+// A sweep hook over a callable taking (view, chain, sweep, isBurnIn) and
+// returning whether to stop; the callable must outlive every run given it.
+template <typename Body>
+SweepHook sweepHookOf(Body& body) {
+  return SweepHook{[](void* context, ChainView& chain, std::size_t chainIndex,
+                      std::size_t sweepIndex, bool isBurnIn) -> int {
+                     return (*static_cast<Body*>(context))(
+                              chain, chainIndex, sweepIndex, isBurnIn)
+                              ? 1 : 0;
+                   },
+                   &body};
+}
+
 // A canonical fingerprint of a tree's live structure alone (which nodes are
 // split and on what), so a chain that MOVES can be told from one that only
 // redraws its leaf parameters.

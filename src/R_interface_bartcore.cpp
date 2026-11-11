@@ -6771,7 +6771,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     captureExceptions(error, [&]() {
       canceled =
         sampler.run(numBurnIn, numSamples, results, bartcore_userInterrupted,
-                    bartcore::SweepCallback(), drawHook.engineHook(),
+                    bartcore::SweepHook(), drawHook.engineHook(),
                     &stoppedByCallback);
     });
   } catch (const UnwindJump& jump) {
@@ -6855,6 +6855,38 @@ static void evalSweepCallback(void* data) {
   UNPROTECT(2);
 }
 
+// The closure as the engine's sweep hook, through its context. It reaches the
+// sampler through R methods rather than the chain view, which the single-chain
+// refusal keeps on the calling thread; why it stopped is read from here once
+// the run returns.
+struct SweepClosure {
+  SEXP callback;
+  SEXP rho;
+  const bartcore::SamplerBase& sampler;
+  std::size_t numObservations, numTestObservations;
+  bool errored;       // a jump left the closure (R_ToplevelExec)
+  bool shapeChanged;  // the closure changed n or nTest
+};
+static int callSweepClosure(void* context, bartcore::ChainView&, std::size_t,
+                            std::size_t sweepIndex, bool) {
+  SweepClosure& closure = *static_cast<SweepClosure*>(context);
+  SweepCall frame{closure.callback, closure.rho, static_cast<int>(sweepIndex),
+                  false};
+  if (R_ToplevelExec(evalSweepCallback, &frame) == FALSE) {
+    closure.errored = true;
+    return 1;
+  }
+  // the hook runs before the sweep, so a stop here stores nothing at the
+  // strides the new counts no longer fit
+  bartcore::SamplerShape now = closure.sampler.shape();
+  if (now.numObservations != closure.numObservations ||
+      now.numTestObservations != closure.numTestObservations) {
+    closure.shapeChanged = true;
+    return 1;
+  }
+  return frame.stop ? 1 : 0;
+}
+
 // A caller-owned result buffer, null or of type and length perDraw x
 // numDraws: the engine writes through it unchecked.
 static void checkSweepBuffer(SEXP expr, const char* name, SEXPTYPE type,
@@ -6919,46 +6951,23 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   // here would report its prognostic forest, exactly as the flat C API does.
   results.numVariableCountForests = 1;
 
-  bool callbackErrored = false;  // a jump left the closure (R_ToplevelExec)
-  bool closureStopped = false;   // the closure returned TRUE (self-caught stop)
-  bool shapeChanged = false;     // the closure changed n or nTest
-  bool canceled = false;
+  SweepClosure closure{callbackExpr, rhoExpr, sampler, shape.numObservations,
+                       shape.numTestObservations, false, false};
+  bool canceled = false, stoppedByCallback = false;
   bartcore_bridge::CapturedError error;
-  {
-    // scoped so the closure's heap-held std::function is destroyed before any
-    // raise below: Rf_error runs no destructor in this frame
-    bartcore::SweepCallback onSweep =
-      [&](size_t, size_t sweepIndex, bool) -> bool {
-        SweepCall frame{callbackExpr, rhoExpr, static_cast<int>(sweepIndex),
-                        false};
-        if (R_ToplevelExec(evalSweepCallback, &frame) == FALSE) {
-          callbackErrored = true;
-          return true;
-        }
-        // the hook runs before the sweep, so a stop here stores nothing at
-        // the strides the new counts no longer fit
-        bartcore::SamplerShape now = sampler.shape();
-        if (now.numObservations != shape.numObservations ||
-            now.numTestObservations != shape.numTestObservations) {
-          shapeChanged = true;
-          return true;
-        }
-        closureStopped = frame.stop;
-        return frame.stop;
-      };
-    captureExceptions(error, [&]() {
-      canceled = sampler.run(numBurnIn, numSamples, results,
-                             bartcore_userInterrupted, onSweep);
-    });
-  }
+  captureExceptions(error, [&]() {
+    canceled = sampler.run(numBurnIn, numSamples, results,
+                           bartcore_userInterrupted,
+                           bartcore::SweepHook{&callSweepClosure, &closure},
+                           bartcore::DrawHook(), &stoppedByCallback);
+  });
   if (error.failed) Rf_error("%s", error.message);
-  if (callbackErrored)
-    Rf_error("error evaluating the sweep callback");
-  if (shapeChanged)
+  if (closure.errored) Rf_error("error evaluating the sweep callback");
+  if (closure.shapeChanged)
     Rf_error("the sweep callback changed the number of observations or test "
              "observations, which a run's result buffers are sized by; change "
              "them between runs");
-  if (canceled && !closureStopped) bartcore_bridge::raiseInterrupt();
+  if (canceled && !stoppedByCallback) bartcore_bridge::raiseInterrupt();
   return R_NilValue;
 }
 

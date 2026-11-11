@@ -87,8 +87,9 @@ implementer needs from the code:
   main thread's [`pollInterrupt`](../../src/bartcore/sampler.hpp), and a
   worker holding several chains moves on regardless. The precedent for
   telling a self-caught stop from an interrupt is
-  [`closureStopped`](../../src/R_interface_bartcore.cpp) beside `canceled`
-  in [`bartcore_runWithCallback`](../../src/R_interface_bartcore.cpp).
+  retired: [`closureStopped`](../../src/R_interface_bartcore.cpp), since
+  gone, beside `canceled` in
+  [`bartcore_runWithCallback`](../../src/R_interface_bartcore.cpp).
 - Burn-in is an R-layer problem: [`runWithBurnIn`](../../R/bart.R) passes
   no burn-in count to the engine, running `sampler$run(0L, control@n.burn)`
   then `sampler$run(0L, control@n.samples)`, so every burn-in sweep is a

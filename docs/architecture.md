@@ -553,7 +553,8 @@ sampler.
 `Sampler::run` (sampler.hpp) runs chains on as many `std::thread` workers as
 `numThreads` and the chain count allow. While running, a chain reads the
 shared `ColumnStore` but never writes it, never calls R, and never touches
-another chain, so results are bitwise identical at any thread count. Two execution paths across chains, and one pool
+another chain, and the per-sweep hook it calls on its own thread reaches that
+chain alone, so results are bitwise identical at any thread count. Two execution paths across chains, and one pool
 inside a chain:
 
 - **Inline** (one worker or fewer): chains run sequentially on the calling
@@ -586,17 +587,23 @@ below-cutoff path. `numThreads = 0` means the sampler's own thread count
 
 ## Callbacks and errors
 
-**Per-sweep hook.** `SweepCallback`, passed to `Sampler::run` as `onSweep`,
-fires on the calling thread before every sweep and lets the host change
-conditioning state between sweeps without a round trip; the sweep's first draw
-is the augmentation variables, so every change made there reaches them, and
-`getLatents` called there returns the previous sweep's values; which changes are
-legal there is docs/design/bart-as-a-component.md's subject. It runs only
-when chains run inline, and `Sampler::run` requires the caller not to set it
-alongside worker-thread chains. The flat C API has no entry for it. The one
-bridge entry that installs it, `bartcore_runWithCallback`, evaluates an R
-closure under `R_ToplevelExec`, refuses more than one chain, and refuses a
-result buffer not of its channel's type and length. Its buffers' strides are
+**Per-sweep hook.** A `SweepHook`, a `SweepCallback` function pointer and its
+context, passed to `Sampler::run` as `onSweep`, fires before every sweep of
+every chain on the thread that owns the chain - a worker when chains run on
+workers - after the cancel check. It receives a `ChainView` of that chain
+alone, whose two writes set the chain's offset with the response transform
+held and its sigma, so the code that runs the BART sampler inside a larger
+sampler changes conditioning state between sweeps without a round trip. The
+sweep's first draw is the augmentation variables, so every change made there
+reaches them, and `getLatents` called there returns the previous sweep's
+values; which changes are legal there is docs/design/bart-as-a-component.md's
+subject. A nonzero return stops the run as a per-draw callback's does, and an
+exception it throws leaves the run as a chain's does. The one bridge entry
+that installs an R closure, `bartcore_runWithCallback`, adapts it through the
+hook's context, evaluates it under `R_ToplevelExec`, refuses more than one
+chain, so the closure runs on the calling thread and reaches the sampler
+through its R methods rather than the view, and refuses a result buffer not
+of its channel's type and length. Its buffers' strides are
 fixed when the run starts, so a closure whose `setData` or test-predictor
 call changes the number of observations or test observations stops the run
 with an error; one that keeps both is legal, as between sweeps. No function

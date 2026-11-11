@@ -193,25 +193,35 @@ struct WarmStartReport {
   }
 };
 
+/// Relays a host's sweep hook and per-draw observer and records that either
+/// returned nonzero, so a true return from Sampler::run can be told apart from
+/// an interrupt. One relay serves every chain: it holds no per-chain state and
+/// the flag is a relaxed set-once, read only after every worker has joined.
+struct CallbackRelay {
+  SweepHook sweep;
+  DrawHook draw;
+  std::atomic<bool> stopped{false};
+
+  int record(int result) {
+    if (result != 0) stopped.store(true, std::memory_order_relaxed);
+    return result;
+  }
+  static int callSweep(void* context, ChainView& chain, std::size_t chainIndex,
+                       std::size_t sweepIndex, bool isBurnIn) {
+    CallbackRelay& relay = *static_cast<CallbackRelay*>(context);
+    return relay.record(relay.sweep.fn(relay.sweep.context, chain, chainIndex,
+                                       sweepIndex, isBurnIn));
+  }
+  static int callDraw(void* context, const DrawInfo* draw) {
+    CallbackRelay& relay = *static_cast<CallbackRelay*>(context);
+    return relay.record(relay.draw.fn(relay.draw.context, draw));
+  }
+};
+
 /// A sequential per-observation predictor update: stage one observation's
 /// leaf moves, test that no leaf empties, then commit or skip, with a single
 /// fits rebuild at the end. Type-erased so several samplers sharing an
 /// index-aligned column can be swept jointly, committing all-or-none.
-/// Relays a host's per-draw observer and records that one returned nonzero, so
-/// a true return from Sampler::run can be told apart from an interrupt. One
-/// relay serves every chain: it holds no per-chain state and the flag is a
-/// relaxed set-once, read only after every worker has joined.
-struct DrawRelay {
-  DrawHook hook;
-  std::atomic<bool> stopped{false};
-  static int call(void* context, const DrawInfo* draw) {
-    DrawRelay& relay = *static_cast<DrawRelay*>(context);
-    int result = relay.hook.fn(relay.hook.context, draw);
-    if (result != 0) relay.stopped.store(true, std::memory_order_relaxed);
-    return result;
-  }
-};
-
 class PredictorUpdateSession {
 public:
   virtual ~PredictorUpdateSession() = default;
@@ -505,6 +515,10 @@ public:
     data_.testOffset = testOffset;
   }
 
+  /// Whether a run of this sampler is in flight: from run()'s entry to its
+  /// return, read on any thread.
+  bool isRunning() const { return running_.load(std::memory_order_relaxed); }
+
   /// Runs every chain numBurnIn + numSamples iterations, filling per-chain
   /// slabs of the (chain-major) results arrays; see Results. Chains execute
   /// on up to min(numThreads, numChains) worker threads.
@@ -517,16 +531,13 @@ public:
   /// call returns as soon as the last chain finishes, not at the next poll,
   /// so a one-sweep run in a host's outer loop costs no added latency.
   ///
-  /// onSweep, if set, is the host's per-sweep conditioning hook; it runs only
-  /// when chains run inline (min(numThreads, numChains) <= 1), so the caller
-  /// must not set it alongside worker-thread chains. Chains then run
-  /// sequentially, so onSweep sees chain c completed before chain c + 1 begins.
-  ///
-  /// onDraw, if set, is the host's per-draw observer; unlike onSweep it is
-  /// forwarded UNCHANGED on both paths - no lock, no queue, no hop to this
-  /// thread - so it must be callable from a worker thread. A nonzero return
-  /// aborts the run exactly as an interrupt does, and sets *stoppedByCallback
-  /// (when non-null) so the caller can tell the two apart on a true return.
+  /// onSweep, if set, is the host's per-sweep conditioning hook and onDraw its
+  /// per-draw observer. Both are forwarded UNCHANGED on both paths - no lock,
+  /// no queue, no hop to this thread - so each must be callable from a worker
+  /// thread, and on the inline path chain c completes before chain c + 1
+  /// begins. A nonzero return from either aborts the run exactly as an
+  /// interrupt does, and sets *stoppedByCallback (when non-null) so the
+  /// caller can tell the two apart on a true return.
   ///
   /// A run that stops early - a cancel, a hook's or observer's stop, or an
   /// exception a chain throws - drops the saved trees it wrote: the store
@@ -540,10 +551,10 @@ public:
   /// this sampler is in progress, as from inside its onSweep.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            const std::function<bool()>& pollInterrupt = {},
-           const SweepCallback& onSweep = {},
+           const SweepHook& onSweep = SweepHook(),
            const DrawHook& onDraw = DrawHook(),
            bool* stoppedByCallback = nullptr) {
-    if (running_)
+    if (running_.load(std::memory_order_relaxed))
       throw std::logic_error("a run cannot start inside a run's sweep hook");
     size_t numChains = chains_.size();
     if (stoppedByCallback != nullptr) *stoppedByCallback = false;
@@ -562,7 +573,7 @@ public:
       Sampler& sampler;
       bool completed = false;
       ~StoppedRunGuard() {
-        sampler.running_ = false;
+        sampler.running_.store(false, std::memory_order_relaxed);
         if (completed) return;
         size_t capacity = sampler.savedTreeCapacity();
         size_t begun = 0;
@@ -572,7 +583,7 @@ public:
         sampler.recordedDraws_ = std::min(sampler.recordedDraws_, intact);
       }
     } stoppedRunGuard{*this};
-    running_ = true;
+    running_.store(true, std::memory_order_relaxed);
     // the per-observation fits carry numReportedLocations channels per sample
     // (one everywhere but a multi-location combiner), so the per-chain slab
     // stride folds it in; L = 1 leaves the exact current chain-major stride
@@ -691,17 +702,16 @@ public:
 
     size_t numWorkers = options_.numThreads < numChains ? options_.numThreads
                                                         : numChains;
-    // the observer is forwarded to every chain on BOTH paths, unwrapped except
-    // for the relay that records its stop; it is a plain function pointer over
-    // plain arrays, so a worker thread can call it where onSweep cannot
-    DrawRelay drawRelay;
-    drawRelay.hook = onDraw;
-    DrawHook relayHook;
-    if (onDraw.fn != nullptr) {
-      relayHook.fn = &DrawRelay::call;
-      relayHook.context = &drawRelay;
-    }
-    const DrawHook* onDrawPtr = onDraw.fn != nullptr ? &relayHook : nullptr;
+    // both hooks are forwarded to every chain on BOTH paths, unwrapped except
+    // for the relay that records a stop; each is a plain function pointer, so
+    // a worker thread calls it as the calling thread does
+    CallbackRelay relay;
+    relay.sweep = onSweep;
+    relay.draw = onDraw;
+    const SweepHook relaySweep{&CallbackRelay::callSweep, &relay};
+    const DrawHook relayDraw{&CallbackRelay::callDraw, &relay};
+    const SweepHook* onSweepPtr = onSweep.fn != nullptr ? &relaySweep : nullptr;
+    const DrawHook* onDrawPtr = onDraw.fn != nullptr ? &relayDraw : nullptr;
     bool canceled = false;
     if (numWorkers <= 1) {
       // chains run on the main thread, so progress prints directly and the
@@ -722,7 +732,6 @@ public:
       }
       const std::function<bool()>* shouldCancelPtr =
         shouldCancel ? &shouldCancel : nullptr;
-      const SweepCallback* onSweepPtr = onSweep ? &onSweep : nullptr;
       for (size_t c = 0; c < numChains && !canceled; ++c)
         canceled = chains_[c]->run(numBurnIn, numSamples, chainResults[c],
                                    &progress, c, shouldCancelPtr, onSweepPtr,
@@ -760,9 +769,9 @@ public:
       auto worker = [this, numWorkers, numChains, numBurnIn, numSamples,
                      &chainResults, &progress, &chainsMutex, &chainsDone,
                      &numChainsRunning, &workerCancel, &cancelFlag,
-                     &firstError, onDrawPtr](size_t w) {
+                     &firstError, onSweepPtr, onDrawPtr](size_t w) {
         for (size_t c = w; c < numChains; c += numWorkers) {
-          // a chain that stopped itself - its observer returned nonzero -
+          // a chain that stopped itself - a hook returned nonzero -
           // publishes the stop, so every other chain, this worker's own
           // remaining ones included, sees it at its next sweep boundary.
           // A chain that throws is stopped the same way, its exception
@@ -771,7 +780,7 @@ public:
           // for numChainsRunning never ends.
           try {
             if (chains_[c]->run(numBurnIn, numSamples, chainResults[c],
-                                &progress, c, &workerCancel, nullptr,
+                                &progress, c, &workerCancel, onSweepPtr,
                                 onDrawPtr))
               cancelFlag.store(true, std::memory_order_relaxed);
           } catch (...) {
@@ -819,7 +828,7 @@ public:
     }
 
     if (stoppedByCallback != nullptr)
-      *stoppedByCallback = drawRelay.stopped.load(std::memory_order_relaxed);
+      *stoppedByCallback = relay.stopped.load(std::memory_order_relaxed);
 
     // a canceled run skips the completion cursor advance and terminal summary
     // that assume every requested sample landed; the guard drops what it wrote
@@ -4282,7 +4291,9 @@ private:
   std::vector<double> activeRows_;
   size_t recordedDraws_ = 0;     // slots written since the last reset, capped
                                  // at capacity; the extent of every read
-  bool running_ = false;         // set for the length of run()
+  // set for the length of run(); atomic so a check on another thread, a
+  // worker's hook included, reads it without a race
+  std::atomic<bool> running_{false};
   double runningTime_ = 0.0;     // seconds accumulated across runs
   // set when the creation build refused a predictor cell; the sampler is then
   // an empty shell its factory discards, so no chain is built over the store
