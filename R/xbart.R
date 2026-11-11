@@ -926,9 +926,9 @@ xbart <- function(
   if (numSigmaFallbacks > 0L) {
     announceStartingSigma(
       verbose,
-      "starting sigma is the ",
-      if (numWeightedFallbacks > 0L) "weighted ",
-      "sd of the response in ",
+      "starting sigma is ",
+      standInWords(numWeightedFallbacks > 0L),
+      " in ",
       numSigmaFallbacks,
       " of ",
       numUnits,

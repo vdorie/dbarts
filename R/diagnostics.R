@@ -702,9 +702,9 @@ printFixedLine <- function(fixed) {
 printStartingSigmaLine <- function(x) {
   if (isTRUE(x$sigest.fallback)) {
     cat(
-      "(Starting sigma: the ",
-      if (isTRUE(attr(x$sigest.fallback, "weighted"))) "weighted ",
-      "sd of the response; the linear model had no residual degrees of ",
+      "(Starting sigma: ",
+      standInWords(isTRUE(attr(x$sigest.fallback, "weighted"))),
+      "; the linear model had no residual degrees of ",
       "freedom)\n",
       sep = ""
     )

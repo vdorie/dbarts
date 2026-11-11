@@ -1961,15 +1961,26 @@ sigmaFallbackCondition <- function(weighted) {
   structure(
     class = c("dbartsSigmaFallback", "condition"),
     list(
-      message = paste0(
-        "the starting sigma is the ",
-        if (weighted) "weighted ",
-        "sd of the response"
-      ),
+      message = paste0("the starting sigma is ", standInWords(weighted)),
       call = NULL,
       weighted = weighted
     )
   )
+}
+
+## What the stand-in for the starting sigma is called: the sd of the response,
+## and where weights other than 1 are read (precision weights; counts do not
+## reach a stand-in) the sigma of the intercept-only weighted regression, the
+## sd of a row of weight 1.
+standInWords <- function(weighted) {
+  if (weighted) {
+    paste0(
+      "the sd of a row of weight 1 (the intercept-only weighted regression's ",
+      "sigma)"
+    )
+  } else {
+    "the sd of the response"
+  }
 }
 
 ## Whether the stand-in for the starting sigma reads its weights: some weight

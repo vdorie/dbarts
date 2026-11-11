@@ -1082,7 +1082,10 @@ lines <- startingLines(dbarts(
 ))
 expect_equal(
   sum(grepl(
-    "starting sigma is the weighted sd of the response (",
+    paste0(
+      "starting sigma is the sd of a row of weight 1 (the intercept-only ",
+      "weighted regression's sigma) ("
+    ),
     lines,
     fixed = TRUE
   )),
@@ -1104,7 +1107,10 @@ expect_true(isTRUE(attr(weightedFit$sigest.fallback, "weighted")))
 expect_identical(unweighted$sigest.fallback, TRUE)
 expect_identical(unitWeighted$sigest.fallback, TRUE)
 expect_true(any(grepl(
-  "(Starting sigma: the weighted sd of the response;",
+  paste0(
+    "(Starting sigma: the sd of a row of weight 1 (the intercept-only ",
+    "weighted regression's sigma);"
+  ),
   utils::capture.output(print(summary(weightedFit))),
   fixed = TRUE
 )))
@@ -1325,7 +1331,10 @@ weightedLine <- foldLine(wSpreadThirteen)
 expect_equal(length(weightedLine), 1L)
 expect_true(startsWith(
   weightedLine,
-  "starting sigma is the weighted sd of the response in 4 of 4"
+  paste0(
+    "starting sigma is the sd of a row of weight 1 (the intercept-only ",
+    "weighted regression's sigma) in 4 of 4"
+  )
 ))
 unitLine <- foldLine(wThirteen)
 expect_equal(length(unitLine), 1L)

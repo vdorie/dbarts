@@ -473,9 +473,9 @@ estimateStartingSigma <- function(
   if (isTRUE(fellBack)) {
     announceStartingSigma(
       verbose,
-      "starting sigma is the ",
-      if (isTRUE(attr(fellBack, "weighted"))) "weighted ",
-      "sd of the response (",
+      "starting sigma is ",
+      standInWords(isTRUE(attr(fellBack, "weighted"))),
+      " (",
       format(tryResult, digits = 4L),
       "): the linear model on ",
       size[2L],
