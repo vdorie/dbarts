@@ -154,3 +154,142 @@ expect_true(any(grepl(
   capture.output(print(summary(fb))),
   fixed = TRUE
 )))
+
+# a hazard fit's forests add on the probit (hazard) or logit (hazard.logistic)
+# scale of the link, and its rows are person-period rows
+set.seed(20261112)
+nh <- 40L
+h <- data.frame(
+  time = sample(1:3, nh, TRUE),
+  status = rbinom(nh, 1L, 0.7),
+  x1 = runif(nh),
+  x2 = runif(nh),
+  dose = rbinom(nh, 1L, 0.5)
+)
+for (hazardFamily in c("hazard", "hazard.logistic")) {
+  hz <- bart(
+    survival::Surv(time, status) ~ x1 + forest(x2, basis = dose),
+    data = h,
+    family = hazardFamily,
+    n.chains = 2L,
+    n.samples = 20L,
+    n.burn = 10L,
+    n.trees = 10L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+  scaleText <- if (hazardFamily == "hazard") "probit" else "logit"
+  effectsH <- summary(hz)$effects
+  expect_identical(
+    attr(effectsH, "scale"),
+    paste0("on the ", scaleText, " scale")
+  )
+  expect_true(any(grepl(
+    paste0(
+      "on the ",
+      scaleText,
+      " scale, over ",
+      sum(h$time),
+      " person-period rows"
+    ),
+    capture.output(print(summary(hz))),
+    fixed = TRUE
+  )))
+}
+
+# frequency weights: the same data as written-out rows and as counted rows
+# give the same average effect, to the draws' Monte Carlo error. The counts
+# rise with x1, which the effect does too, so counting each row once reads a
+# lower average than the written-out rows do.
+set.seed(20261113)
+m <- 60L
+x1c <- runif(m)
+x2c <- runif(m)
+x3c <- runif(m)
+zc <- rbinom(m, 1L, 0.5)
+counts <- ifelse(x1c > 0.5, 20, 1)
+yc <- sin(3 * x2c) + (0.5 + 6 * x1c) * zc + rnorm(m, sd = 0.3)
+counted <- data.frame(y = yc, x1 = x1c, x2 = x2c, x3 = x3c, z = zc, w = counts)
+written <- counted[rep(seq_len(m), counts), ]
+formulaC <- y ~ forest(x1 + x2) + forest(x1 + x2, basis = z)
+fitCounts <- function(data, ...) {
+  do.call(
+    bart,
+    c(
+      list(
+        formulaC,
+        data = data,
+        n.chains = 2L,
+        n.samples = 3000L,
+        n.burn = 1000L,
+        n.trees = 50L,
+        n.threads = 1L,
+        verbose = FALSE
+      ),
+      list(...)
+    )
+  )
+}
+set.seed(1)
+fWritten <- fitCounts(written)
+set.seed(2)
+fCounted <- fitCounts(counted, weights = counts, weights.type = "frequency")
+eWritten <- summary(fWritten)$effects
+eCounted <- summary(fCounted)$effects
+# the draws' Monte Carlo error: over four seeds of each representation the
+# average's run-to-run sd was 0.17, a difference of two runs 0.24; the
+# tolerance is two of those
+monteCarlo <- 0.5
+expect_true(abs(eCounted$average - eWritten$average) < monteCarlo)
+expect_true(abs(eCounted$spread - eWritten$spread) < monteCarlo)
+# a fit that counted each row once reads a clearly different average, so the
+# pin discriminates
+fOnce <- fCounted
+fOnce[["weights"]] <- NULL
+byOnce <- dbarts:::fitForestEffects(fOnce)$average
+expect_true(abs(byOnce - eWritten$average) > monteCarlo)
+expect_identical(attr(summary(fCounted)$effects, "observations"), sum(counts))
+expect_true(any(grepl(
+  paste0("over ", sum(counts), " observations (", m, " rows)"),
+  capture.output(print(summary(fCounted))),
+  fixed = TRUE
+)))
+# precision weights are not counts: each row stays once
+fPrecision <- fitCounts(counted, weights = counts)
+expect_identical(
+  attr(summary(fPrecision)$effects, "observations"),
+  as.double(m)
+)
+expect_true(any(grepl(
+  paste0("over ", m, " training rows"),
+  capture.output(print(summary(fPrecision))),
+  fixed = TRUE
+)))
+
+# the forest line's column mean and sd read the counts, as its "taken from a
+# column of sd" source does, so the two agree
+counted$s <- counted$x3
+fLine <- bart(
+  y ~ forest(x1 + x2) + forest(x1 + x2, basis = s),
+  data = counted,
+  weights = w,
+  weights.type = "frequency",
+  n.chains = 1L,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.trees = 10L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+column <- rep(counted$s, counts)
+expect_true(any(grepl(
+  paste0(
+    "numeric basis, mean ",
+    format(mean(column), digits = 4L),
+    ", sd ",
+    format(sd(column), digits = 4L)
+  ),
+  summary(fLine)$forests,
+  fixed = TRUE
+)))
+expect_false(any(grepl("taken from a column", summary(fLine)$forests)))

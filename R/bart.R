@@ -708,7 +708,8 @@ packageBartResults <- function(
     if (!hasForestReporting) {
       result$basis.columns <- storedBasisColumns(
         storedForestBases(fit$data),
-        fitWeights(fit)
+        fitWeights(fit),
+        countedWeights(fit$model@family, fit$model@weights.type)
       )
     }
   }

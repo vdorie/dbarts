@@ -29,19 +29,35 @@ printedNumber <- function(value) {
 ## range over the rows in the likelihood, every row where none is in. The mean
 ## is zapped against the sd, so a column centered to rounding prints 0. A
 ## column is constant where its sd is under 1e-11 of its largest value, the
-## engine's bound.
-printedColumn <- function(column, rowsIn) {
+## engine's bound. `counts`, where the weights are counts (countedWeights), are
+## the rows' multiplicities: the mean and sd are those of the rows written out,
+## the sd's divisor the sum of counts less one, as the engine reads the scale.
+printedColumn <- function(column, rowsIn, counts = NULL) {
   values <- as.double(column)
+  if (length(counts) != length(values)) {
+    counts <- rep_len(1, length(values))
+  }
   if (any(rowsIn)) {
+    counts <- counts[rowsIn]
     values <- values[rowsIn]
   }
+  counts <- counts[!is.na(values)]
   values <- values[!is.na(values)]
+  # no row in the likelihood: every row is read, once
+  if (!any(counts > 0)) {
+    counts <- rep_len(1, length(values))
+  }
   if (length(values) == 0L) {
     return(list(mean = NaN, sd = 0, range = rep(NA_real_, 2L), constant = TRUE))
   }
-  spread <- if (length(values) > 1L) stats::sd(values) else 0
+  center <- sum(counts * values) / sum(counts)
+  spread <- if (length(values) > 1L && sum(counts) > 1) {
+    sqrt(sum(counts * (values - center)^2) / (sum(counts) - 1))
+  } else {
+    0
+  }
   list(
-    mean = zapsmall(c(mean(values), spread))[1L],
+    mean = zapsmall(c(center, spread))[1L],
     sd = spread,
     range = range(values),
     constant = spread <= 1e-11 * max(abs(values))
@@ -52,7 +68,7 @@ printedColumn <- function(column, rowsIn) {
 ## FALSE): for a numeric basis printedColumn's numbers over the rows in the
 ## likelihood, for a factor its levels (a factor of no rows), NULL for a forest
 ## with none. printedForest reads either in place of the basis.
-storedBasisColumns <- function(bases, weights = NULL) {
+storedBasisColumns <- function(bases, weights = NULL, counted = FALSE) {
   numRows <- max(0L, vapply(bases, NROW, 0L))
   rows <- rowsInLikelihood(if (length(weights) > 0L) weights, NULL, numRows)
   lapply(bases, function(basis) {
@@ -61,7 +77,7 @@ storedBasisColumns <- function(bases, weights = NULL) {
     } else if (is.factor(basis)) {
       basis[0L]
     } else {
-      printedColumn(basis, rows)
+      printedColumn(basis, rows, if (counted) weights)
     }
   })
 }
@@ -71,7 +87,15 @@ storedBasisColumns <- function(bases, weights = NULL) {
 ## the rows in the likelihood, `full` whether the line is the full block's,
 ## `label` the forest's, which names the column in a short line, and `family`
 ## the response's.
-printedForest <- function(entry, basis, rowsIn, full, label, family) {
+printedForest <- function(
+  entry,
+  basis,
+  rowsIn,
+  full,
+  label,
+  family,
+  counts = NULL
+) {
   how <- if (isTRUE(entry$sd.stated)) "stated" else "default"
   size <- printedNumber(entry$sd)
   if (identical(entry$prior.sd.of, "forest, shared")) {
@@ -144,7 +168,11 @@ printedForest <- function(entry, basis, rowsIn, full, label, family) {
       held
     ),
     numeric = {
-      column <- if (is.list(basis)) basis else printedColumn(basis, rowsIn)
+      column <- if (is.list(basis)) {
+        basis
+      } else {
+        printedColumn(basis, rowsIn, counts)
+      }
       recorded <- entry[["basis.scale"]]
       range <- if (full) {
         paste0(
@@ -209,7 +237,8 @@ forestPriorLines <- function(
   full = FALSE,
   pointer = NULL,
   treeCounts = NULL,
-  shares = NULL
+  shares = NULL,
+  counted = FALSE
 ) {
   if (
     !is.list(priors) ||
@@ -261,7 +290,8 @@ forestPriorLines <- function(
           rows,
           full,
           labels[index],
-          family
+          family,
+          if (counted) weights
         )
       )
     },
@@ -367,6 +397,20 @@ deparsedPrior <- function(prior) {
   }
 }
 
+## Whether a fit's weights are counts of identical rows (the frequency
+## reading: the count families' default, and gaussian with weights.type =
+## "frequency") and not precisions. `weightsType` is NULL or NA for the
+## family's own reading.
+countedWeights <- function(family, weightsType = NULL) {
+  if (length(weightsType) != 1L) {
+    weightsType <- NA_character_
+  }
+  identical(
+    familyWeightsType(weightsType, as.character(family)[1L]),
+    "frequency"
+  )
+}
+
 ## The block of a fit, from what the fit stores: the short one of its synopsis,
 ## the full one of its summary.
 fitForestLines <- function(fit, full = FALSE) {
@@ -380,7 +424,8 @@ fitForestLines <- function(fit, full = FALSE) {
     attr(fit, "forest.unit", exact = TRUE),
     full,
     "summary()",
-    attr(fit, "forest.trees", exact = TRUE)
+    attr(fit, "forest.trees", exact = TRUE),
+    counted = countedWeights(fit[["family"]], fit[["weights.type"]])
   )
 }
 
@@ -420,12 +465,16 @@ forestEffectDraws <- function(fits, glue, multiplier, basis) {
 ## One effect's summary: the average over the rows in the likelihood and its
 ## spread across them (sd), each taken per draw, so each is a posterior of the
 ## quantity itself, then the median and the 5% and 95% quantiles summary()
-## tabulates elsewhere.
-effectSummary <- function(draws, rowsIn) {
+## tabulates elsewhere. `counts` are the rows' multiplicities where the weights
+## are counts: the average and sd are then those of the rows written out.
+effectSummary <- function(draws, rowsIn, counts = NULL) {
+  counts <- if (is.null(counts)) rep_len(1, ncol(draws)) else counts
   draws <- draws[, rowsIn, drop = FALSE]
-  average <- rowMeans(draws)
-  spread <- if (ncol(draws) > 1L) {
-    sqrt(rowSums((draws - average)^2) / (ncol(draws) - 1L))
+  counts <- counts[rowsIn]
+  total <- sum(counts)
+  average <- as.vector(draws %*% counts) / total
+  spread <- if (ncol(draws) > 1L && total > 1) {
+    sqrt(as.vector((draws - average)^2 %*% counts) / (total - 1))
   } else {
     rep(NA_real_, nrow(draws))
   }
@@ -448,13 +497,15 @@ effectSummary <- function(draws, rowsIn) {
 
 ## The scale the forests add on, as a phrase for the line that reports an
 ## effect: the response's units unless the response is binary, whose forests
-## add on the latent index of the link. The families that take a basis forest
-## are gaussian, probit and logistic.
+## add on the latent index of the link (a hazard's included). The families that
+## take a basis forest are gaussian, probit, logistic and the hazards.
 effectScaleText <- function(family) {
   switch(
     as.character(family)[1L],
-    probit = "on the probit scale",
-    logistic = "on the logit scale",
+    probit = ,
+    hazard.probit = "on the probit scale",
+    logistic = ,
+    hazard.logistic = "on the logit scale",
     "in the response's units"
   )
 }
@@ -493,6 +544,12 @@ fitForestEffects <- function(fit) {
     if (length(fit[["active"]]) > 0L) fit[["active"]],
     dim(fits)[2L]
   )
+  counted <- countedWeights(fit[["family"]], fit[["weights.type"]])
+  counts <- if (counted && length(fit[["weights"]]) == dim(fits)[2L]) {
+    fit[["weights"]]
+  } else {
+    rep_len(1, dim(fits)[2L])
+  }
   rows <- lapply(has, function(k) {
     effects <- forestEffectDraws(
       fits[,, k],
@@ -511,7 +568,7 @@ fitForestEffects <- function(fit) {
               effect = what,
               stringsAsFactors = FALSE
             ),
-            effectSummary(draws, rowsIn)
+            effectSummary(draws, rowsIn, counts)
           )
         },
         effects,
@@ -525,6 +582,15 @@ fitForestEffects <- function(fit) {
   }
   rownames(result) <- NULL
   attr(result, "rows") <- sum(rowsIn)
+  # where rows carry counts, the observations they stand for
+  attr(result, "observations") <- sum(counts[rowsIn])
+  attr(result, "row.name") <- if (
+    startsWith(as.character(fit[["family"]])[1L], "hazard")
+  ) {
+    "person-period rows"
+  } else {
+    "training rows"
+  }
   attr(result, "scale") <- effectScaleText(fit[["family"]])
   result
 }
@@ -548,6 +614,8 @@ forestEffectLines <- function(effects) {
       ")"
     )
   }
+  rows <- attr(effects, "rows")
+  observations <- attr(effects, "observations")
   lines <- vapply(
     seq_len(nrow(effects)),
     function(row) {
@@ -572,8 +640,12 @@ forestEffectLines <- function(effects) {
       "effect of one unit of each basis, ",
       attr(effects, "scale"),
       ", over ",
-      attr(effects, "rows"),
-      " training rows (posterior median, 5% to 95%):"
+      if (observations != rows) {
+        paste0(printedNumber(observations), " observations (", rows, " rows)")
+      } else {
+        paste0(rows, " ", attr(effects, "row.name"))
+      },
+      " (posterior median, 5% to 95%):"
     ),
     lines
   )
@@ -603,6 +675,7 @@ samplerForestLines <- function(sampler, full = FALSE) {
     full,
     "$getLeafPrior()",
     vapply(records, function(record) as.integer(record@n.trees), 0L),
-    vapply(records, methods::slot, 0, "share")
+    vapply(records, methods::slot, 0, "share"),
+    countedWeights(sampler$model@family, sampler$model@weights.type)
   )
 }

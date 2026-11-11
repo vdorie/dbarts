@@ -36,7 +36,12 @@
   each forest's own fits times the coefficient on its basis, which is what
   \code{predict} gives with the basis one unit higher less the basis as it
   stands; a fit that kept no per-forest fits (\code{keepFits = FALSE}) says so
-  in one line instead.
+  in one line instead. A change in probability is \code{predict}'s job (\code{predict} with
+  the basis one unit up less \code{predict} as it stands). Where the weights
+  are counts of identical rows (the count families' default, and gaussian with
+  \code{weights.type = "frequency"}), the average and the sd across rows, as
+  the forest line's column mean and sd, count each row at its count, as the
+  data written out row by row would.
 }
 \usage{
 \method{summary}{bart}(object, vars = c("sigma", "k", "leaf.prior.sd", "resid.df"), \dots)
