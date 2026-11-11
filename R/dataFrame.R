@@ -600,14 +600,19 @@ joinedTermParts <- function(predictors, term, placed, class) {
   }
 }
 
-## A matrix term's columns joined into one, named as the term named them: a
-## sparse matrix where the block holds every part sparse.
+## A matrix term's columns joined into one, named as the term named them (none
+## for a lone "1"): a sparse matrix where the block holds every part sparse.
 joinedTermColumns <- function(x, predictors, parts, term) {
   suffixes <- substring(parts, nchar(term) + 2L)
   if (all(vapply(predictors[parts], isS4, NA))) {
     columns <- x$sparse[, -x$map[match(parts, x$columnNames)], drop = FALSE]
   } else {
     columns <- do.call(cbind, lapply(unname(predictors[parts]), as.vector))
+  }
+  # the block names the one column of an unnamed one-column matrix (a plain
+  # matrix, scale(x)) "1", which a frame of lm's leaves unnamed
+  if (identical(suffixes, "1")) {
+    return(columns)
   }
   dimnames(columns) <- list(NULL, suffixes)
   columns

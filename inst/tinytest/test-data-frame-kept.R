@@ -838,6 +838,26 @@ expect_true(is.matrix(mfb[["poly(w, 2)"]]))
 expect_identical(colnames(mfb[["poly(w, 2)"]]), c("1", "2"))
 expect_true(is.matrix(mfb[["scale(x2)"]]))
 expect_identical(dim(mfb[["scale(x2)"]]), c(n, 1L))
+# a one-column matrix is named as lm's frame names it: nothing for scale() or
+# an unnamed matrix, and the name the user gave otherwise
+expect_null(colnames(mfb[["scale(x2)"]]))
+expect_identical(colnames(mfRef[["scale(x2)"]]), colnames(mfb[["scale(x2)"]]))
+d0$U <- matrix(d0$x2, n, 1L)
+d0$Q <- cbind(q = d0$x2)
+oneFormula <- y ~ U + Q + M
+mfOne <- model.frame(dbartsData(oneFormula, d0, keep.data = FALSE))
+mfOneRef <- model.frame(oneFormula, d0)
+for (name in c("U", "Q", "M")) {
+  expect_identical(
+    colnames(mfOne[[name]]),
+    colnames(mfOneRef[[name]]),
+    info = name
+  )
+}
+expect_identical(colnames(mfOne$Q), "q")
+rm(mfOne, mfOneRef, oneFormula)
+d0$U <- NULL
+d0$Q <- NULL
 expect_identical(colnames(mfb$M), c("a", "b"))
 for (name in names(mfRef)[-1L]) {
   expect_equal(
