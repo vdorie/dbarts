@@ -1280,7 +1280,12 @@ items
     refusal's remedy names the active-row mask only where one was
     handed in; and the bartBT, rbart_vi and one-column-family refusals
     of a two-column y name family = binomial, as bart()'s auto refusal
-    does. Wording only.
+    does. Wording only. Amended (C9, dec-A438): the leaf covariate
+    refusal (leafStandardizationMessage) drops "the active-row mask"
+    from its creation and setData lists altogether, as the fold
+    message already does, no refusing door ever having a mask in force;
+    5 test literals. Built with the bridge cleanup slice (see
+    bridge-rng-brackets). Not built.
   count-time-warning: (dec-B740, revising calls 12, 26 and 34 of
     dec-A276 and dec-B202 in part) the one-million cap on count
     weights, trials, their products, a fixed shape and multinomial
@@ -1427,11 +1432,15 @@ items
     samplers, and the training offset; with an x.test, one trial as
     now. About 12 lines, tests and help; prior draws move, in a
     function no release had. Not built.
-  response-range-overflow-refusal: agent fix from the 2026-11-10
-    sitting (call 9 of dec-A278): a response whose range overflows (a
-    value of 1e308, a unit of Inf) is refused at creation, since such
-    a sampler draws NaN and $setModel then fails part-way with a wrong
-    "standard deviation is 0" message. About 10 lines and a test.
+  response-range-overflow-refusal: (dec-B793, amending the agent fix
+    of call 9 of dec-A278 from creation only) a response or offset
+    whose range overflows (a value of 1e308, a unit of Inf) is refused
+    at every door that takes one: creation, $setResponse, $setData,
+    $setOffset and xbart, through the engine's non-finite check, with
+    one message; such a sampler draws NaN and the forest-sd refusal
+    says a wrong "standard deviation is 0", which the check fixes.
+    About 15 to 25 lines and four test arms. Built in the bridge and R
+    fixes slice after threaded-chains D2. Not built.
   setactiverows-docstring: agent fix from the 2026-11-10 sitting
     (dec-A305): the setActiveRows docstring says "any other sampler of
     several forests" is refused. Wording only.
@@ -1501,14 +1510,20 @@ items
     varianceForest(~ 1) and ~ 0 stay refused. About 5 lines, a test
     and help. Agent calls beside it: the intercept refusals name the
     variance formula, not a forest() call, and the help names variance
-    = FALSE. Open, not ruled: variance = character(0) fits every
-    column. No draws move. Not built.
+    = FALSE. variance = character(0) and integer(0) are ruled too
+    (dec-B794, see variance-empty-selection). No draws move. Not
+    built.
   weighted-sigma-line-wording: agent fix from the 2026-11-10 sitting
-    (dec-A302): the verbose, summary and xbart fold lines call the
-    weighted stand-in "the residual standard error of the
-    intercept-only weighted regression", not "the weighted sd of the
-    response" (at weights 100 the old words print ten times sd(y));
-    the record and its attribute stand. R strings and their pins.
+    (dec-A302, call C16 of dec-A438): the verbose, summary and xbart
+    fold lines no longer call the weighted stand-in "the weighted sd
+    of the response" (at weights 100 the old words print ten times
+    sd(y)); they word it by weights.type: precision, "the sd of a row
+    of weight 1 (the intercept-only weighted regression's sigma)";
+    count, "the sd of the response with each row written out as often
+    as its weight" (after dec-B737 is built); unit weights and the
+    unit unchanged; the record and its attribute stand. R strings, the
+    pins and one per count arm; the sitting's R fixes batch. Not
+    built.
   frame-object-single-copy: (dec-B754, option (c) of call 4 of
     dec-A364, not built) a formula-named workspace value is saved
     twice in a saved frame-keeping object (once in the held values,
@@ -1544,8 +1559,103 @@ items
     at most 9 steps on every finite input tried). (2) normal(500, 2.5)
     has a coordinate scale equal to the prior's, so the fix leaves it
     as before, and it mixes worse than 0.0-13 did; the fix cannot
-    change it without moving the draws of narrow priors. Measure it
-    before deciding. Not built.
+    change it without moving the draws of narrow priors. Ruled
+    (dec-B788): the follow-up is not bound to bit-identity of the fits
+    the fix leaves alone; it may move narrow-prior and, if it pays,
+    default fits where a comparison against 0.0-13 shows better mixing
+    at equal time, judged by interval coverage. Found at the same
+    sitting (C82): normal(500, 2.5) leaves both chains near 500 where
+    the posterior is near 2.1, on main and on 0.0-13 alike, so it is a
+    sampler failure and not slow mixing; the NEWS claim for far-
+    centered priors was corrected. Not built.
+  flat-capi-exception-guard: (dec-B787, revising calls 1 and 5 of
+    dec-A426) one guard on the flat C API's registration converts a
+    C++ exception to the entry's failure, carrying the entry's name,
+    the three hand wraps going, shaped to return a status once the
+    host-neutral engine lands (dec-B572); about 25 to 40 lines, one
+    handler per call, no draws or timings move, the header's ABI
+    unchanged. Built in the threaded-chains bridge slice (D2). Not
+    built.
+  draw-callback-channel-mask: (dec-B790, revising dec-B600 for a
+    caller that names a subset) the draw callback's one registration
+    entry takes the set of values the callback reads, a mask with
+    DBARTS_DRAW_ALL; dbarts computes the stored values plus those
+    named and nothing else, since stan4bart registers a callback on
+    every fit and stores nothing; replaces call A16 of the threaded-
+    chains plan. About 40 to 60 lines and a test per channel, no draws
+    move. Being built in threaded-chains D2 (branch threaded-chains,
+    not landed).
+  bridge-rng-brackets: (dec-B792, revising call 4 of dec-A426) delete
+    the seven GetRNGstate and PutRNGstate brackets that draw nothing
+    (the two run paths, four prior draws, grow-from-root), the two per-
+    observation updates' brackets and the hand catch sites around them,
+    keeping createChainRngs (unseeded) and the augmentation helper,
+    which draw from R's stream; the architecture notes' paragraph on
+    the brackets is updated; about 50 lines out, seeded fits identical
+    (a gate). A bridge cleanup slice after threaded-chains D2 lands
+    (same files); it also carries the C9 wording of count-fallback-
+    wording. Not built.
+  interaction-test-by-terms-order: (dec-B791, revising call 1 of
+    dec-A421) refuseInteractionTerms in R/data.R and its caller in
+    R/bart.R read attr(terms, "order") > 1 instead of hasTopLevelColon,
+    which and the comment above it are deleted; the pins stay; about 3
+    lines for 25, no draws move. The sitting's R fixes batch. Not
+    built.
+  hazard-memory-cgroup: (dec-B795, extending dec-B750) on Linux the
+    hazard memory warning also reads the process's cgroup memory limit
+    (v2 memory.max in the process's cgroup and its parents, v1
+    memory.limit_in_bytes) and compares the projection with the
+    smaller of that and the installed memory; R file reads, no
+    subprocess; the message says "this process may use N GB"; a test
+    hook points at a fake cgroup tree; the help sentence that says the
+    limit is not read is reversed. Verify once by hand in a Linux
+    container with a memory limit (the bench box). The sitting's R
+    fixes batch. Not built.
+  variance-empty-selection: (dec-B794, closing the open question of
+    dec-B736) variance = character(0) and integer(0) fit the constant
+    variance, as ~ 1 and NULL do, where main fits every column and
+    doors-1111 refuses; one branch in place of the stop, 2 tests and a
+    help sentence. Built with variance-constant-formula on doors-1111
+    before it lands, or right after. Not built.
+  stan4bart-mixing-summary-flag: (dec-B797 revising dec-B776; dec-B796
+    for the sampler diagnostics) no end-of-fit mixing warning: fit$mixing
+    is kept, summary() flags an R-hat over 1.1 ("* over 1.1: the
+    chains disagree"), and the 0.0-14 NEWS item is rewritten;
+    verbose < 0 governs the sampler diagnostics only; mvbart's summary
+    gains each outcome's residual-sd and fit R-hats, flagged the same
+    way (C86); the short-run floor (C84) is moot. bartCause keeps
+    verbose = -1 unless the builder finds another diagnostic needing 0;
+    its tests muffle by the helper's pattern (dec-A433) until the
+    warning goes, then no muffle is needed. The stan4bart fixes batch
+    and the bartCause fixes batch. Not built.
+  collapsed-move-vectorized-likelihood-timing: (dec-B789; the
+    maintainer: "make sure we don't forget the vectorization timing")
+    time a vectorized likelihood pass (a banked sum and vectorized log
+    and exp) in the k-move pricing measurement, and build it (option
+    (c) of dec-B789) if the collapsed move's evaluator is a material
+    share of a sweep. Before the branch collapsed-move-rebuild lands,
+    its model.hpp comment and docs/plans/collapsed-scale-move.md say
+    the row order is exact only in the reference build and tests/cpp.
+    The measurement list of docs/plans/k-move-pricing.md is on the
+    branch k-move-pricing (not on main), so this item carries the
+    timing until that branch lands, when it is added there. Not
+    built.
+  compiled-callback-helper-name: held for the maintainer (C142, dec-A438):
+    the exported name and shape of the compiled-callback helper (one
+    function taking a body or a pointer, as sourceCpp takes a file or
+    code; compile_callback and compiled_callback differ by one letter;
+    no includes argument). Exported names are the maintainer's. Slice
+    S4 of threaded-chains, not urgent. Not built.
+  agent-call-fixes-2026-11-10: the unbuilt fixes of dec-A438, by batch.
+    R fixes batch: C16 (above), C20 (all.equal on a frame-keeping data
+    object, a regression against 0.9-34), C21 (nobs counts positive
+    weights), C23 (forest(sd = normal()) inside forests= reads the
+    caller's normal), C24 (one forest spelling in refusals), C54
+    (model.frame names as lm's), C55 (sparse columns as terms).
+    stan4bart fixes batch: C74, C77, C78, C88, C97 help sentence, C86.
+    bartCause fixes batch: C36, C41, C42. Branches before they land:
+    C124 on k-move-pricing; C128 and C129 on sumeff; C135 and I173 to
+    I175 on threaded-chains. C92: the record is amended. Not built.
   stan4bart-shrinkage-probit-scale-help: (item 3 of the shrinkage
     dossier, dec-A436) the five new prior families (hs, hs_plus,
     lasso, laplace, product_normal) read their scales with the
