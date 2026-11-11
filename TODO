@@ -1483,24 +1483,6 @@ items
     silently, where bartCause now refuses it (dec-A274); and
     predict-newdata-weights carries dec-B698's missing-weight rule (a
     missing weight refused unless na.action says otherwise).
-  starting-sigma-floor-constant: (dec-B798, revising the constant of
-    dec-B746) the starting-sigma floor is 2^16 eps times the largest
-    |y| over the rows in (the largest sqrt(w)|y| under precision
-    weights), 2^16 eps itself only for an all-zero response, in the
-    routine every fitting function shares, xbart's folds included;
-    pins, the help and NEWS's floor wording follow. Not built.
-  starting-sigma-fractional-counts: (found in the review of
-    the count floor, dec-B737) under fractional counts the
-    written-out denominator (weightedSd's total - 1, the dense
-    routine's sum(w) - rank, the sparse routine's count - rank) takes
-    floating-point rounding as data: rep(0.05, 20) sums to 1 + 2.2e-16
-    and starts at sigma 66401035, where a sum of exactly 1 gives the
-    floor, so the result depends on the machine's summation. Ruled
-    (dec-B799): a rounding tolerance on the total count and on the
-    regression's degrees of freedom, then the unweighted sd of the
-    rows of positive weight where the total is at most 1. A few lines
-    in the routine every fitting function shares, xbart's folds
-    included, a test per arm. Not built.
   two-count-columns-auto: (dec-B732, extending dec-B567, revising
     calls 9, 35, 69 and 70 of dec-A276) under family = "auto" dbarts()
     refuses a data object with exactly two count columns in the words
@@ -1579,16 +1561,13 @@ items
     (same files); it also carries the C9 wording of count-fallback-
     wording. Not built.
   rhat-values-only: (dec-B800, revising dec-B797's flag and dbarts'
-    1.01 note) dbarts' and stan4bart's summaries print each R-hat as a
-    value, with no star, bar or note; the help in both says R-hat
-    compares chains with their pooled spread, that at the defaults
-    BART's chains disagree on sigma, k and single predictions, and
-    that averaged estimands mix far better, with code to read R-hat on
-    the estimand a user reports. dbarts exports rhat(x) on an
-    iterations-by-chains matrix with posterior::rhat's value, and the
-    help of rhat and extract recommends dbarts::rhat and
-    dbarts::extract, as every example in both packages writes them
-    (dec-B803). Not built.
+    1.01 note; dec-B803) built in dbarts: its summary prints each R-hat
+    as a value with no star, bar or note, its help says how to read
+    R-hat on a reported estimand, and it exports rhat(x), with the
+    help recommending dbarts::rhat and dbarts::extract and every
+    example writing them so. stan4bart's half (its summary and help,
+    with dbarts::extract in its examples and readme) lands after
+    dbarts'. Not built in stan4bart.
   rhat-known-estimands: (dec-B800) where a package knows the
     estimand (bartCause's treatment effects, stan4bart's fixed
     effects), measure their R-hats at the defaults and bring whether
