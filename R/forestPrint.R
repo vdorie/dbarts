@@ -584,13 +584,14 @@ fitForestEffects <- function(fit) {
   attr(result, "rows") <- sum(rowsIn)
   # where rows carry counts, the observations they stand for
   attr(result, "observations") <- sum(counts[rowsIn])
-  attr(result, "row.name") <- if (
-    startsWith(as.character(fit[["family"]])[1L], "hazard")
-  ) {
-    "person-period rows"
-  } else {
-    "training rows"
-  }
+  attr(result, "row.name") <- paste0(
+    if (startsWith(as.character(fit[["family"]])[1L], "hazard")) {
+      "person-period row"
+    } else {
+      "training row"
+    },
+    if (sum(rowsIn) == 1L) "" else "s"
+  )
   attr(result, "scale") <- effectScaleText(fit[["family"]])
   result
 }

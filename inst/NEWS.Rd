@@ -811,9 +811,9 @@
             \code{bases} holds the factor for a forest of levels, which
             \code{predict(bases = )} takes back. \code{summary} gives each
             basis forest's average effect per unit of its basis over the
-            training rows and its spread across them, each a posterior median
-            with an interval.
-            Gaussian, probit and logistic responses;
+            training rows, each row at its count under frequency weights, and
+            its spread across them, each a posterior median with an interval.
+            Gaussian, probit, logistic and discrete-time hazard responses;
             \code{predict} and \code{extract} report each forest separately
             (\code{type = "forest"}) or combined. A forest's size is its
             \code{sd}, \code{forest(sd = )}, a number of the response's
