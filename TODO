@@ -1608,6 +1608,14 @@ items
     saved stan4bart fit needs nothing more, since it keeps each
     chain's trees and every parametric draw. It serves R-level
     multi-chain Gibbs loops, about 420 lines. Not built.
+  fma-reference-build: (dec-B786) shipped builds keep the compiler's
+    default flags; configure adds -ffp-contract=on only under
+    --enable-reference-build, and tests/cpp builds with it (on the
+    gate-trim branch). Narrow the Reproducibility contract in
+    docs/architecture.md to the reference build, tests/cpp and clang
+    builds, and run the R-level exact gates that could see contraction
+    only where the flag is set. An exact test never constrains
+    efficient computation. Not built.
   sampler-core-and-capabilities: (dec-B763, Q1 of the C++ quality
     review) shrink SamplerBase to a core plus a queried capability
     object, then fold Sampler into it (Sampler final over the slimmer
