@@ -505,10 +505,59 @@ decodeBlockFrame <- function(object) {
       !is.null(label) &&
       all(names(predictors) %in% described)
   ) {
-    attr(frame, "terms") <- termsWithResponse(terms, label)
+    sparse <- setdiff(
+      names(frame)[vapply(frame, isS4, NA)],
+      c(label, attr(terms, "term.labels"))
+    )
+    attr(frame, "terms") <- termsWithSparse(
+      termsWithResponse(terms, label),
+      label,
+      sparse
+    )
   }
   attr(frame, "na.action") <- object@na.action
   frame
+}
+
+## A terms record with each sparse column of the frame listed as a term, after
+## the others, so that a fitter that cannot read one stops at it, as lm does on
+## the frame a kept formula gives, and does not fit the dense terms alone.
+termsWithSparse <- function(terms, label, sparse) {
+  if (length(sparse) == 0L) {
+    return(terms)
+  }
+  rhs <- c(attr(terms, "term.labels"), sparse)
+  rhs[length(rhs) - length(sparse) + seq_along(sparse)] <- vapply(
+    sparse,
+    function(name) deparse(as.name(name), backtick = TRUE),
+    ""
+  )
+  result <- stats::terms(
+    stats::reformulate(
+      rhs,
+      response = str2lang(label),
+      intercept = attr(terms, "intercept") == 1L
+    ),
+    keep.order = TRUE
+  )
+  environment(result) <- environment(terms)
+  if (!is.null(attr(terms, "predvars"))) {
+    held <- vapply(as.list(attr(terms, "variables"))[-1L], deparse1, "")
+    predvars <- as.list(attr(terms, "predvars"))[-1L]
+    attr(result, "predvars") <- as.call(c(
+      list(quote(list)),
+      lapply(as.list(attr(result, "variables"))[-1L], function(variable) {
+        found <- match(deparse1(variable), held)
+        if (is.na(found)) variable else predvars[[found]]
+      })
+    ))
+  }
+  classes <- attr(terms, "dataClasses")
+  attr(result, "dataClasses") <- c(
+    classes,
+    structure(rep("other", length(sparse)), names = sparse)
+  )
+  result
 }
 
 ## The response of a block-holding object in its recorded type and levels.

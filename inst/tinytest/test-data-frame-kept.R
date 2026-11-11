@@ -817,6 +817,28 @@ expect_identical(as.factor(mfSampler$sf), spf)
 expect_true(methods::is(mfSampler$M, "dgCMatrix"))
 expect_identical(as.matrix(mfSampler$M), as.matrix(spM))
 expect_identical(unname(model.response(mfSampler)), dsp$y)
+# the terms record lists each sparse column, so a fitter that cannot read one
+# stops at it, as it does on the kept-frame route, and fits no dense part alone
+spTerms <- terms(mfSampler)
+expect_identical(attr(spTerms, "term.labels"), c("w", "s", "sf", "M"))
+expect_identical(attr(spTerms, "response"), 1L)
+expect_identical(attr(spTerms, "intercept"), 1L)
+expect_identical(
+  length(attr(spTerms, "predvars")),
+  length(attr(spTerms, "variables"))
+)
+expect_error(lm(mfSampler), "not a matrix")
+expect_error(lm(mfsp), "not a matrix")
+# a record with a data-dependent basis keeps its predvars beside the sparse term
+spPoly <- dbarts(y ~ poly(w, 2) + s, dsp, n.trees = 5L, control = ctl)
+mfPoly <- model.frame(spPoly$data)
+expect_identical(
+  attr(terms(mfPoly), "term.labels"),
+  c("poly(w, 2)", "s")
+)
+expect_true(any(grepl("coefs", deparse(attr(terms(mfPoly), "predvars")))))
+expect_identical(unname(model.response(mfPoly)), dsp$y)
+rm(spTerms, spPoly, mfPoly)
 
 # a block-holding object's frame is lm's: the response named as written, a
 # matrix term one column under its own name, the formula's order and a terms
