@@ -489,8 +489,8 @@ defaultLeafScaleVars <- function(object, vars) {
   setdiff(vars, setdiff(c("k", "leaf.prior.sd"), named))
 }
 
-# rhat > 1.01 is noted in the printed summary, not enforced: dbarts does not
-# refuse to summarize a non-converged fit. Parameters the fit held fixed are
+# rhat is printed as a value, with no bar and no note: dbarts does not refuse
+# to summarize a fit whose chains disagree. Parameters the fit held fixed are
 # named under the table, not tabulated as constants.
 summary.bart <- function(
   object,
@@ -736,11 +736,6 @@ printSummaryBartBody <- function(x, ...) {
   print(x$stats, ...)
   printFixedLine(x$fixed)
   printStartingSigmaLine(x)
-  if (any(x$stats$rhat > 1.01, na.rm = TRUE)) {
-    cat(
-      "\nNote: some R-hat values exceed 1.01; chains may not have converged.\n"
-    )
-  }
   invisible(NULL)
 }
 

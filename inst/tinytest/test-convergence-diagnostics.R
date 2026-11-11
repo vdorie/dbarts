@@ -108,25 +108,20 @@ expect_error(
   "none of 'vars' \\(sigma, k, tau\\) are present on this fit"
 )
 
-# print.summary.bart's notes, checked directly against handcrafted stats so
-# the assertion does not depend on any particular fit crossing 1.01 by chance
-poorFit <- structure(
-  list(
-    call = quote(f()),
-    stats = data.frame(variable = "x", rhat = 1.5)
-  ),
-  class = "summary.bart"
-)
-expect_true(any(grepl("R-hat", capture.output(print(poorFit)), fixed = TRUE)))
-
-goodFit <- structure(
-  list(
-    call = quote(f()),
-    stats = data.frame(variable = "x", rhat = 1.0)
-  ),
-  class = "summary.bart"
-)
-expect_false(any(grepl("R-hat", capture.output(print(goodFit)), fixed = TRUE)))
+# print.summary.bart prints an R-hat as a value, with no bar and no note,
+# whatever its size
+for (value in c(1.5, 1)) {
+  shown <- structure(
+    list(
+      call = quote(f()),
+      stats = data.frame(variable = "x", rhat = value)
+    ),
+    class = "summary.bart"
+  )
+  out <- capture.output(print(shown))
+  expect_false(any(grepl("R-hat|Note|converge", out)), info = value)
+  expect_true(any(grepl(format(value), out, fixed = TRUE)), info = value)
+}
 
 # ---- extract's "sigma" is the chains-by-samples matrix bartDrawsArray's
 # (iteration, chain, variable) array transposes to, and summary()'s
@@ -152,9 +147,7 @@ rm(
   x.bin,
   y.bin,
   noScalarFit,
-  s0,
-  poorFit,
-  goodFit
+  s0
 )
 
 # summary() on a COMBINED (default) multi-chain fit must

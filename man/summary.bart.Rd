@@ -108,9 +108,21 @@
   \code{sd}, \code{mad}, \code{q5}, \code{q95}, \code{rhat},
   \code{ess_bulk}, and \code{ess_tail} - the same columns
   \code{posterior::summarise_draws} reports for a plain array, computed
-  without that package. Its print method notes when any R-hat exceeds
-  1.01; this does not withhold the rest of the summary or error, as
-  dbarts does not refuse to summarize a non-converged fit.
+  without that package. Its print method shows each R-hat as a value, with
+  no bar and no note, and dbarts does not refuse to summarize a fit whose
+  chains disagree.
+}
+\section{Reading R-hat}{
+  R-hat compares each chain's spread with the spread of the chains pooled, so
+  a value above 1 says the chains disagree; pooling them does not cure it. At
+  the defaults BART's chains routinely disagree on \code{sigma}, on \code{k}
+  and on a single row's prediction, so values above 1 there are expected, and
+  no single bar says whether a fit is usable. Averaged estimands, such as the
+  mean prediction over a subgroup or a contrast between two subgroups, mix far
+  better, so read R-hat on the estimand you report. \code{\link{extract}} with
+  \code{combineChains = FALSE} gives each chain's draws; the example computes
+  R-hat of a contrast this way, with \code{posterior::rhat} when
+  \pkg{posterior} is installed.
 }
 \seealso{
 \code{\link{bart}}, \code{\link{bartBT}}, \code{\link{extract}}
@@ -121,6 +133,25 @@ fit <- bart(y ~ x, data.frame(y = rnorm(100), x = rnorm(100)), n.chains = 2L,
              n.samples = 20L, n.burn = 20L, n.trees = 5L, n.threads = 1L,
              verbose = FALSE)
 summary(fit)
+}
+
+\donttest{
+# R-hat of the estimand reported: the difference between the mean prediction
+# for two subgroups, one value per draw and chain
+set.seed(1)
+n <- 200L
+x <- matrix(runif(n * 5L), n, 5L)
+y <- 10 * sin(pi * x[, 1L] * x[, 2L]) + 20 * (x[, 3L] - 0.5)^2 +
+  10 * x[, 4L] + 5 * x[, 5L] + rnorm(n)
+fit <- bart(x, y, n.chains = 4L, n.samples = 500L, n.burn = 100L,
+            n.trees = 50L, n.threads = 1L, verbose = FALSE)
+# chains by samples by rows
+yhat <- extract(fit, "ev", combineChains = FALSE)
+group <- x[, 1L] > 0.5
+contrast <- apply(yhat[, , group, drop = FALSE], 1:2, mean) -
+  apply(yhat[, , !group, drop = FALSE], 1:2, mean)
+if (requireNamespace("posterior", quietly = TRUE))
+  posterior::rhat(t(contrast)) # rhat() takes samples by chains
 }
 }
 \keyword{htest}
