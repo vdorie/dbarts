@@ -14,6 +14,14 @@ if (maxSIMDLevel == 0L) {
   exit_file("no non-scalar SIMD instruction set detected at runtime")
 }
 
+# The kernels and their scalar twins are separate compiled copies of one
+# arithmetic (AXPY multiplies and adds), which a build that fuses multiply-adds
+# across statements may round differently, so the bitwise pin holds only where
+# contraction stays within one expression or cannot happen.
+if (identical(dbarts:::buildInfo()$fp.contract, "fast")) {
+  exit_file("multiply-adds fuse across statements in this build")
+}
+
 # non-scalar levels this host supports, in dispatch order: arm64 has only
 # NEON, x86 walks SSE2, SSE4_1, AVX, AVX2 as each becomes available
 simdLevels <- if (architectureIsArm) {

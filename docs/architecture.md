@@ -640,6 +640,23 @@ chains run on from there.
 
 ## Reproducibility contract
 
+The engine's arithmetic is written for multiply-add contraction within one
+expression (`-ffp-contract=on`), clang's default: a product named before
+an add is never fused into it, and every copy of an inline function rounds
+alike. The reference build and tests/cpp compile with that flag; shipped
+builds keep the compiler's default, so an exact test never constrains them.
+The promises below hold in full on the reference build, on tests/cpp, on
+clang builds, and on builds for a target with no fused multiply-add.
+GCC's default for a target that has one (aarch64, x86-64 at
+`-march=x86-64-v3`) fuses across statements and decides per copy. A GCC
+build there promises less: within the build, the same seed gives the same
+draws; but two code paths that share arithmetic - a dense and a mapped copy
+of one prediction, a SIMD kernel and its scalar twin - may differ by an ulp,
+and so may the draws that follow. [`buildInfo`](../R/buildInfo.R) reports
+the rule a build has as `fp.contract` (`"on"`, `"off"` with no fused
+multiply-add, `"fast"`), and the R tests that compare two code paths
+bitwise run only where it is not `"fast"`.
+
 Within one host, the same seed gives bitwise-identical draws whichever SIMD
 instruction set the runtime dispatch selects. That holds by construction:
 every dispatched double-precision kernel is elementwise or a permutation
@@ -657,9 +674,10 @@ dispatch once, at the host maximum.
 
 A second build mode, `--enable-reference-build` at configure time, is
 reported at runtime by [`buildInfo`](../R/buildInfo.R) (mode, compiled
-instruction sets, dispatch level). It exists to keep a scalar, fixed-order
-draw path should the shipped build ever vectorize those reductions; none
-does, so today the two builds compile the same kernels. The seed-locked
+instruction sets, dispatch level, contraction). It fixes contraction as
+above, and keeps a scalar, fixed-order draw path should the shipped build
+ever vectorize those reductions; none does, so today the two builds compile
+the same kernels, and on clang the same code. The seed-locked
 snapshot tests and the recorded equivalence baselines are keyed to the
 reference build all the same, and exit on the shipped one; [CI](plans/README.md#ci)
 says where they run. The snapshots, recorded on arm64 macOS, also run on
