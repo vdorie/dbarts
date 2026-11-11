@@ -8565,7 +8565,7 @@ private:
   std::span<const std::size_t> orbitForests() const {
     static constexpr std::size_t single[] = {0};
     if (sharers_.empty()) return single;
-    return sharers_;
+    return {sharers_.data(), sharers_.size()};
   }
 
   /// Whether a move along the scale orbit of orbitForests can apply this
