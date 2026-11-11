@@ -3,6 +3,7 @@
 #include <external/stats.h>
 
 #include <chrono>
+#include <thread>
 
 #include "R_interface_bartcore_common.hpp"  // ShippedSweepHook
 
@@ -17313,6 +17314,17 @@ int hookStopSweep(void* context, ChainView&, size_t c, size_t sweep, bool) {
   if (stop.throws) throw std::runtime_error("sweep hook refused");
   return 1;
 }
+/// Holds each chain at its first sweep until the run's interrupt poll has run,
+/// so a poll lands inside the run however the threads are scheduled.
+struct PollGate {
+  std::atomic<bool> polled{false};
+};
+int waitForPollSweep(void* context, ChainView&, size_t, size_t, bool) {
+  const PollGate& gate = *static_cast<const PollGate*>(context);
+  while (!gate.polled.load(std::memory_order_acquire))
+    std::this_thread::yield();
+  return 0;
+}
 /// The draw callback's stop at the same place: after chain's draw sweep - 1,
 /// which is the last one a hook stop before sweep lets it make.
 int hookStopDraw(void* context, const DrawInfo* draw) {
@@ -17398,12 +17410,15 @@ static void testSweepHookStopAndThrow() {
 
   // an interrupt with a hook registered is not reported as the hook's stop
   {
-    HookStop never;
-    never.chain = HookData::numChains;
+    PollGate gate;
     HookSampler fixture(data, ResponseFamily::gaussian, 2);
     bool stopped = true;
-    bool canceled = fixture.sampler->run(0, 4, none, []() { return true; },
-                                         SweepHook{&hookStopSweep, &never},
+    auto poll = [&gate]() {
+      gate.polled.store(true, std::memory_order_release);
+      return true;
+    };
+    bool canceled = fixture.sampler->run(0, 4, none, poll,
+                                         SweepHook{&waitForPollSweep, &gate},
                                          DrawHook(), &stopped);
     check(canceled && !stopped,
           "sweep hook stop: an interrupt is not reported as the hook's stop");
