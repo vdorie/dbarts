@@ -28,7 +28,7 @@
 # two-tier verdict whose tier 1 is a tight deviation bound. That makes this
 # workflow the per-push half of the cross-host gate; equivalence.yaml carries
 # the weekly half and the gaussian arm. Those two compares, and the
-# seeded-drift snapshot files run after them, run against the REFERENCE build (--enable-reference-build, the scalar
+# code-path pins and seeded-drift snapshot files run after them, run against the REFERENCE build (--enable-reference-build, the scalar
 # fixed-order draw path), installed a second time in this job: the tier-1
 # bound is tighter than the shipped build's re-associated draw path can hold
 # across hosts. Everything above them is a shipped-build gate.
@@ -252,6 +252,32 @@ jobs:
             str(info)
             if (!identical(info$mode, "reference"))
               stop("the reference install reports mode ", info$mode)
+            if (!identical(info$fp.contract, "on"))
+              stop("the reference install reports fp.contract ", info$fp.contract)
+          '
+
+      # The bitwise pins between code paths skip where multiply-adds fuse
+      # across statements, which this runner's GCC (x86-64-v3) does on the
+      # shipped build, so they run here, on the reference build: the x86
+      # dispatch levels on an FMA target, and the linear and GP leaf replays
+      # through a data-handle view. A file that exits early reports too few
+      # assertions and fails the step.
+      - name: Run the code-path pins on the reference build
+        if: ${{ !cancelled() && steps.reference-install.outcome == 'success' }}
+        run: |
+          Rscript -e '
+            library(dbarts)
+            floors <- c("test-simd.R" = 2L, "test-linear-leaves.R" = 1L,
+              "test-gp-leaves.R" = 1L)
+            fail <- FALSE
+            for (f in names(floors)) {
+              r <- tinytest::run_test_file(
+                system.file("tinytest", f, package = "dbarts"), verbose = 0)
+              bad <- sum(!vapply(r, isTRUE, logical(1)))
+              cat(f, ": ", length(r), " assertions, ", bad, " failed\n", sep = "")
+              if (length(r) < floors[[f]] || bad > 0L) fail <- TRUE
+            }
+            if (fail) quit(status = 1L)
           '
 
       # Outside the loop above on purpose: that loop passes `quick` to every

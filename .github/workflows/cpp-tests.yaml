@@ -110,6 +110,8 @@ jobs:
             str(info)
             if (!identical(info$mode, "reference"))
               stop("the reference install reports mode ", info$mode)
+            if (!identical(info$fp.contract, "on"))
+              stop("the reference install reports fp.contract ", info$fp.contract)
           '
 
       # A file that reports zero assertions has exited at its build-mode

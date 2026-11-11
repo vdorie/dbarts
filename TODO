@@ -1729,6 +1729,12 @@ items
     builds, and run the R-level exact gates that could see contraction
     only where the flag is set. An exact test never constrains
     efficient computation. Not built.
+  misc-makefile-echo: src/misc/Makefile's SIMD-object rules echo a
+    compile line that is not the one run: no instruction-set flag,
+    the linearAlgebra ones naming the .c as the output, the echo
+    itself echoed, and the real compile silent. Anyone grepping an
+    install log for a flag (-mavx2, -ffp-contract=on) is misled.
+    Print the command that runs, once. A few lines; not built.
   sampler-core-and-capabilities: (dec-B763, Q1 of the C++ quality
     review) shrink SamplerBase to a core plus a queried capability
     object, then fold Sampler into it (Sampler final over the slimmer

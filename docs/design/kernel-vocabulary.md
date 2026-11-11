@@ -174,7 +174,10 @@ SIMD specializations only when profiling justifies them.
   kernels are permutations and elementwise passes, and no draw-path
   reduction is dispatched, so a fit is BITWISE identical across the
   instruction sets one host dispatches over (inst/tinytest/test-simd.R
-  gates it); cross-host agreement is statistical only.
+  gates it) wherever multiply-adds fuse within one expression or not at
+  all; a GCC build for an FMA target does not promise it (the
+  Reproducibility contract in docs/architecture.md). Cross-host agreement
+  is statistical only.
 - Instruction-set switching is a test/bench facility only; production
   installs once at load.
 - misc.a is R-free and prints nothing; standalone consumers need no stubs.

@@ -195,13 +195,16 @@ static SEXP getMaxSIMDInstructionSet() {
 /// anything but the macro. simd.level is misc_simd_getMaxSIMDInstructionSet(),
 /// which is both the level misc_simd_init() installed at load and the value
 /// the R-level SIMD tests already dispatch on - one source of truth, not two.
-/// fp.contract is the multiply-add contraction this object was compiled
+/// fp.contract is the multiply-add contraction this file's C++ compile ran
 /// under: "on" (within one expression only) for the reference build, which
-/// configure refuses without -ffp-contract=on, and for clang without
-/// -ffast-math, whose default that is; "off" when the target has no fused
+/// configure refuses without -ffp-contract=on, and for clang at its default
+/// contraction, which that is; "off" when the target has no fused
 /// multiply-add; "fast" otherwise (GCC's default, across statements and per
 /// copy of an inline function), where two code paths sharing arithmetic may
-/// differ in the last bit.
+/// differ in the last bit. -ffast-math rules out "on" even in the reference
+/// build: R places the package's flags before the user's, so the user's
+/// -ffast-math wins. An explicit -ffp-contract=fast under clang (or icx,
+/// which defines __clang__) defines no macro and still reads "on".
 static SEXP buildInfo(void) {
   const char* isaNames[8];
   int numISA = 0;
@@ -227,8 +230,8 @@ static SEXP buildInfo(void) {
   const char* mode = "shipped";
 #endif
 
-#if defined(DBARTS_REFERENCE_BUILD) || \
-  (defined(__clang__) && !defined(__FAST_MATH__))
+#if (defined(DBARTS_REFERENCE_BUILD) || defined(__clang__)) && \
+  !defined(__FAST_MATH__)
   const char* fpContract = "on";
 #elif !defined(__FP_FAST_FMA)
   const char* fpContract = "off";
