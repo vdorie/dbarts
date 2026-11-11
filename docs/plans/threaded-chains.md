@@ -1,8 +1,8 @@
 # threaded-chains: stan4bart's chains on dbarts' threads, one sampler for every chain
 
 Status: PLANNED 2026-11-11, revised after its blind critique (round 1). Route (b), the cores default and the
-user's R callback ruled 2026-11-11; the compiled callback planned at the maintainer's request (S4); per-chain
-values on a copy still before the maintainer ([Open calls](#open-calls)).
+user's R callback ruled 2026-11-11, and per-chain values on a copy ruled (a) the same day; the compiled
+callback planned at the maintainer's request (S4). One conditional call remains ([Open calls](#open-calls)).
 
 agent: one opus implementer per repository line (dbarts D1 and D2, stan4bart S1), effort high; one opus
 reviewer who runs mutants on D1, D2 and S1; a sonnet implementer and reviewer for D3, S2, S3, S4 and the
@@ -438,23 +438,23 @@ passes the top of its forecast, or its package code passes 1.5 times its figure 
 6. S2, S3, then S4; one R-surface review each; stan4bart merges once.
 7. B1 in bartCause after stan4bart merges.
 
-Open call 9 does not gate any slice. Under option (b) an R surface slice follows in dbarts later.
+## Per-chain values on a copy (ruled)
+
+Ruled 2026-11-11 (the maintainer: "Ok, fair enough. Do (a) but write (b) down as a post release
+enhancement."). The hook's offsets live in the holder's per-chain buffers. Per-chain sigma already rides the
+state, since each chain's state records its sigma, so only the offset was in question.
+- Built here, (a): a copy, a stored state and `sampler$data` carry the sampler-wide offset. The chains' own
+  offsets are the larger sampler's state, set again before every sweep. D2 states this in the header beside
+  the hook and in the sampler's help. stan4bart needs no more: after a fit it only predicts, and predict takes
+  its offset as an argument.
+- After the release, (b), an enhancement on the same buffers: per-chain offsets recorded in copies and states,
+  `$setOffset(chain = )` on the R object, and every reader of the offset choosing a chain (~420 lines by the
+  per-chain responses design note, [per-chain-responses.md](../design/per-chain-responses.md), section 2). It
+  is additive, and nothing here forecloses it. Its TODO entry comes with the records batch.
 
 ## Open calls
 
-For the maintainer; each design above fits either answer.
-
-**9. Per-chain values on a copy or reload.** The hook's offsets live in the holder's per-chain buffers.
-Per-chain sigma already rides the state (each chain's state records its sigma), so only the offset is open.
-- (a) Not recorded: a copy, a stored state and `sampler$data` carry the sampler-wide offset. The chains'
-  own offsets are the larger sampler's state, set again before every sweep. Documented in the header and the
-  sampler's help. This costs nothing, and stan4bart never needs more: after a fit it only predicts, and
-  predict takes its offset as an argument.
-- (b) Recorded: an R `chain` argument on `$setOffset`, per-chain vectors in copies and states, and every reader
-  of the offset choosing a chain (~420 lines by the per-chain responses design note,
-  [per-chain-responses.md](../design/per-chain-responses.md), section 2). It is additive later on the same
-  buffers.
-- Recommendation: (a) now, (b) when an R-level consumer asks.
+For the maintainer; the design fits either answer.
 
 **Conditional: the exception rule for compiled hooks.** One rule covers both hooks: the draw callback's
 shipped text, under which an exception thrown out of the hook is caught at the call and raised as an R error
@@ -552,8 +552,8 @@ A15. **A body-only helper for the compiled callback** (`compile_callback(body, l
 - **"A no-throw, no-R contract on code dbarts calls."** That contract already exists for the draw callback on
   workers. The view's statuses mean the hook never needs R to refuse. D2 tests the exception path across
   libraries, and TSan and the debug assertion catch the rest in testing.
-- **"Per-chain offsets a copy would silently drop."** Open call 9 says it plainly either way, and under (a)
-  the header and help say what a copy carries.
+- **"Per-chain offsets a copy would silently drop."** Not silently: under the ruled (a) the header and the
+  help say what a copy carries, and (b) is the post-release enhancement.
 - **"Route 3 costs route 1's work plus a hook."** It does not. No R surface, no per-chain response, no
   per-chain transform: offset buffers, one hook, two view operations and one appended draw field (synthesis
   fact 3).
