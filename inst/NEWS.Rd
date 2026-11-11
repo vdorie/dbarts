@@ -593,7 +593,8 @@
             \code{x} takes the sparse routine by default.
       \item Where the linear regression behind the starting \code{sigest}
             leaves no residual degrees of freedom, as with more columns
-            than rows, the fit starts from the standard deviation of the
+            than rows (each distinct row counted once under frequency
+            weights), the fit starts from the standard deviation of the
             response, weighted as the regression is (\code{sd(y)} at unit
             weights), saying so in a line under \code{verbose} and in its
             \code{summary}; 0.9-34 stopped.
@@ -1139,7 +1140,11 @@
             kept without \code{keepTrees}.
       \item The starting estimate of \code{sigma} no longer depends on the
             machine's linear algebra library: an exactly fit response could
-            give an estimate of 0, which the sampler then refused.
+            give an estimate of 0, which the sampler then refused. Such an
+            estimate is now raised to a floor of about 1.5e-8 times the
+            largest absolute response (each times the square root of its
+            weight under precision weights), which leaves a sound estimate,
+            in any units, as 0.9-34 gave it.
       \item \code{plot.bart}, \code{plot.pd2bart} and tree plots restore the
             caller's graphical parameters.
       \item Sampler methods. \code{$setResponse} and \code{$setData} check

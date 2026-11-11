@@ -292,20 +292,58 @@ expect_equal(
   dbarts(y ~ x1 + x2, df[rep(seq_len(n), w0), ])$data@sigma,
   tolerance = 1e-12
 )
-# where the regression leaves no residual df under precision, the counts
-# still give it some: three rows, three columns, counted 2, 3 and 4
+# the regression is defined by the distinct rows, as under precision: three
+# rows and three columns, counted 2, 3 and 4, leave it none, so the sd of the
+# rows written out stands in where the written-out twin's exact fit lands on
+# the floor, and the fit and its summary say which sd it is
 small <- data.frame(y = c(1, 3, 2), a = c(0, 1, 0), b = c(1, 1, 0))
 smallCounts <- c(2, 3, 4)
-expect_equal(
-  dbarts(
+for (rule in c("dense", "sparse")) {
+  expect_equal(
+    dbarts(
+      y ~ a + b,
+      small,
+      weights = smallCounts,
+      weights.type = "frequency",
+      sigest = rule
+    )$data@sigma,
+    sd(rep(small$y, smallCounts)),
+    tolerance = 1e-12,
+    info = rule
+  )
+}
+expect_true(
+  dbarts(y ~ a + b, small[rep(1:3, smallCounts), ])$data@sigma < 1e-7
+)
+saturated <- quick(
+  y ~ a + b,
+  small,
+  weights = smallCounts,
+  weights.type = "frequency",
+  n.chains = 1L
+)
+expect_true(isTRUE(attr(saturated$sigest.fallback, "weighted")))
+countLine <- paste0(
+  "(Starting sigma: the sd of the response with each row written out as ",
+  "often as its weight;"
+)
+expect_true(any(grepl(
+  countLine,
+  utils::capture.output(print(summary(saturated))),
+  fixed = TRUE
+)))
+# counts of 1 write out nothing: the unweighted fit's words
+expect_true(any(grepl(
+  "(Starting sigma: the sd of the response;",
+  utils::capture.output(print(summary(quick(
     y ~ a + b,
     small,
-    weights = smallCounts,
-    weights.type = "frequency"
-  )$data@sigma,
-  dbarts(y ~ a + b, small[rep(1:3, smallCounts), ])$data@sigma,
-  tolerance = 1e-12
-)
+    weights = c(1, 1, 1),
+    weights.type = "frequency",
+    n.chains = 1L
+  )))),
+  fixed = TRUE
+)))
 # a fold's estimate, the routine xbart runs on each fold's training rows
 trainRows <- sort(sample(n, 30L))
 foldExpanded <- rep(trainRows, w[trainRows])
@@ -347,7 +385,91 @@ expect_silent(xbart(
   n.threads = 1L,
   verbose = FALSE
 ))
-rm(frequencyFit, expandedFit, precisionFit, small, smallCounts, design)
+# a fold's training rows saturated on their distinct rows, where all rows are
+# not: twelve rows, ten coefficients and three rows held out. Each fold takes
+# the sd of its training rows written out, by both routines, and one line
+# under verbose says so
+xFold <- matrix(rnorm(12L * 9L), 12L)
+yFold <- rnorm(12L)
+wFold <- as.double(rep(2:4, 4L))
+foldStandIns <- function(rule) {
+  original <- dbarts:::floorSigmaEstimate
+  calls <- list()
+  recording <- function(sigma, residual, weights = NULL, frequency = FALSE) {
+    result <- original(sigma, residual, weights, frequency)
+    calls[[length(calls) + 1L]] <<- list(
+      residual = residual,
+      weights = weights,
+      result = result
+    )
+    result
+  }
+  assignInNamespace("floorSigmaEstimate", recording, "dbarts")
+  on.exit(assignInNamespace("floorSigmaEstimate", original, "dbarts"))
+  lines <- character()
+  withCallingHandlers(
+    invisible(utils::capture.output(xbart(
+      xFold,
+      yFold,
+      weights = wFold,
+      weights.type = "frequency",
+      sigest = rule,
+      n.reps = 1L,
+      n.test = 4L,
+      n.samples = 5L,
+      n.burn = 5L,
+      n.trees = 5L,
+      n.threads = 1L,
+      seed = 3L,
+      verbose = TRUE
+    ))),
+    message = function(m) {
+      lines <<- c(lines, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  )
+  folds <- Filter(function(call) length(call$residual) < 12L, calls)
+  list(lines = lines, folds = folds)
+}
+for (rule in c("dense", "sparse")) {
+  made <- foldStandIns(rule)
+  expect_equal(length(made$folds), 4L, info = rule)
+  for (fold in made$folds) {
+    expect_equal(
+      fold$result,
+      sd(rep(fold$residual, fold$weights)),
+      tolerance = 1e-12,
+      info = rule
+    )
+  }
+  expect_equal(
+    sum(grepl(
+      paste0(
+        "starting sigma is the sd of the response with each row written ",
+        "out as often as its weight in 4 of 4"
+      ),
+      made$lines,
+      fixed = TRUE
+    )),
+    1L,
+    info = rule
+  )
+}
+rm(
+  frequencyFit,
+  expandedFit,
+  precisionFit,
+  small,
+  smallCounts,
+  design,
+  saturated,
+  countLine,
+  xFold,
+  yFold,
+  wFold,
+  foldStandIns,
+  made
+)
 
 # ---- a training row's draw is one observation --------------------------------
 

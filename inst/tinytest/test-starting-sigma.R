@@ -282,3 +282,87 @@ expect_true(grepl(
   lines.small[2L],
   fixed = TRUE
 ))
+
+# The floor that keeps an exact fit's rounding noise off the estimate is
+# relative to the estimate's own scale: the largest |y| over the rows in, each
+# times the square root of its weight under precision weights; 1.5e-8 itself
+# only for an all-zero response. A sound estimate in any units is lm's.
+set.seed(17)
+x.fl <- matrix(rnorm(60L), 30L)
+y.fl <- drop(x.fl %*% c(1, -2)) + rnorm(30L)
+exact.fl <- 1 + 2 * x.fl[, 1L]
+w.fl <- rep(c(1, 4, 9), 10L)
+counts.fl <- rep(c(1, 2, 3), 10L)
+sigma.fl <- function(y, ...) {
+  dbarts(x.fl, y, ..., control = control.ss, n.trees = 5L)$data@sigma
+}
+eps.fl <- sqrt(.Machine$double.eps)
+for (scale in c(1e-9, 1e-12)) {
+  tiny <- scale * y.fl
+  expect_identical(sigma.fl(tiny), summary(lm(tiny ~ x.fl))$sigma)
+  expect_identical(
+    sigma.fl(tiny, weights = w.fl),
+    summary(lm(tiny ~ x.fl, weights = w.fl))$sigma
+  )
+  expect_identical(
+    sigma.fl(scale * exact.fl),
+    eps.fl * max(abs(scale * exact.fl))
+  )
+}
+# the weighted scale differs from the unweighted one here
+expect_true(max(sqrt(w.fl) * abs(exact.fl)) > 1.5 * max(abs(exact.fl)))
+expect_identical(
+  sigma.fl(exact.fl, weights = w.fl),
+  eps.fl * max(sqrt(w.fl) * abs(exact.fl))
+)
+# counts write rows out and leave each row's scale as it is
+expect_identical(
+  sigma.fl(exact.fl, weights = counts.fl, weights.type = "frequency"),
+  eps.fl * max(abs(exact.fl))
+)
+expect_identical(sigma.fl(rep(0, 30L)), eps.fl)
+
+# A fold's floor reads its training rows on the same scale: every fold's
+# regression is exact, and under precision weights each floor is the largest
+# sqrt(w) |y| over the fold's training rows
+foldFloors <- function(rule) {
+  original <- dbarts:::floorSigmaEstimate
+  calls <- list()
+  recording <- function(sigma, residual, weights = NULL, frequency = FALSE) {
+    result <- original(sigma, residual, weights, frequency)
+    calls[[length(calls) + 1L]] <<- list(
+      residual = residual,
+      weights = weights,
+      result = result
+    )
+    result
+  }
+  assignInNamespace("floorSigmaEstimate", recording, "dbarts")
+  on.exit(assignInNamespace("floorSigmaEstimate", original, "dbarts"))
+  invisible(xbart(
+    x.fl,
+    exact.fl,
+    weights = w.fl,
+    sigest = rule,
+    n.reps = 1L,
+    n.test = 3L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.threads = 1L,
+    seed = 3L,
+    verbose = FALSE
+  ))
+  Filter(function(call) length(call$residual) < 30L, calls)
+}
+for (rule in c("dense", "sparse")) {
+  folds <- foldFloors(rule)
+  expect_equal(length(folds), 3L, info = rule)
+  for (fold in folds) {
+    expect_identical(
+      fold$result,
+      eps.fl * max(sqrt(fold$weights) * abs(fold$residual)),
+      info = rule
+    )
+  }
+}

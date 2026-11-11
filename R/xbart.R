@@ -927,7 +927,10 @@ xbart <- function(
     announceStartingSigma(
       verbose,
       "starting sigma is ",
-      standInWords(numWeightedFallbacks > 0L),
+      standInWords(
+        numWeightedFallbacks > 0L,
+        identical(weightsType, "frequency")
+      ),
       " in ",
       numSigmaFallbacks,
       " of ",
@@ -1197,7 +1200,8 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
       design
     }
   })
-  # under frequency a fold's regression counts each row its weight's times
+  # under frequency a fold's regression counts each row its weight's times,
+  # and is defined where its distinct rows leave residual degrees of freedom
   frequency <- identical(spec$model@weights.type, "frequency") &&
     identical(family, "gaussian")
   # the units that were to run a regression and whose training rows leave it

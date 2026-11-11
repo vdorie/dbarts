@@ -527,9 +527,11 @@ summary.bart <- function(
     result$effects <- fitForestEffects(object)
   }
   # where the starting sigma was the sd of the response, absent otherwise;
-  # its "weighted" attribute says that sd was weighted
+  # its "weighted" attribute says that sd was weighted, and the weights' type
+  # whether they were counts
   if (isTRUE(object[["sigest.fallback"]])) {
     result$sigest.fallback <- object[["sigest.fallback"]]
+    result$weights.type <- object[["weights.type"]]
   }
   structure(result, class = "summary.bart")
 }
@@ -703,7 +705,10 @@ printStartingSigmaLine <- function(x) {
   if (isTRUE(x$sigest.fallback)) {
     cat(
       "(Starting sigma: ",
-      standInWords(isTRUE(attr(x$sigest.fallback, "weighted"))),
+      standInWords(
+        isTRUE(attr(x$sigest.fallback, "weighted")),
+        identical(x$weights.type, "frequency")
+      ),
       "; the linear model had no residual degrees of ",
       "freedom)\n",
       sep = ""

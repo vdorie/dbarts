@@ -92,8 +92,7 @@ warnings.const <- captureWarnings(
 # degenerate-response warning should reach here.
 expect_equal(length(warnings.const), 1L)
 expect_true(grepl("indistinguishable", conditionMessage(warnings.const[[1L]])))
-# the constant response's own residual, not its weight-scaled counterpart,
-# sets the floor: sqrt(eps) * max(1, |y|)
+# the constant response's own residual sets the floor: sqrt(eps) * max|y|
 expect_equal(
   sampler.const$data@sigma,
   sqrt(.Machine$double.eps) * 3.0,

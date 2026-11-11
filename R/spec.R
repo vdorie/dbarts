@@ -413,7 +413,8 @@ scaleRowsFallBack <- function(data, family, active = NULL, warn = TRUE) {
 ## residual sd of the regression of the response on the predictors and on
 ## each forest's basis (sigmaBasisColumns), which the data object holds as
 ## the model ends with; under 'frequency' that of the regression on the rows
-## written out as many times as their weights count. Wraps estimateSigmaFromLinearModel so every caller
+## written out as many times as their weights count, where the distinct rows
+## leave it residual degrees of freedom. Wraps estimateSigmaFromLinearModel so every caller
 ## raises the same failure message instead of a bare lm() error. An infinite
 ## predictor value is refused first, for every design and before any routine
 ## runs; a basis is finite by its own check. Under 'verbose' one line says
@@ -474,7 +475,7 @@ estimateStartingSigma <- function(
     announceStartingSigma(
       verbose,
       "starting sigma is ",
-      standInWords(isTRUE(attr(fellBack, "weighted"))),
+      standInWords(isTRUE(attr(fellBack, "weighted")), frequency),
       " (",
       format(tryResult, digits = 4L),
       "): the linear model on ",
