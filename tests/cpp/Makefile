@@ -194,14 +194,15 @@ r-math-symbols:
 # The package's dbarts.so calls no log-gamma that writes the process-wide
 # signgam, which chains on worker threads would race on: every one goes
 # through misc_logGamma, the reentrant form. A ThreadSanitizer run sees the
-# race only on a path its suites reach; this reads the symbols.
+# race only on a path its suites reach; this reads the symbols, which glibc
+# versions (lgamma@GLIBC_2.23).
 SIGNGAM_NAMES := lgamma lgammaf lgammal gamma gammaf
 signgam-free:
 	@so=../../src/dbarts.so; \
 	if [ ! -f $$so ]; then echo "error: $$so not found; run 'R CMD INSTALL .' first" >&2; exit 1; fi; \
 	undefined=$$(nm -u $$so); \
 	for name in $(SIGNGAM_NAMES); do \
-	  if echo "$$undefined" | grep -q -E "^ *U? *_?$$name\$$"; then \
+	  if echo "$$undefined" | grep -q -E "^ *U? *_?$$name(@.*)?\$$"; then \
 	    echo "error: $$so calls $$name, which writes signgam; use misc_logGamma" >&2; exit 1; \
 	  fi; \
 	done; \
