@@ -441,7 +441,7 @@ expect_equal(formatBytes(2 * 2^30), "2 GB")
 expect_equal(formatBytes(24 * 2^30), "24 GB")
 expect_equal(formatBytes(15.5 * 2^30), "15.5 GB")
 expect_equal(formatBytes(1000 * 2^20 + 2^19), "1000 MB")
-expect_equal(formatBytes(1234567890), "1180 MB")
+expect_equal(formatBytes(1234567890), "1177 MB")
 expect_equal(formatBytes(7.123456 * 2^30), "7.12 GB")
 expect_equal(formatBytes(1024 * 2^30), "1024 GB")
 
