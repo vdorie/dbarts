@@ -121,8 +121,7 @@
   mean prediction over a subgroup or a contrast between two subgroups, mix far
   better, so read R-hat on the estimand you report. \code{\link{extract}} with
   \code{combineChains = FALSE} gives each chain's draws; the example computes
-  R-hat of a contrast this way, with a short function of its own
-  (\code{posterior::rhat} computes it too).
+  R-hat of a contrast this way, with \code{\link{rhat}}.
 }
 \seealso{
 \code{\link{bart}}, \code{\link{bartBT}}, \code{\link{extract}}
@@ -146,20 +145,11 @@ y <- 10 * sin(pi * x[, 1L] * x[, 2L]) + 20 * (x[, 3L] - 0.5)^2 +
 fit <- bart(x, y, n.chains = 4L, n.samples = 500L, n.burn = 100L,
             n.trees = 50L, n.threads = 1L, verbose = FALSE)
 # chains by samples by rows
-yhat <- extract(fit, "ev", combineChains = FALSE)
+yhat <- dbarts::extract(fit, "ev", combineChains = FALSE)
 group <- x[, 1L] > 0.5
 contrast <- apply(yhat[, , group, drop = FALSE], 1:2, mean) -
   apply(yhat[, , !group, drop = FALSE], 1:2, mean)
-# split R-hat of a samples-by-chains matrix: each chain cut in two, then the
-# between-chain and within-chain variances compared (posterior::rhat adds rank
-# normalization, which matters for heavy tails)
-split.rhat <- function(x) {
-  h <- nrow(x) \%/\% 2L
-  x <- cbind(x[seq_len(h), ], x[h + seq_len(h), ])
-  W <- mean(apply(x, 2L, var))
-  sqrt(((h - 1) / h * W + var(colMeans(x))) / W)
-}
-split.rhat(t(contrast))
+dbarts::rhat(t(contrast)) # rhat() takes iterations by chains
 }
 }
 \keyword{htest}

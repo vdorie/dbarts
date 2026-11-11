@@ -372,6 +372,25 @@ splitRhat <- function(x) {
   max(bulk, tail)
 }
 
+# The exported R-hat of one quantity's draws, an iterations-by-chains matrix
+# (a vector is one chain), as posterior::rhat takes it. Validated here; the
+# arithmetic is splitRhat's.
+rhat <- function(x) {
+  if (!(is.numeric(x) || is.logical(x))) {
+    stop("'x' must be a numeric matrix of draws, iterations by chains")
+  }
+  d <- dim(x)
+  if (length(d) > 2L) {
+    stop("'x' must be a matrix of draws, iterations by chains, not an array")
+  }
+  x <- as.matrix(x)
+  storage.mode(x) <- "double"
+  if (nrow(x) < 1L || ncol(x) < 1L) {
+    stop("'x' must have at least one iteration and one chain")
+  }
+  splitRhat(x)
+}
+
 # Bulk ESS: the same split-then-rank-normalize array Bulk Rhat uses.
 essBulk <- function(x) {
   essFromHalfChains(rankNormalizeMatrix(splitChainsMatrix(x)))

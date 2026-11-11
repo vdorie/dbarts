@@ -38,7 +38,7 @@ df$y <- df$x + 0.5 * (df$g == "b") + rnorm(50L, 0, 0.1)
 
 sampler <- dbarts(y ~ x + g, df, control = dbartsControl(
   n.chains = 1L, n.threads = 1L, updateState = FALSE))
-predictors <- extract(sampler, "predictors")
+predictors <- dbarts::extract(sampler, "predictors")
 str(predictors)
 stopifnot(all(predictors[, "g"] == as.integer(df$g) - 1L))
 }

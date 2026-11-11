@@ -377,6 +377,14 @@ Friedman, J.H. (1991)
    Multivariate adaptive regression splines.
         \emph{The Annals of Statistics}, \bold{19}, 1--67.
 }
+\section{Calling \code{extract}}{
+  Call it as \code{dbarts::extract}. Other packages export a function named
+  \code{extract}: \pkg{rstan}, \pkg{tidyr}, \pkg{terra}, \pkg{raster},
+  \pkg{magrittr} and \pkg{R.utils}. Whichever is attached last masks the
+  others, so a bare \code{extract(fit, ...)} may reach the wrong one. The
+  \pkg{stan4bart} package attaches \pkg{dbarts}, so it brings this name in.
+}
+
 \author{
 Hugh Chipman: \email{hugh.chipman@gmail.com},
 Robert McCulloch: \email{robert.mcculloch1@gmail.com},

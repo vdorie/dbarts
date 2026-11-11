@@ -297,6 +297,14 @@ makePinChain <- function() {
 xPin <- dyadic(sapply(seq_len(m.pin), function(j) makePinChain()))
 
 expect_equal(dbarts:::splitRhat(xPin), 1.0348827840167951, tolerance = 1e-12)
+# the exported rhat() is that value (posterior 1.7.0's), for a matrix, a single
+# chain's vector and a logical matrix
+expect_equal(dbarts::rhat(xPin), 1.0348827840167951, tolerance = 1e-12)
+expect_equal(
+  dbarts::rhat(xPin[, 1L]),
+  dbarts:::splitRhat(xPin[, 1L, drop = FALSE])
+)
+expect_equal(dbarts::rhat(xPin > 0), dbarts::rhat(+(xPin > 0)))
 expect_equal(dbarts:::essBulk(xPin), 115.44342922345757, tolerance = 1e-12)
 expect_equal(dbarts:::essTail(xPin), 176.89073381346304, tolerance = 1e-12)
 
@@ -312,6 +320,16 @@ expect_equal(sPin$q95, 1.4242187500000005, tolerance = 1e-12)
 expect_equal(sPin$rhat, 1.0348827840167951, tolerance = 1e-12)
 expect_equal(sPin$ess_bulk, 115.44342922345757, tolerance = 1e-12)
 expect_equal(sPin$ess_tail, 176.89073381346304, tolerance = 1e-12)
+
+# no information is NA, as posterior reports it; what is not draws is refused
+expect_true(is.na(dbarts::rhat(matrix(2, 10L, 3L))))
+expect_true(is.na(dbarts::rhat(cbind(c(1:9, NA), 1:10))))
+expect_true(is.na(dbarts::rhat(matrix(1:3, 1L, 3L))))
+expect_error(dbarts::rhat("a"), "numeric")
+expect_error(dbarts::rhat(NULL), "numeric")
+expect_error(dbarts::rhat(array(0, c(4L, 2L, 2L))), "array")
+expect_error(dbarts::rhat(matrix(0, 0L, 2L)), "at least one")
+expect_error(dbarts::rhat(matrix(0, 5L, 0L)), "at least one")
 
 rm(n.pin, m.pin, phi.pin, makePinChain, xPin, arrPin, sPin)
 

@@ -27,6 +27,7 @@ exportMethods(
   is.na, anyNA, xtfrm, "[", "[[", "[<-", "[[<-", c, rep, Ops, "$"
 )
 export(extract)
+export(rhat)
 export(plotTree)
 export(samplePriorPredictive)
 

@@ -64,7 +64,7 @@ bartFit <- bart(
 
 The extract function accepts as a `type` the value `"trees"`. If present, the arguments `chainNums`, `sampleNums`, and/or `treeNums` can be used to extract only a subset of trees, and `forest` selects among a fit's forests (a single index, a vector, or the default of every forest) on a fit with more than one, such as a Bayesian causal forest or a multinomial fit itself. On such a fit the `forest` column of the result is a factor whose levels are the forests' labels, in forest order (`forest1`, `forest2` and so on for a forest with none), so that `trees$forest == "z"` selects a forest and `as.integer(trees$forest)` gives its position.
 ```{r extractTrees}
-trees <- extract(bartFit, "trees")
+trees <- dbarts::extract(bartFit, "trees")
 ```
 
 ## Flattened Trees
@@ -99,7 +99,7 @@ y.cat <- ifelse(g %in% c("a", "b"), 5, -5) + rnorm(n.cat, 0, 0.5)
 catFit <- bart(y ~ g, data.frame(y = y.cat, g = g),
                n.trees = 3L, n.samples = 1L, n.burn = 20L, n.chains = 1L,
                n.threads = 1L, keepTrees = TRUE, seed = 0, verbose = FALSE)
-catTrees <- extract(catFit, "trees")
+catTrees <- dbarts::extract(catFit, "trees")
 print(subset(catTrees, var != -1))
 ```
 
@@ -244,7 +244,7 @@ The recursion above routes new data through the trees by hand. To simply count h
 
 ```{r countsForNewData}
 newData <- data[1:5, ]
-newTrees <- extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNums = 1)
+newTrees <- dbarts::extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNums = 1)
 print(subset(newTrees, chain == 1))
 ```
 

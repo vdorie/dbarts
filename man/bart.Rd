@@ -653,7 +653,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
                  n.samples = 20L, n.burn = 20L, n.chains = 1L,
                  n.trees = 10L, n.threads = 1L)
 fit.bcf$n.forests
-modulatingFit <- extract(fit.bcf, type = "forest", forest = 2L)
+modulatingFit <- dbarts::extract(fit.bcf, type = "forest", forest = 2L)
 }
 \keyword{nonparametric}
 \keyword{tree}

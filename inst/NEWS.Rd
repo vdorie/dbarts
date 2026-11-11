@@ -957,6 +957,9 @@
             \code{sd}), with split R-hat and effective sample sizes, and
             names every one it held fixed, a Student-t df included, on a line
             under the table.
+            \code{\link{rhat}} returns the rank-normalized split R-hat of one
+            quantity's draws, a matrix of iterations by chains, as
+            \code{posterior::rhat} does; call it as \code{dbarts::rhat}.
             \code{extract(type = "loglik")} returns the pointwise
             log-likelihood, for use with WAIC or PSIS-LOO (for example
             \pkg{loo}), and \code{extract} also reads \code{"sigma"},
