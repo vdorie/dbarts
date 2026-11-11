@@ -26,7 +26,23 @@ adds the full block of what each forest resolved to, after the table
 (see the `sd` argument of
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), and
 the line under the table then leaves out each forest's `leaf.prior.sd`,
-which the block gives.
+which the block gives. Under the block, each forest with a basis has a
+line for the effect of one unit of its basis (for a factor, of its
+second level against its first): its *average* over the training rows in
+the likelihood, and its *sd across rows*, the standard deviation of the
+effect across those rows, each with its posterior median and the 5% to
+95% interval `stats` uses. Both are computed for each draw and the
+median taken last, on the scale the forests add on (the response's
+units, or the probit or logit scale of a binary response), from each
+forest's own fits times the coefficient on its basis, which is what
+`predict` gives with the basis one unit higher less the basis as it
+stands; a fit that kept no per-forest fits (`keepFits = FALSE`) says so
+in one line instead. A change in probability is `predict`'s job
+(`predict` with the basis one unit up less `predict` as it stands).
+Where the weights are counts of identical rows (the count families'
+default, and gaussian with `weights.type = "frequency"`), the average
+and the sd across rows, as the forest line's column mean and sd, count
+each row at its count, as the data written out row by row would.
 
 ## Usage
 
@@ -95,12 +111,18 @@ requested parameters the fit held fixed and their values (on a fit with
 several forests a vector with one entry for each forest, `k` and
 `leaf.prior.sd` named by the forests' labels), and, on a fit of several
 forests that kept its fits, `forests`, the lines of the full block that
-the print method gives after the table. `stats` has columns `variable`,
-`mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`, `ess_bulk`, and
-`ess_tail` - the same columns `posterior::summarise_draws` reports for a
-plain array, computed without that package. Its print method notes when
-any R-hat exceeds 1.01; this does not withhold the rest of the summary
-or error, as dbarts does not refuse to summarize a non-converged fit.
+the print method gives after the table, and `effects`, where a forest
+has a basis, a data frame with a row for each effect (columns `forest`,
+`label`, `effect`, `average`, `average.q5`, `average.q95`, `spread`,
+`spread.q5` and `spread.q95`, with the number of rows averaged over and
+the scale as attributes `"rows"` and `"scale"`) or the string
+`"dropped"` for a fit that kept no per-forest fits. `stats` has columns
+`variable`, `mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`,
+`ess_bulk`, and `ess_tail` - the same columns
+`posterior::summarise_draws` reports for a plain array, computed without
+that package. Its print method notes when any R-hat exceeds 1.01; this
+does not withhold the rest of the summary or error, as dbarts does not
+refuse to summarize a non-converged fit.
 
 ## See also
 

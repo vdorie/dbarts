@@ -20,7 +20,23 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   line. The summary of a fit of several forests adds the full block of what
   each forest resolved to, after the table (see the sd argument of
   forest), and the line under the table then leaves out each
-  forest's leaf.prior.sd, which the block gives."><meta property="og:description" content="Reports a per-variable posterior summary of the scalar parameters
+  forest's leaf.prior.sd, which the block gives. Under the block, each
+  forest with a basis has a line for the effect of one unit of its basis (for
+  a factor, of its second level against its first): its average over
+  the training rows in the likelihood, and its sd across rows, the
+  standard deviation of the effect across those rows, each with its posterior median and
+  the 5% to 95% interval stats uses. Both are computed for each draw
+  and the median taken last, on the scale the forests add on (the response's
+  units, or the probit or logit scale of a binary response), from
+  each forest's own fits times the coefficient on its basis, which is what
+  predict gives with the basis one unit higher less the basis as it
+  stands; a fit that kept no per-forest fits (keepFits = FALSE) says so
+  in one line instead. A change in probability is predict's job (predict with
+  the basis one unit up less predict as it stands). Where the weights
+  are counts of identical rows (the count families' default, and gaussian with
+  weights.type = &quot;frequency&quot;), the average and the sd across rows, as
+  the forest line's column mean and sd, count each row at its count, as the
+  data written out row by row would."><meta property="og:description" content="Reports a per-variable posterior summary of the scalar parameters
   (sigma and the leaf prior's k or leaf.prior.sd) of a bartBT/bart fit, along
   with split-\(\hat{R}\) and bulk/tail effective sample size,
   computed by dbarts itself (no posterior dependency). A
@@ -41,7 +57,23 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   line. The summary of a fit of several forests adds the full block of what
   each forest resolved to, after the table (see the sd argument of
   forest), and the line under the table then leaves out each
-  forest's leaf.prior.sd, which the block gives."></head><body>
+  forest's leaf.prior.sd, which the block gives. Under the block, each
+  forest with a basis has a line for the effect of one unit of its basis (for
+  a factor, of its second level against its first): its average over
+  the training rows in the likelihood, and its sd across rows, the
+  standard deviation of the effect across those rows, each with its posterior median and
+  the 5% to 95% interval stats uses. Both are computed for each draw
+  and the median taken last, on the scale the forests add on (the response's
+  units, or the probit or logit scale of a binary response), from
+  each forest's own fits times the coefficient on its basis, which is what
+  predict gives with the basis one unit higher less the basis as it
+  stands; a fit that kept no per-forest fits (keepFits = FALSE) says so
+  in one line instead. A change in probability is predict's job (predict with
+  the basis one unit up less predict as it stands). Where the weights
+  are counts of identical rows (the count families' default, and gaussian with
+  weights.type = &quot;frequency&quot;), the average and the sd across rows, as
+  the forest line's column mean and sd, count each row at its count, as the
+  data written out row by row would."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -102,7 +134,23 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   line. The summary of a fit of several forests adds the full block of what
   each forest resolved to, after the table (see the <code>sd</code> argument of
   <code><a href="forest.html">forest</a></code>), and the line under the table then leaves out each
-  forest's <code>leaf.prior.sd</code>, which the block gives.</p>
+  forest's <code>leaf.prior.sd</code>, which the block gives. Under the block, each
+  forest with a basis has a line for the effect of one unit of its basis (for
+  a factor, of its second level against its first): its <em>average</em> over
+  the training rows in the likelihood, and its <em>sd across rows</em>, the
+  standard deviation of the effect across those rows, each with its posterior median and
+  the 5% to 95% interval <code>stats</code> uses. Both are computed for each draw
+  and the median taken last, on the scale the forests add on (the response's
+  units, or the probit or logit scale of a binary response), from
+  each forest's own fits times the coefficient on its basis, which is what
+  <code>predict</code> gives with the basis one unit higher less the basis as it
+  stands; a fit that kept no per-forest fits (<code>keepFits = FALSE</code>) says so
+  in one line instead. A change in probability is <code>predict</code>'s job (<code>predict</code> with
+  the basis one unit up less <code>predict</code> as it stands). Where the weights
+  are counts of identical rows (the count families' default, and gaussian with
+  <code>weights.type = "frequency"</code>), the average and the sd across rows, as
+  the forest line's column mean and sd, count each row at its count, as the
+  data written out row by row would.</p>
     </div>
 
     <div class="section level2">
@@ -167,7 +215,13 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   entry for each forest, <code>k</code> and <code>leaf.prior.sd</code> named by the
   forests' labels), and, on a fit of
   several forests that kept its fits, <code>forests</code>, the lines of the full block
-  that the print method gives after the table. <code>stats</code> has columns <code>variable</code>, <code>mean</code>, <code>median</code>,
+  that the print method gives after the table, and <code>effects</code>, where a
+  forest has a basis, a data frame with a row for each effect (columns
+  <code>forest</code>, <code>label</code>, <code>effect</code>, <code>average</code>,
+  <code>average.q5</code>, <code>average.q95</code>, <code>spread</code>, <code>spread.q5</code> and
+  <code>spread.q95</code>, with the number of rows averaged over and the scale as
+  attributes <code>"rows"</code> and <code>"scale"</code>) or the string <code>"dropped"</code>
+  for a fit that kept no per-forest fits. <code>stats</code> has columns <code>variable</code>, <code>mean</code>, <code>median</code>,
   <code>sd</code>, <code>mad</code>, <code>q5</code>, <code>q95</code>, <code>rhat</code>,
   <code>ess_bulk</code>, and <code>ess_tail</code> - the same columns
   <code>posterior::summarise_draws</code> reports for a plain array, computed
