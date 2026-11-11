@@ -1,0 +1,11 @@
+--- a/src/bartcore/chain.hpp
++++ b/src/bartcore/chain.hpp
+@@ -8836,7 +8836,7 @@
+       auto logDensityAt = [=, &response](double v) {
+         double e = std::exp(v);
+         double kTerm = standardizedK / e;
+-        return -degreesOfFreedom * v - 0.5 * kTerm * kTerm +
++        return -degreesOfFreedom * v +
+                response.logLikelihoodAtScaledFits(fits, others, e);
+       };
+       // one pass over the rows serves the decline and the slice level both

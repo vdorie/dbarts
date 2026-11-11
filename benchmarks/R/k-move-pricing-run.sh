@@ -8,8 +8,10 @@
 #
 # Usage: k-move-pricing-run.sh JOBFILE STATUSFILE LOGDIR
 # Environment: LIB_SHIPPED, LIB_MOVE (and LIB_MUTANT1, LIB_MUTANT3 for step
-# 1's power runs), LIB_DEPS, plus what the harness reads (KMP_RUN, KMP_QUICK,
-# KMP_SMOKE, DBARTS_BIS_DATA, ...). Library paths must be absolute.
+# 1's power runs, LIB_KSTUDY for Reading 3's model check), LIB_DEPS, plus
+# what the harness reads (KMP_RUN, KMP_QUICK, KMP_SMOKE, DBARTS_BIS_DATA,
+# ...). Library paths must be absolute; each is built by
+# k-move-pricing-install.sh.
 set -u
 jobs=$1
 status=$2
@@ -60,6 +62,7 @@ while IFS="$tab" read -r id deps mem cell est cmd gate; do
     move) lib=$LIB_MOVE ;;
     mutant1) lib=${LIB_MUTANT1:-} ;;
     mutant3) lib=${LIB_MUTANT3:-} ;;
+    kstudy) lib=${LIB_KSTUDY:-} ;;
     *) lib= ;;
   esac
   if [ -z "$lib" ]; then
