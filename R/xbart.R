@@ -933,23 +933,18 @@ xbart <- function(
       numWeightedFallbacks,
       numSigmaFallbacks - numWeightedFallbacks
     )
-    units <- paste0(" of ", numUnits, " (replication, fold) units")
-    stated <- if (all(numTaken > 0L)) {
-      paste0(
-        ", in ",
-        numTaken[1L],
-        units,
-        ", ",
-        words[1L],
-        " and, in ",
-        numTaken[2L],
-        ", ",
-        words[2L]
-      )
-    } else {
-      taken <- numTaken > 0L
-      paste0(" ", words[taken], " in ", numTaken[taken], units)
-    }
+    # counts first, so a count never reads as part of the stand-in's words:
+    # "in k of N units, <words>", then "and, in m, <words>" for the other
+    taken <- which(numTaken > 0L)
+    position <- seq_along(taken)
+    stated <- paste0(
+      c(", in ", " and, in ")[position],
+      numTaken[taken],
+      c(paste0(" of ", numUnits, " (replication, fold) units"), "")[position],
+      ", ",
+      words[taken],
+      collapse = ""
+    )
     announceStartingSigma(
       verbose,
       "starting sigma is",

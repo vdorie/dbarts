@@ -569,7 +569,10 @@ invisible(utils::capture.output(withCallingHandlers(
 )))
 expect_equal(
   sum(grepl(
-    paste0("starting sigma is ", oneWords, " in 1 of 2 (replication, fold)"),
+    paste0(
+      "starting sigma is, in 1 of 2 (replication, fold) units, ",
+      oneWords
+    ),
     oneLines,
     fixed = TRUE
   )),
@@ -846,8 +849,8 @@ for (rule in c("dense", "sparse")) {
   expect_equal(
     sum(grepl(
       paste0(
-        "starting sigma is the sd of the response with each row written ",
-        "out as often as its weight in 4 of 4"
+        "starting sigma is, in 4 of 4 (replication, fold) units, the sd of ",
+        "the response with each row written out as often as its weight:"
       ),
       made$lines,
       fixed = TRUE

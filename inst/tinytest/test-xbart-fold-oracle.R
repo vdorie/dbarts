@@ -649,7 +649,7 @@ invisible(capture.output(withCallingHandlers(
 expect_equal(sum(grepl("estimating the starting sigma", wideMessages)), 1L)
 expect_equal(
   sum(grepl(
-    "is the sd of the response in 2 of 2 (replication, fold) units",
+    "is, in 2 of 2 (replication, fold) units, the sd of the response:",
     wideMessages,
     fixed = TRUE
   )),

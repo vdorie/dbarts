@@ -876,8 +876,8 @@ set.seed(21)
 wide30 <- matrix(rnorm(30L * 24L), 30L)
 allRows <- "by a dense linear regression on 30 rows and 24 columns"
 perFold <- paste0(
-  "starting sigma is the sd of the response in 5 of 5 (replication, fold) ",
-  "units: the linear model leaves no residual degrees of freedom in their ",
+  "starting sigma is, in 5 of 5 (replication, fold) units, the sd of the ",
+  "response: the linear model leaves no residual degrees of freedom in their ",
   "training rows; supply 'sigest' to set it\n"
 )
 ofFolds <- function(...) attempt(xbartOf(wide30, y30, n.test = 5L, ...))

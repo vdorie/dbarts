@@ -1332,13 +1332,19 @@ expect_equal(length(weightedLine), 1L)
 expect_true(startsWith(
   weightedLine,
   paste0(
-    "starting sigma is the sd of a row of weight 1 (the intercept-only ",
-    "weighted regression's sigma) in 4 of 4"
+    "starting sigma is, in 4 of 4 (replication, fold) units, the sd of a ",
+    "row of weight 1 (the intercept-only weighted regression's sigma):"
   )
 ))
 unitLine <- foldLine(wThirteen)
 expect_equal(length(unitLine), 1L)
-expect_true(startsWith(unitLine, "starting sigma is the sd of the response in"))
+expect_true(grepl(
+  paste0(
+    "^starting sigma is, in [0-9]+ of 4 \\(replication, fold\\) units, ",
+    "the sd of the response:"
+  ),
+  unitLine
+))
 # a fold's rule 4 tests the response less its offset: rows in at one response
 # and several offsets hold a range, so its regression keeps the weights
 seen <- floorCalls(x, ySame, weights = sameIn, offset = off)
