@@ -306,7 +306,7 @@ What a proposal asks of a leaf - whether it is empty and a log marginal:
 
 The host dependencies of section 6: the mathematical functions, the
 support library's build-time names
-([`ext_pnorm`, `ext_dnorm`, `ext_dt`](../../src/bartcore/model.hpp)), the two
+([`ext_pnorm`, `ext_dnorm`](../../src/bartcore/model.hpp)), the two
 terminating rejection samplers, which throw ([`std::runtime_error`](../../src/bartcore/chain.hpp)),
 and the output sink ([`ext_printf`](../../src/bartcore/sampler.hpp),
 [`ProgressSink`](../../src/bartcore/chain.hpp)).
