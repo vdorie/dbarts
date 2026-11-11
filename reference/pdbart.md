@@ -20,7 +20,7 @@ pdbart(
     pl = TRUE, plquants = c(0.05, 0.95),
     type = "auto", newdata = NULL,
     n.average.rows = NULL, average.weights = NULL,
-    times = NULL, n.max.predictions = 5e9,
+    times = NULL,
     ...)
 
 # S3 method for class 'pdbart'
@@ -38,7 +38,7 @@ pd2bart(
     pl = TRUE, plquants = c(0.05, 0.95),
     type = "auto", newdata = NULL,
     n.average.rows = NULL, average.weights = NULL,
-    times = NULL, n.max.predictions = 5e9,
+    times = NULL,
     ...)
 
 # S3 method for class 'pd2bart'
@@ -146,16 +146,6 @@ plot(
   when the Kaplan-Meier curve does not reach one half, the median of the
   observed event times; on a hazard fit the times are read on its period
   grid. Refused on any other `type`.
-
-- n.max.predictions:
-
-  On a hazard fit, the most predictions to make, one being one
-  person-period row under one draw at one grid value: subjects x periods
-  up to the largest time x draws x grid values, counted before anything
-  runs. A call above it is refused, naming the count and the ways to
-  reduce it - a coarser period grid, fewer subjects, fewer grid values,
-  an earlier largest time - or this argument to raise it. The default,
-  `5e9`, takes on the order of ten minutes.
 
 - plot.type:
 
@@ -303,15 +293,20 @@ with the variable set gives each category's. On accelerated failure time
 and hazard fits they average survival, the event probability or the
 cumulative hazard per subject at chosen times; on a hazard fit each
 subject's rows are expanded to the periods up to the largest time and
-replayed in chunks, so the work grows with the period grid and is
-counted against `n.max.predictions` first. `newdata` and
-`n.average.rows` there are subject rows, and the default time stays the
-training data's. In a formula hazard fit the subjects are read from the
-data the call names, as in any formula fit, and coded with their offset
-at each grid value; the period is never a predictor. Each refusal comes
-before anything is fit, whether the family is named, resolved by
-`family = "auto"` from the response, or that of a fit or sampler passed
-in.
+replayed in chunks, so memory stays bounded. The work is the number of
+predictions, one being one person-period row under one draw at one grid
+value: subjects x periods up to the largest time x draws x grid values.
+It grows with that count (about ten minutes at `5e9`) and no call
+refuses on it; to shrink it, use a coarser period grid
+(`hazard(breaks = )`), fewer subjects (`newdata` or `n.average.rows`),
+fewer grid values (`levs` or `levquants`), or an earlier largest time
+(`times`). `newdata` and `n.average.rows` there are subject rows, and
+the default time stays the training data's. In a formula hazard fit the
+subjects are read from the data the call names, as in any formula fit,
+and coded with their offset at each grid value; the period is never a
+predictor. Each refusal comes before anything is fit, whether the family
+is named, resolved by `family = "auto"` from the response, or that of a
+fit or sampler passed in.
 
 This is a computationally intensive procedure. For example, in `pdbart`,
 to compute the partial dependence plot for 5 \\x_s\\ values, we need to

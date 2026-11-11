@@ -42,7 +42,10 @@ in one line instead. A change in probability is `predict`'s job
 Where the weights are counts of identical rows (the count families'
 default, and gaussian with `weights.type = "frequency"`), the average
 and the sd across rows, as the forest line's column mean and sd, count
-each row at its count, as the data written out row by row would.
+each row at its count, as the data written out row by row would. A
+binomial response, written as two columns, counts each row at its trials
+times any such weight, and the header then reads “over 371 trials (18
+training rows)”.
 
 ## Usage
 

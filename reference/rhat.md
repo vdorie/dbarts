@@ -4,8 +4,9 @@ The rank-normalized split R-hat (Vehtari, Gelman, Simpson, Carpenter and
 Buerkner, 2021) of the draws of one quantity from several chains: the
 larger of the bulk and the folded (tail) values. It is the statistic
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-reports, and it returns the value `posterior::rhat` does for the inputs
-that function takes.
+reports, and from four iterations on it returns the value
+`posterior::rhat` does for the inputs that function takes (see Details
+for the inputs where the two differ).
 
 ## Usage
 

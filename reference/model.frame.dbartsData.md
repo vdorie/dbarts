@@ -52,11 +52,13 @@ one) and named as the formula wrote it (`log(price)`, and `y` where no
 formula did), a factor predictor as a factor over its declared levels, a
 matrix term such as `poly(x, 2)` or `scale(x)` as one matrix column
 again, named as the formula wrote it, with the column names the term
-gave, and a column the block holds sparse as a sparse vector, sparse
-factor or sparse matrix. The columns come in the formula's order, those
-the block holds sparse after the others, and a column no term of the
-formula names (a hazard sampler's `period`) after them. The block holds
-no more than the values, so a rejoined matrix has none of the attributes
+gave (an unnamed matrix of two or more columns is named `1`, `2`, ...,
+where the frame `lm` gives leaves it unnamed), and a column the block
+holds sparse as a sparse vector, sparse factor or sparse matrix. The
+columns come in the formula's order, those the block holds sparse after
+the others, and a column no term of the formula names (a hazard
+sampler's `period`) after them. The block holds no more than the values,
+so a rejoined matrix has none of the attributes
 [`poly()`](https://rdrr.io/r/stats/poly.html) or
 [`scale()`](https://rdrr.io/r/base/scale.html) give it (their class,
 coefficients and centers); the terms record carries them in its

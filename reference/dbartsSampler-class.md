@@ -415,21 +415,22 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   by
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
   records none: it derives the cut points and the standardization, as
-  before, and keeps the sampler's response range, where 0.9-34 derived
-  the scale again from the new response; `updateScale = TRUE` derives
-  it. Draws the sampler has saved (`keepTrees`) stay the functions they
-  were, so `predict` returns the same values for them before and after
-  the call. To that end a `linear` leaf's coefficients, saved and
-  current, are rewritten into the center and scale the call derives or
-  takes for its leaf covariates, and every saved draw into the response
-  scale it derives or takes; a value kept, or taken equal to the one in
-  force, rewrites nothing. A row whose leaf covariate is missing is read
-  at that covariate's center, so what a linear leaf predicts for it
-  follows the center to the new data's. A standardization the call
-  derives is read over the new data's rows in the likelihood, those of
-  positive weight; where fewer than two rows are in (subjects, for a
-  hazard fit, whose data hold each subject's rows together, at periods
-  1, 2, 3 and on in order, as
+  before, and keeps the sampler's response range and, on a count
+  sampler, its count center, where 0.9-34 derived the scale again from
+  the new response; `updateScale = TRUE` derives them. Draws the sampler
+  has saved (`keepTrees`) stay the functions they were, so `predict`
+  returns the same values for them before and after the call. To that
+  end a `linear` leaf's coefficients, saved and current, are rewritten
+  into the center and scale the call derives or takes for its leaf
+  covariates, and every saved draw into the response scale it derives or
+  takes; a value kept, or taken equal to the one in force, rewrites
+  nothing. A row whose leaf covariate is missing is read at that
+  covariate's center, so what a linear leaf predicts for it follows the
+  center to the new data's. A standardization the call derives is read
+  over the new data's rows in the likelihood, those of positive weight;
+  where fewer than two rows are in (subjects, for a hazard fit, whose
+  data hold each subject's rows together, at periods 1, 2, 3 and on in
+  order, as
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   expands them, data laid out otherwise being refused), or the call
   reads the response's scale from every row because those rows hold

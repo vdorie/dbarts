@@ -96,8 +96,8 @@
     <p>Every <code>predict</code> method on a fit (<code><a href="bartBT.html">predict.bart</a></code> and
   <code><a href="bart.html">bart</a></code>'s four own classes) and
   <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> take an <code>na.action</code> for
-  <code>newdata</code>, defaulting to this function; <code>NULL</code> means the
-  default, and <code>getOption("na.action")</code> is never consulted.</p>
+  <code>newdata</code>, defaulting to this function; <code>NULL</code> applies no
+  action, which on new data gives the default's result, and <code>getOption("na.action")</code> is never consulted.</p>
 <p>A missing value in <code>newdata</code> is <em>routable</em> when its column can
   hold missing values: it had them in training or, on a sampler, has been
   given them since (see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>). Every split rule on

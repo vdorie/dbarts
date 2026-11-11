@@ -67,7 +67,8 @@ and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s four
 own classes) and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 take an `na.action` for `newdata`, defaulting to this function; `NULL`
-means the default, and `getOption("na.action")` is never consulted.
+applies no action, which on new data gives the default's result, and
+`getOption("na.action")` is never consulted.
 
 A missing value in `newdata` is *routable* when its column can hold
 missing values: it had them in training or, on a sampler, has been given
