@@ -220,34 +220,76 @@ fitCounts <- function(data, ...) {
         formulaC,
         data = data,
         n.chains = 2L,
-        n.samples = 3000L,
-        n.burn = 1000L,
-        n.trees = 50L,
+        n.samples = 100L,
+        n.burn = 50L,
+        n.trees = 20L,
         n.threads = 1L,
-        verbose = FALSE
+        verbose = FALSE,
+        keepTrees = TRUE
       ),
       list(...)
     )
   )
 }
-set.seed(1)
-fWritten <- fitCounts(written)
+# by hand from one fit's own per-draw, per-row effects (predict's difference at
+# the basis one unit up and then at zero): the average and the sd across rows
+# at the given row multiplicities, each per draw, medians last
+byHand <- function(f, multiplicity) {
+  up <- predict(f, newdata = transform(counted, z = 1), type = "bart")
+  down <- predict(f, newdata = transform(counted, z = 0), type = "bart")
+  effect <- up - down
+  total <- sum(multiplicity)
+  average <- as.vector(effect %*% multiplicity) / total
+  deviation <- sqrt(
+    as.vector((effect - average)^2 %*% multiplicity) / (total - 1)
+  )
+  q <- function(v) quantile(v, c(0.5, 0.05, 0.95), names = FALSE)
+  c(q(average), q(deviation))
+}
 set.seed(2)
 fCounted <- fitCounts(counted, weights = counts, weights.type = "frequency")
-eWritten <- summary(fWritten)$effects
 eCounted <- summary(fCounted)$effects
-# the draws' Monte Carlo error: over four seeds of each representation the
-# average's run-to-run sd was 0.17, a difference of two runs 0.24; the
-# tolerance is two of those
-monteCarlo <- 0.5
-expect_true(abs(eCounted$average - eWritten$average) < monteCarlo)
-expect_true(abs(eCounted$spread - eWritten$spread) < monteCarlo)
-# a fit that counted each row once reads a clearly different average, so the
-# pin discriminates
-fOnce <- fCounted
-fOnce[["weights"]] <- NULL
-byOnce <- dbarts:::fitForestEffects(fOnce)$average
-expect_true(abs(byOnce - eWritten$average) > monteCarlo)
+stored <- function(e) {
+  as.numeric(e[
+    1L,
+    c(
+      "average",
+      "average.q5",
+      "average.q95",
+      "spread",
+      "spread.q5",
+      "spread.q95"
+    )
+  ])
+}
+expect_equal(stored(eCounted), byHand(fCounted, counts), tolerance = 1e-10)
+# the printed line carries the same numbers
+hand <- byHand(fCounted, counts)
+shownText <- function(v) {
+  paste0(
+    format(v[1L], digits = 4L),
+    " (",
+    format(v[2L], digits = 4L),
+    " to ",
+    format(v[3L], digits = 4L),
+    ")"
+  )
+}
+printedCounted <- capture.output(print(summary(fCounted)))
+expect_true(any(grepl(
+  paste0(
+    "average ",
+    shownText(hand[1:3]),
+    ", sd across rows ",
+    shownText(hand[4:6])
+  ),
+  printedCounted,
+  fixed = TRUE
+)))
+# counting each row once reads another number, so the pin discriminates
+expect_true(
+  max(abs(byHand(fCounted, rep(1, m)) - hand)) > 1e-3
+)
 expect_identical(attr(summary(fCounted)$effects, "observations"), sum(counts))
 expect_true(any(grepl(
   paste0("over ", sum(counts), " observations (", m, " rows)"),
@@ -265,6 +307,11 @@ expect_true(any(grepl(
   capture.output(print(summary(fPrecision))),
   fixed = TRUE
 )))
+expect_equal(
+  stored(summary(fPrecision)$effects),
+  byHand(fPrecision, rep(1, m)),
+  tolerance = 1e-10
+)
 
 # the forest line's column mean and sd read the counts, as its "taken from a
 # column of sd" source does, so the two agree
