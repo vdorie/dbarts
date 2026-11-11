@@ -369,9 +369,10 @@ dbartsControl(
   default is
   `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)`.
   A `"swap"` element exchanges a parent's split rule with a child's; it
-  defaults to zero because at production forest sizes it measures as a
-  no-op, but with `n.trees = 1` it is the only move that rotates a rule
-  up the tree, so single-tree fits should set it positive (0.1 was the
+  defaults to zero because at forests of 75 trees and more dropping it
+  changed accuracy, coverage and mixing little in simulation (see NEWS),
+  but with `n.trees = 1` it is the only move that rotates a rule up the
+  tree, so single-tree fits should set it positive (0.1 was the
   historical default, and is
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s). A
   `"perturb"` element displaces one node's split point by at most

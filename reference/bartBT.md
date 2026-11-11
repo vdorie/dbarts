@@ -428,11 +428,12 @@ family(object, ...)
   sampler's control object can set it to `"always"` or `"never"`
   instead, which changes the sampled values without changing the
   posterior. A `"swap"` element exchanges a parent's split rule with a
-  child's; `bart` ships it at zero because at production forest sizes it
-  measures as a no-op, and `bartBT` keeps it at 0.1 to match BayesTree.
-  With `n.trees = 1` it is the only move that rotates a rule up the
-  tree. A `"perturb"` element displaces one node's split point by a
-  single cut position while keeping its variable and the tree's shape;
+  child's; `bart` ships it at zero because at forests of 75 trees and
+  more dropping it changed accuracy, coverage and mixing little in
+  simulation (see NEWS), and `bartBT` keeps it at 0.1 to match
+  BayesTree. With `n.trees = 1` it is the only move that rotates a rule
+  up the tree. A `"perturb"` element displaces one node's split point by
+  a single cut position while keeping its variable and the tree's shape;
   it defaults to zero, and only ordinal (numeric) columns can be
   perturbed. A `"rule_gibbs"` element replaces one nog node's rule - a
   node whose two children are both leaves - with a draw from that rule's
@@ -1455,7 +1456,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.166563
+#> total seconds in loop: 0.126762
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
