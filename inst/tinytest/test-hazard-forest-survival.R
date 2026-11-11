@@ -115,3 +115,61 @@ expect_error(
   survivalProbabilities(one, newdata = nd, bases = nd$z),
   "only meaningful on an amplitude-coupled multi-forest fit"
 )
+
+# a factor or logical basis is resolved once: at newdata, given at newdata, and
+# given at the training subjects, each equal to predict on the expanded rows
+d$g <- factor(rep(c("a", "b"), length.out = n))
+d$lg <- rep(c(TRUE, FALSE, FALSE), length.out = n)
+nd <- d[1:6, ]
+for (term in c("g", "lg")) {
+  formula <- as.formula(
+    paste0("Surv(time, status) ~ x + forest(basis = ", term, ")")
+  )
+  kind <- do.call(bart, c(list(formula, d), fitArgs))
+  given <- rev(nd[[term]])
+  expect_equal(
+    survivalProbabilities(kind, newdata = nd, combineChains = FALSE),
+    byPredict(kind, nd),
+    check.attributes = FALSE,
+    info = term
+  )
+  expect_equal(
+    survivalProbabilities(
+      kind,
+      newdata = nd,
+      bases = given,
+      combineChains = FALSE
+    ),
+    byPredict(kind, nd, given),
+    check.attributes = FALSE,
+    info = term
+  )
+  expect_equal(
+    survivalProbabilities(kind, bases = rev(d[[term]])),
+    survivalProbabilities(kind, newdata = d, bases = rev(d[[term]])),
+    check.attributes = FALSE,
+    info = term
+  )
+}
+
+# two chains
+twoChain <- do.call(
+  bart,
+  c(
+    list(Surv(time, status) ~ x + forest(basis = z), d),
+    modifyList(fitArgs, list(n.chains = 2L))
+  )
+)
+curves <- survivalProbabilities(twoChain, newdata = nd, combineChains = FALSE)
+expect_equal(dim(curves), c(2L, 12L, K, 6L))
+expect_equal(curves, byPredict(twoChain, nd), check.attributes = FALSE)
+expect_equal(
+  survivalProbabilities(
+    twoChain,
+    newdata = nd,
+    bases = nd$z + 1,
+    combineChains = FALSE
+  ),
+  byPredict(twoChain, nd, nd$z + 1),
+  check.attributes = FALSE
+)

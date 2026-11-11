@@ -4310,12 +4310,8 @@ hazardSurvivalProbabilities <- function(
   if (usesStoredTest) {
     refuseWithoutTestSubjects(object)
     if (!is.null(bases)) {
-      stop(
-        "'bases' is not used with sample = \"test\": the test subjects' ",
-        "hazards are read off the fit as stored, with the bases they had; ",
-        "give the subjects as 'newdata' to put others on",
-        call. = FALSE
-      )
+      # a fit with test rows has one forest, which takes none
+      refuseBasesWithoutBlend(object)
     }
     # extract() on the packaged fit, not object$fit (the dbartsSampler):
     # extract.dbartsSampler accepts only type = "predictors", while
@@ -4560,20 +4556,17 @@ hazardSubjectBases <- function(
   n,
   trainingRows = NULL
 ) {
+  if (!is.null(bases)) {
+    refuseBasesWithoutBlend(object)
+  }
   if (is.null(object[["forestFits"]])) {
-    if (!is.null(bases)) {
-      stop(
-        "'bases' is only meaningful on an amplitude-coupled multi-forest ",
-        "fit; this fit has ",
-        fitNumForests(object),
-        if (fitNumForests(object) == 1L) " forest" else " forests",
-        call. = FALSE
-      )
-    }
     return(NULL)
   }
   if (!is.null(trainingRows) && is.null(bases)) {
-    return(lapply(object$bases, cutBasisRows, rows = trainingRows))
+    return(lapply(
+      object$bases,
+      function(entry) cutBasisRows(storedBasisBlock(entry), trainingRows)
+    ))
   }
   resolveForestBases(
     object,
@@ -4714,22 +4707,9 @@ survivalProbabilities.bart <- function(
   if (length(times) == 0L || any(!is.finite(times)) || any(times <= 0)) {
     stop("'times' must be finite and positive")
   }
+  # an aft fit has one forest, which takes no bases
   if (!is.null(bases)) {
-    if (sample == "test") {
-      stop(
-        "'bases' is not used with sample = \"test\": the test subjects' ",
-        "draws are read off the fit as stored; give the subjects as ",
-        "'newdata' to put others on",
-        call. = FALSE
-      )
-    }
-    # the same refusal predict gives a fit that has no bases to take
-    if (is.null(object[["forestFits"]])) {
-      hazardSubjectBases(object, bases, NULL, 0L)
-    }
-    if (is.null(newdata)) {
-      object <- withTrainingBases(object, bases)
-    }
+    refuseBasesWithoutBlend(object)
   }
 
   n.chains <- if (!is.null(object[["fit"]])) {
@@ -4791,7 +4771,6 @@ survivalProbabilities.bart <- function(
       type = "bart",
       offset = offset,
       combineChains = FALSE,
-      bases = bases,
       na.action = na.action
     )
   }

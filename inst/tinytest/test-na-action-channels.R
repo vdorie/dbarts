@@ -109,3 +109,16 @@ expect_error(
   do.call(bart, c(list(x, y, weights = w), quick)),
   "'weights' cannot be NA"
 )
+
+# a single missing weight or offset is not a row's: it reaches the channel's
+# own refusal under every action, as on the formula interface
+for (action in list(na.omit, na.exclude, na.pass, na.fail)) {
+  expect_error(
+    do.call(bart, c(list(x, y, weights = NA_real_, na.action = action), quick)),
+    "'weights' cannot be NA"
+  )
+  expect_error(
+    do.call(bart, c(list(x, y, offset = NA_real_, na.action = action), quick)),
+    "'offset' contains missing values"
+  )
+}

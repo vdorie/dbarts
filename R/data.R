@@ -123,10 +123,14 @@ applyNaActionToXY <- function(na.action, y, x, weights = NULL, offset = NULL) {
   # an action that refuses it (na.fail) leaves the missing value to the
   # channel's own refusal, and one that keeps it (the default, na.pass) too
   channelNA <- rep_len(FALSE, length(responseNA))
-  if (!is.null(weights)) {
+  # a channel with no value present is no row's missing one, whether a single
+  # NA the validator recycled to every row or a vector of them: it reaches its
+  # own refusal, as on every other route, where dropping every row would only
+  # end in an error about the estimate
+  if (!is.null(weights) && !all(is.na(weights))) {
     channelNA <- channelNA | is.na(weights)
   }
-  if (!is.null(offset)) {
+  if (!is.null(offset) && !all(is.na(offset))) {
     channelNA <- channelNA | is.na(offset)
   }
   if (!any(predictorNA) && !any(responseNA) && !any(channelNA)) {

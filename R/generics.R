@@ -1466,14 +1466,8 @@ predict.bart <- function(
       )
     }
   }
-  if (type != "forest" && is.null(object[["forestFits"]]) && !is.null(bases)) {
-    numForests <- fitNumForests(object)
-    stop(
-      "'bases' is only meaningful on an amplitude-coupled multi-forest fit; ",
-      "this fit has ",
-      numForests,
-      if (numForests == 1L) " forest" else " forests"
-    )
+  if (type != "forest" && !is.null(bases)) {
+    refuseBasesWithoutBlend(object)
   }
 
   # no newdata: the training rows, read off the stored draws (dec-B341). An
@@ -1630,10 +1624,9 @@ predict.bart <- function(
         type,
         combineChains,
         ci.level,
-        bases,
+        resolveForestBases(object, bases, rows$newdata, NROW(rows$x)),
         n.threads,
         rows$keptNames,
-        rows$newdata,
         held
       ),
       rows,
@@ -2620,6 +2613,22 @@ predictBasisByName <- function(value, newdata, forest) {
   )
 }
 
+# 'bases' is read only where forests recombine at the caller's rows: a fit
+# with no per-forest reporting has none to take.
+refuseBasesWithoutBlend <- function(object) {
+  if (!is.null(object[["forestFits"]])) {
+    return(invisible(NULL))
+  }
+  numForests <- fitNumForests(object)
+  stop(
+    "'bases' is only meaningful on an amplitude-coupled multi-forest fit; ",
+    "this fit has ",
+    numForests,
+    if (numForests == 1L) " forest" else " forests",
+    call. = FALSE
+  )
+}
+
 # predict(type = "ev"/"ppd"/"bart") on an amplitude-coupled fit: the
 # recombination predict(type = "forest") deliberately leaves out, performed
 # here because at THIS level the bases at the predicted rows are available -
@@ -2642,14 +2651,12 @@ predictBlend <- function(
   bases,
   n.threads,
   rowNames = NULL,
-  rawNewdata = newdata,
   held = NULL
 ) {
   n.chains <- object$fit$control@n.chains
   perForest <- predictForest(object, newdata, NULL, TRUE, NULL, n.threads)
   n.new <- dim(perForest)[2L]
   forestNames <- dimnames(perForest)[[3L]]
-  bases <- resolveForestBases(object, bases, rawNewdata, n.new)
 
   # the caller's own offset and weights at those rows, read as the sampler's
   # own predict reads them: numeric, length-1 recycled or one per row

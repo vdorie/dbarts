@@ -121,9 +121,8 @@ survivalProbabilities(object, ...)
     \code{newdata}: a list with an entry per forest, a bare value when one forest
     carries a basis, or the name of a column of \code{newdata}. Left out, the
     basis is read from \code{newdata} by the fit's \code{forest()} terms, and
-    with no \code{newdata} the training subjects keep their own. Refused with
-    \code{sample = "test"}, whose draws are read as stored, and on a fit
-    that has one forest.
+    with no \code{newdata} the training subjects keep their own. Refused on a
+    fit that has one forest.
   }
   \item{...}{
     Not a formal on the method: a name belonging to a sibling generic

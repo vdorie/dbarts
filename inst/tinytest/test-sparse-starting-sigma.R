@@ -339,8 +339,8 @@ for (rule in c("auto", "dense")) {
     summary(lm(y ~ f6 + x1))$sigma
   )
 }
-# a data object's own sigma: dbartsSpec, dbarts and bart keep it unless told
-# how to replace it
+# a data object's own sigma: dbartsSpec and dbarts keep it unless told how to
+# replace it (bart's arm is in test-door-keeps-data-sigma.R)
 carried <- dbartsData(frame, y)
 carried@sigma <- 7
 expect_identical(spec(carried), 7)
