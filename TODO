@@ -1735,10 +1735,12 @@ items
     setstate-field-mirrors-engine); engine
     (leaf-covariate-moments-one-function, count-time-warning). Each
     item keeps its own entry above. Not built.
-  ledger-not-built-flags: 56 B entries of 2026-11-08 to 2026-11-10
-    still read "Not built" though built or superseded (list in
-    scratch/fu1111/stale-not-built.txt); one records pass sets each to
-    "Built (dec-A...)" or "Superseded by dec-B...". Not done.
+  ledger-not-built-flags: the status sentences of 55 B entries of
+    2026-11-08 to 2026-11-10 (53 built, 2 superseded) are set; the nine
+    that still read "Not built" are part 2 of basis-references (dec-B678,
+    dec-B679, dec-B685, dec-B686, dec-B687, dec-B688) and threaded-chains
+    (dec-B781 to dec-B783), each under its own item. Done (the commit
+    that carries this line).
   threaded-chains-before-landing: dbarts on branch threaded-chains,
     before it lands. (1) DBARTS_DRAW_ALL names exactly the channels of
     the installed header (dec-B810, revising dec-A453 call 5): defined
