@@ -50,9 +50,11 @@ survivalProbabilities(object, ...)
   A fitted `bart` object from a survival model: an AFT model (its
   `family` element equals `"aft"`) or a discrete-time hazard model (it
   carries a `$periods` grid; its `family` records the binary link). A
-  hazard fit must have been made with `keepTrees = TRUE`, except to read
-  the test subjects a `test` set that rode the fit call gave it (the
-  matrix interface's own hazard `test` acceptance,
+  hazard fit must have kept its trees, as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) does for
+  it by default (not with an explicit `keepTrees = FALSE`), except to
+  read the test subjects a `test` set that rode the fit call gave it
+  (the matrix interface's own hazard `test` acceptance,
   person-period-expanded on the training grid): `sample = "test"` reads
   their stored draws and no trees are needed.
 

@@ -106,8 +106,9 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
 <dd><p>A fitted <code>bart</code> object from a survival model: an AFT
     model (its <code>family</code> element equals <code>"aft"</code>) or a discrete-time
     hazard model (it carries a <code>$periods</code> grid; its <code>family</code> records
-    the binary link). A hazard fit must have been made with
-    <code>keepTrees = TRUE</code>, except to read the test subjects a
+    the binary link). A hazard fit must have kept its trees, as
+    <code><a href="bart.html">bart</a></code> does for it by default (not with an explicit
+    <code>keepTrees = FALSE</code>), except to read the test subjects a
     <code>test</code> set that rode the fit call gave it (the matrix interface's
     own hazard <code>test</code> acceptance, person-period-expanded on the
     training grid): <code>sample = "test"</code> reads their stored draws and no

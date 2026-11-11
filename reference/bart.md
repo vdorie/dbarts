@@ -32,7 +32,7 @@ bart(
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
-    verbose = TRUE, keepTrees = FALSE,
+    verbose = TRUE, keepTrees = NULL,
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NULL,
     monotone = NULL,
@@ -1484,16 +1484,19 @@ nobs(object, ...)
   without it refuses, naming `storeState()` (see
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   ‘Saving’ section). Logical; must be `TRUE` in order to use `predict`
-  with the result of a fit. Note that for models with a large number of
-  observations or a large number of trees, keeping the trees can be very
-  memory intensive. The kept sampler, `fit$fit`, is what `predict` at
-  new data replays and what `print` reads its settings from (the tree
-  count and `n.burn`); every other method, and `predict` with no
-  `newdata`, reads the draws stored in the fit, and `print` counts
-  those. Running the kept sampler further, or giving it another control,
-  is not a supported use of the fit: `predict` at new data then replays
-  the sampler's current trees, which mix the fit's draws with the new
-  ones, while the other methods keep reading the fit's own.
+  with the result of a fit. `NULL`, the default, keeps the trees on a
+  hazard fit, whose survival curves need them, and not otherwise; `TRUE`
+  or `FALSE` is taken as given, and `keepSampler` follows the resolved
+  value. Note that for models with a large number of observations or a
+  large number of trees, keeping the trees can be very memory intensive.
+  The kept sampler, `fit$fit`, is what `predict` at new data replays and
+  what `print` reads its settings from (the tree count and `n.burn`);
+  every other method, and `predict` with no `newdata`, reads the draws
+  stored in the fit, and `print` counts those. Running the kept sampler
+  further, or giving it another control, is not a supported use of the
+  fit: `predict` at new data then replays the sampler's current trees,
+  which mix the fit's draws with the new ones, while the other methods
+  keep reading the fit's own.
 
 - keepCall:
 
@@ -2551,7 +2554,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001858
+#> total seconds in loop: 0.001477
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 4 3 2 2 4 2 1 2 4 4 2 3 3 3 3 
@@ -2588,7 +2591,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000914
+#> total seconds in loop: 0.000708
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2623,7 +2626,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001416
+#> total seconds in loop: 0.001101
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2677,7 +2680,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.002117
+#> total seconds in loop: 0.001594
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 

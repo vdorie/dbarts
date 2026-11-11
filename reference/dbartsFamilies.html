@@ -249,6 +249,11 @@ Every setting that only one family reads rides its family object rather
       intervals. <code>link</code> selects the binary link the
       expanded rows are fit under, and is what the tokens
       <code>"hazard.probit"</code> and <code>"hazard.logistic"</code> name.</p>
+<p>A hazard fit keeps its trees by default (<code>keepTrees = NULL</code> in
+      <code><a href="bart.html">bart</a></code>), because its survival curves replay them; the
+      trees take about 20 to 27 MB at the defaults, whatever the row count.
+      <code>keepTrees = FALSE</code> drops them, and then
+      <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> refuses.</p>
 <p>A subject is at risk for one row a period, so on the default grid with
       distinct times the rows grow as the square of the subjects (1,000
       subjects give about 500,000 rows) and on a grid of \(K\) periods as

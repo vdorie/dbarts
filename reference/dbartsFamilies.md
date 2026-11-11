@@ -136,6 +136,14 @@ A list of functions:
   selects the binary link the expanded rows are fit under, and is what
   the tokens `"hazard.probit"` and `"hazard.logistic"` name.
 
+  A hazard fit keeps its trees by default (`keepTrees = NULL` in
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)), because
+  its survival curves replay them; the trees take about 20 to 27 MB at
+  the defaults, whatever the row count. `keepTrees = FALSE` drops them,
+  and then
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  refuses.
+
   A subject is at risk for one row a period, so on the default grid with
   distinct times the rows grow as the square of the subjects (1,000
   subjects give about 500,000 rows) and on a grid of \\K\\ periods as
