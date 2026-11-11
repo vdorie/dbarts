@@ -1294,6 +1294,9 @@ readStep1 <- function(build = "move", reps = NA_integer_) {
     )
     return(invisible(out))
   }
+  if (is.finite(reps)) {
+    return(readStep1Early(build, reps, ranksTab, verdict, alpha))
+  }
   pass <- !any(ranksTab$flag) &&
     all(vapply(
       verdict,
@@ -1322,6 +1325,54 @@ readStep1 <- function(build = "move", reps = NA_integer_) {
   print(ranksTab, row.names = FALSE)
   str(verdict)
   cat("step 1", build, if (pass) "PASS" else "FLAG", "\n")
+  invisible(out)
+}
+
+# Step 1's early look (the plan's stop, at 50 a regime, 150 a prior): a p
+# below alpha / 10 on any functional goes to the confirming rerun, a
+# non-finite draw ends step 1 as failed; otherwise the run goes on to 200 a
+# regime (early-go). Only that rule decides here; the full rules are kept in
+# the file and read at the end.
+readStep1Early <- function(build, reps, ranksTab, verdict, alpha) {
+  finite <- all(vapply(verdict, `[[`, NA, "allFinite"))
+  hit <- ranksTab[ranksTab$early, c("prior", "functional"), drop = FALSE]
+  decision <- if (!finite) {
+    "failed: a non-finite draw"
+  } else if (nrow(hit)) {
+    "to the confirming rerun"
+  } else {
+    "go on"
+  }
+  out <- list(
+    build = build,
+    reps = reps,
+    alpha = alpha,
+    ranks = ranksTab,
+    rules = verdict,
+    replications = tapply(ranksTab$reps, ranksTab$prior, max),
+    decision = decision,
+    quick = quick
+  )
+  saveAtomic(
+    out,
+    runDir("readings", sprintf("step1-%s-first%d.rds", build, as.integer(reps)))
+  )
+  if (decision == "go on") {
+    writeLines("early look passed", runDir("step1", "early-go"))
+  }
+  print(
+    ranksTab[, c("prior", "functional", "reps", "chisqP", "early")],
+    row.names = FALSE
+  )
+  cat(sprintf(
+    "step 1 early look (%s at alpha / 10 = %.2g): %s\n",
+    paste(
+      sprintf("%s %d", names(out$replications), out$replications),
+      collapse = ", "
+    ),
+    alpha / 10,
+    decision
+  ))
   invisible(out)
 }
 
@@ -3338,10 +3389,10 @@ kmpWriteJobs <- function(phase, path) {
       prior,
       deps,
       gate = character(),
-      reps = step1Reps(ph)
+      reps = seq_len(step1Reps(ph))
     ) {
       for (id in step1Regimes) {
-        for (rep in seq_len(reps)) {
+        for (rep in reps) {
           ids <<- c(
             ids,
             add(
@@ -3402,16 +3453,33 @@ kmpWriteJobs <- function(phase, path) {
           }
         }
       }
-      for (prior in c("default", "tilted")) {
-        sbc("move", "run", prior, deps)
-      }
-      sbc("move", "run", "third", deps, gate = "step1/third-go")
+      # the early look reads the first 50 a regime (150 a prior) once they
+      # are done; the rest run only when it writes early-go (no p below
+      # alpha / 10, every draw finite)
       early <- step1Reps("power")
-      add(
+      first <- seq_len(early)
+      rest <- seq.int(early + 1L, step1Reps("run"))
+      for (prior in c("default", "tilted")) {
+        sbc("move", "run", prior, deps, reps = first)
+      }
+      sbc("move", "run", "third", deps, "step1/third-go", reps = first)
+      firstIds <- ids
+      el <- add(
         "read-step1-early",
-        paste0("~", ids),
+        paste0("~", firstIds),
         "read",
         sprintf("@move read step1 move %d", early)
+      )
+      for (prior in c("default", "tilted")) {
+        sbc("move", "run", prior, el, "step1/early-go", reps = rest)
+      }
+      sbc(
+        "move",
+        "run",
+        "third",
+        el,
+        c("step1/third-go", "step1/early-go"),
+        reps = rest
       )
       add(
         "read-step1",
