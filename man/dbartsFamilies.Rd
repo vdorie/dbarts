@@ -141,10 +141,11 @@
       and the ways out (a coarser \code{hazard(breaks = )},
       \code{keepTrainingFits = FALSE} or fewer chains), and then runs; a
       sampler's \code{$setData} warns the same way. The memory read is the
-      machine's: a limit set by a container or a job scheduler (a Linux
-      cgroup's \code{memory.max}) is not read, so under one the warning may
-      not come. Where the machine's memory cannot be read
-      there is no warning.
+      smaller of the machine's installed memory and, on Linux, the limit a
+      container or a job scheduler sets on the process (its cgroup's
+      \code{memory.max}, or \code{memory.limit_in_bytes} in version 1), and
+      the warning says \dQuote{this process may use} that limit where it is
+      the smaller. Where neither can be read there is no warning.
     }
     \item{\code{hurdle.lognormal(sigma = NULL)}}{
       A semicontinuous two-part response: a zero-part probit glued to a

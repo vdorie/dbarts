@@ -299,6 +299,73 @@ physicalMemory <- function() {
   .Call(C_dbarts_physicalMemory)
 }
 
+# The smallest memory limit, in bytes, that a Linux cgroup sets on this
+# process, NA where there is none or none can be read. Version 2 reads
+# memory.max in the process's own cgroup and each parent up to the root;
+# version 1 reads memory.limit_in_bytes of the memory controller's cgroup and
+# its parents. Inside a container the mount may show only the container's own
+# cgroup, so the mount's top file is read too. "max" and a figure of 2^60 or
+# more mean no limit. An unexported option, dbarts.cgroupRoot, read fresh per
+# call, is a directory standing in for the file system's root (its proc and
+# sys subdirectories), so a test can lay out a tree; set, it is read on any
+# platform.
+cgroupMemoryLimit <- function() {
+  root <- getOption("dbarts.cgroupRoot")
+  if (is.null(root)) {
+    if (Sys.info()[["sysname"]] != "Linux") {
+      return(NA_real_)
+    }
+    root <- ""
+  }
+  lines <- tryCatch(
+    readLines(file.path(root, "proc/self/cgroup"), warn = FALSE),
+    error = function(e) character(),
+    warning = function(w) character()
+  )
+  mount <- file.path(root, "sys/fs/cgroup")
+  limits <- numeric()
+  for (line in lines) {
+    fields <- strsplit(line, ":", fixed = TRUE)[[1L]]
+    if (length(fields) < 3L) {
+      next
+    }
+    path <- paste(fields[-(1:2)], collapse = ":")
+    if (fields[2L] == "") {
+      dir <- mount
+      name <- "memory.max"
+    } else if ("memory" %in% strsplit(fields[2L], ",", fixed = TRUE)[[1L]]) {
+      dir <- file.path(mount, "memory")
+      name <- "memory.limit_in_bytes"
+    } else {
+      next
+    }
+    parts <- strsplit(path, "/", fixed = TRUE)[[1L]]
+    parts <- parts[nzchar(parts)]
+    dirs <- c(
+      dir,
+      vapply(
+        seq_along(parts),
+        function(i) do.call(file.path, as.list(c(dir, parts[seq_len(i)]))),
+        ""
+      )
+    )
+    for (d in dirs) {
+      value <- tryCatch(
+        readLines(file.path(d, name), n = 1L, warn = FALSE),
+        error = function(e) character(),
+        warning = function(w) character()
+      )
+      if (length(value) == 1L) {
+        value <- suppressWarnings(as.numeric(trimws(value)))
+        if (!is.na(value) && value < 2^60) {
+          limits <- c(limits, value)
+        }
+      }
+    }
+  }
+  if (length(limits) == 0L) NA_real_ else min(limits)
+}
+
 # A byte count in words, in megabytes or gigabytes of 2^20 and 2^30 bytes.
 formatBytes <- function(bytes) {
   if (bytes < 2^30) {
@@ -309,11 +376,16 @@ formatBytes <- function(bytes) {
 }
 
 # Warns, once per session, when a hazard fit's projected peak memory
-# (hazardFitBytes) exceeds the machine's physical memory, naming the rows, the
-# two figures and what lowers the first; silent where that memory cannot be
-# read. Called before the rows are built, and the fit runs whatever it says.
+# (hazardFitBytes) exceeds the smaller of the machine's physical memory and a
+# cgroup limit on the process, naming the rows, the two figures and what lowers
+# the first; silent where neither can be read. Called before the rows are built, and the fit runs whatever it says.
 warnHazardMemory <- function(rows, testRows, numPredictors, run) {
   available <- physicalMemory()
+  limit <- cgroupMemoryLimit()
+  limited <- !is.na(limit) && (is.na(available) || limit < available)
+  if (limited) {
+    available <- limit
+  }
   if (is.na(available)) {
     return(invisible(NULL))
   }
@@ -376,7 +448,8 @@ warnHazardMemory <- function(rows, testRows, numPredictors, run) {
     keptDraws,
     " it needs about ",
     formatBytes(needed),
-    " at its peak, and this machine has ",
+    " at its peak, and this ",
+    if (limited) "process may use " else "machine has ",
     formatBytes(available),
     "; ",
     ways,

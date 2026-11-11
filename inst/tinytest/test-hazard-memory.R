@@ -2,12 +2,18 @@
 # it projects its peak memory, and when that exceeds the machine's physical
 # memory it warns once per session (dbartsMemoryWarning) and runs. The
 # unexported option dbarts.physicalMemory stands in for the machine's figure,
-# NA for one that cannot be read.
+# NA for one that cannot be read, and dbarts.cgroupRoot a fake file tree for the
+# cgroup limit on the process.
 
 memoryKey <- "hazardMemory"
 onceState <- dbarts:::onceWarnState
 resetKey <- function() onceState[[memoryKey]] <- NULL
-oldOptions <- options(dbarts.physicalMemory = NULL)
+emptyRoot <- tempfile("cgroup-none")
+dir.create(emptyRoot)
+oldOptions <- options(
+  dbarts.physicalMemory = NULL,
+  dbarts.cgroupRoot = emptyRoot
+)
 
 # ---- the projection's arithmetic ----
 hazardFitBytes <- dbarts:::hazardFitBytes
@@ -301,6 +307,104 @@ expect_identical(
   "unused argument (cap = 10)"
 )
 expect_identical(names(dbartsFamilies$hazard()@settings), "breaks")
+
+# ---- a cgroup limit on the process, read from a fake tree ----
+cgroupLimit <- dbarts:::cgroupMemoryLimit
+makeTree <- function(proc, files) {
+  root <- tempfile("cgroup")
+  dir.create(file.path(root, "proc/self"), recursive = TRUE)
+  writeLines(proc, file.path(root, "proc/self/cgroup"))
+  for (name in names(files)) {
+    path <- file.path(root, "sys/fs/cgroup", name)
+    dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+    writeLines(files[[name]], path)
+  }
+  root
+}
+# no tree, and a tree with no limit files
+options(dbarts.cgroupRoot = emptyRoot)
+expect_true(is.na(cgroupLimit()))
+options(dbarts.cgroupRoot = makeTree("0::/a/b", list()))
+expect_true(is.na(cgroupLimit()))
+# version 2: the smallest of the process's cgroup and its parents; "max" is none
+options(
+  dbarts.cgroupRoot = makeTree(
+    "0::/a/b",
+    list(
+      "a/memory.max" = "4194304",
+      "a/b/memory.max" = "max",
+      "memory.max" = "8388608"
+    )
+  )
+)
+expect_equal(cgroupLimit(), 4194304)
+options(
+  dbarts.cgroupRoot = makeTree(
+    "0::/a/b",
+    list("a/memory.max" = "4194304", "a/b/memory.max" = "1048576")
+  )
+)
+expect_equal(cgroupLimit(), 1048576)
+options(dbarts.cgroupRoot = makeTree("0::/a", list("a/memory.max" = "max")))
+expect_true(is.na(cgroupLimit()))
+# a container's namespace shows its own cgroup at the mount's top
+options(
+  dbarts.cgroupRoot = makeTree("0::/", list("memory.max" = "2097152"))
+)
+expect_equal(cgroupLimit(), 2097152)
+# version 1: the memory controller's cgroup; an unlimited figure is none
+options(
+  dbarts.cgroupRoot = makeTree(
+    c("12:cpu,cpuacct:/x", "4:memory:/x/y"),
+    list(
+      "memory/x/y/memory.limit_in_bytes" = "3145728",
+      "memory/memory.limit_in_bytes" = "9223372036854771712",
+      "cpu/x/memory.limit_in_bytes" = "1"
+    )
+  )
+)
+expect_equal(cgroupLimit(), 3145728)
+options(
+  dbarts.cgroupRoot = makeTree(
+    "4:memory:/x",
+    list("memory/x/memory.limit_in_bytes" = "9223372036854771712")
+  )
+)
+expect_true(is.na(cgroupLimit()))
+
+# the message names the process where the limit is the smaller figure, and
+# the machine where it is not
+options(dbarts.cgroupRoot = makeTree("0::/a", list("a/memory.max" = "262144")))
+options(dbarts.physicalMemory = 2^30)
+resetKey()
+limited <- collect(fitHazard())$warnings
+expect_equal(length(limited), 1L)
+expect_true(grepl(
+  "at its peak, and this process may use 0.25 MB; ",
+  conditionMessage(limited[[1L]]),
+  fixed = TRUE
+))
+# a limit above the installed memory is not the smaller figure
+options(
+  dbarts.cgroupRoot = makeTree("0::/a", list("a/memory.max" = "1073741824")),
+  dbarts.physicalMemory = 2^18
+)
+resetKey()
+above <- collect(fitHazard())$warnings
+expect_equal(length(above), 1L)
+expect_true(grepl(
+  "at its peak, and this machine has 0.25 MB; ",
+  conditionMessage(above[[1L]]),
+  fixed = TRUE
+))
+# no limit file: the machine's figure
+options(dbarts.cgroupRoot = emptyRoot)
+resetKey()
+expect_true(grepl(
+  "this machine has 0.25 MB; ",
+  conditionMessage(collect(fitHazard())$warnings[[1L]]),
+  fixed = TRUE
+))
 
 options(oldOptions)
 resetKey()
