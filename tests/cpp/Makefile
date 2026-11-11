@@ -18,6 +18,13 @@ CPPFLAGS += $(EXTRA_CPPFLAGS)
 # forbids -Werror there), which is why the hard failure lives here.
 CXXFLAGS += -std=gnu++20 -Wall -Wextra -Werror=switch \
             -Werror=return-type -MMD -MP
+# Multiply-adds fuse within one expression only, clang's default and the rule
+# the engine's arithmetic is written for. GCC's default fuses across statements
+# and decides per copy, so on a target with FMA two copies of one inline
+# function (two instantiations, or an inlined and an out-of-line one, which the
+# linker may take from any object) round differently, and the suites that
+# compare code paths bitwise fail with the arithmetic intact.
+CXXFLAGS += -ffp-contract=on
 
 LIBS := ../../src/misc.a ../../src/external.a ../../src/rc.a
 # external.a's rng object references the R API even for non-native
