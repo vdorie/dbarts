@@ -326,6 +326,17 @@ options(dbarts.cgroupRoot = emptyRoot)
 expect_true(is.na(cgroupLimit()))
 options(dbarts.cgroupRoot = makeTree("0::/a/b", list()))
 expect_true(is.na(cgroupLimit()))
+# reading missing limit files leaves no connection open
+openConnections <- function() nrow(showConnections(all = TRUE))
+before <- openConnections()
+for (i in 1:20) {
+  cgroupLimit()
+}
+options(dbarts.cgroupRoot = emptyRoot)
+for (i in 1:20) {
+  cgroupLimit()
+}
+expect_identical(openConnections(), before)
 # version 2: the smallest of the process's cgroup and its parents; "max" is none
 options(
   dbarts.cgroupRoot = makeTree(

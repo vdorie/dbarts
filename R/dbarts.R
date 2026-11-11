@@ -317,11 +317,19 @@ cgroupMemoryLimit <- function() {
     }
     root <- ""
   }
-  lines <- tryCatch(
-    readLines(file.path(root, "proc/self/cgroup"), warn = FALSE),
-    error = function(e) character(),
-    warning = function(w) character()
-  )
+  # A missing file is tested for, not caught: an exiting handler on the
+  # warning that file() raises before its open error leaves, on some R
+  # versions, the connection it allocated unreleased.
+  readFile <- function(path, n = -1L) {
+    if (!file.exists(path)) {
+      return(character())
+    }
+    tryCatch(
+      suppressWarnings(readLines(path, n, warn = FALSE)),
+      error = function(e) character()
+    )
+  }
+  lines <- readFile(file.path(root, "proc/self/cgroup"))
   mount <- file.path(root, "sys/fs/cgroup")
   limits <- numeric()
   for (line in lines) {
@@ -350,11 +358,7 @@ cgroupMemoryLimit <- function() {
       )
     )
     for (d in dirs) {
-      value <- tryCatch(
-        readLines(file.path(d, name), n = 1L, warn = FALSE),
-        error = function(e) character(),
-        warning = function(w) character()
-      )
+      value <- readFile(file.path(d, name), 1L)
       if (length(value) == 1L) {
         value <- suppressWarnings(as.numeric(trimws(value)))
         if (!is.na(value) && value < 2^60) {
