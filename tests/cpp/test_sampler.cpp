@@ -1,5 +1,7 @@
 #include "common.hpp"
 
+#include <external/stats.h>
+
 #include <chrono>
 
 static void testViewSamplerMatchesFull() {
@@ -12985,10 +12987,14 @@ static void testForestAmplitudeStudent() {
               "student: at df 3 the scale is sqrt(kappa) z_.75 / t_3,.75 / "
               "0.674");
   }
+  // The t quartile at df 1 is 1, but R's qt reaches it through the C
+  // library's tanpi where there is one, and glibc's tanpi(1/4) is 1 ulp
+  // under 1: the exact claim is on the map's own arithmetic, against the
+  // quartile the library gives.
   check(entryOf(ForestKind::numeric, false, 1.0).amplitudePrior.mixtureScale ==
-          zQuartile / 0.674,
-        "student: the median matched is the normal's own quartile, to the "
-        "last place");
+          zQuartile / ext_quantileOfStudentT(0.75, 1.0) / 0.674,
+        "student: the median matched is the normal's own quartile over the "
+        "library's t quartile, to the last place");
   {
     ForestMapEntry one = entryOf(ForestKind::none, false, 1.0);
     check(one.amplitudePrior.update && one.nodeScaleFactor == 0.25 &&
