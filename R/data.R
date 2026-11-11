@@ -3876,9 +3876,7 @@ dbartsData <- function(
     }
 
     termLabels <- attr(modelTerms, "term.labels")
-    # before the backticks of a non-syntactic name are stripped below, since
-    # the scan reads them as the quoting they are
-    refuseInteractionTerms(termLabels)
+    refuseInteractionTerms(modelTerms)
     badLabels <- grepl("^`[^`]*`$", termLabels)
     if (sum(badLabels) > 0) {
       termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
@@ -4642,13 +4640,12 @@ dbartsData <- function(
 ## A ':'/'*' term expands to a label like "x1:x2" in term.labels, a column
 ## the model frame never carries (only the individual predictors it names);
 ## passed through unchecked, makeModelMatrix dies on "undefined columns
-## selected", naming neither the term nor the unsupported syntax. A ':'
-## inside backticks (one non-syntactic name), brackets or a call's
-## parentheses (x[, 1:3], I(a:b)) is part of one term, not an interaction
-## between terms; so is the '::' or ':::' of a package-qualified call
-## (splines::ns(w, 3)), which is one operator, not two ':'.
-refuseInteractionTerms <- function(termLabels) {
-  if (any(vapply(termLabels, hasTopLevelColon, NA))) {
+## selected", naming neither the term nor the unsupported syntax. The terms'
+## order reads an interaction of terms and nothing else: a ':' inside
+## backticks, brackets or a call's parentheses (x[, 1:3], I(a:b)) or the
+## '::' of a package-qualified call is part of one term.
+refuseInteractionTerms <- function(modelTerms) {
+  if (any(attr(modelTerms, "order") > 1L)) {
     stop(
       "':' and '*' terms are not supported in 'formula'; write each ",
       "predictor as its own term - poly(), ns(), log(), and offset() are ",
@@ -4657,35 +4654,6 @@ refuseInteractionTerms <- function(termLabels) {
     )
   }
   invisible(NULL)
-}
-
-## Whether a formula term label has a ':' outside every bracket and outside
-## backticks and quotes, which is what makes a label an interaction of terms.
-hasTopLevelColon <- function(label) {
-  characters <- strsplit(label, "", fixed = TRUE)[[1L]]
-  depth <- 0L
-  quote <- ""
-  isColon <- characters == ":"
-  # a ':' next to another is the namespace operator, not an interaction
-  inNamespace <- isColon &
-    (c(FALSE, isColon[-length(isColon)]) | c(isColon[-1L], FALSE))
-  for (position in seq_along(characters)) {
-    character <- characters[[position]]
-    if (nzchar(quote)) {
-      if (character == quote) {
-        quote <- ""
-      }
-    } else if (character %in% c("`", "\"", "'")) {
-      quote <- character
-    } else if (character %in% c("(", "[", "{")) {
-      depth <- depth + 1L
-    } else if (character %in% c(")", "]", "}")) {
-      depth <- depth - 1L
-    } else if (character == ":" && depth == 0L && !inNamespace[[position]]) {
-      return(TRUE)
-    }
-  }
-  FALSE
 }
 
 ## A formula that names a matrix prefixes its columns with the term (X gives

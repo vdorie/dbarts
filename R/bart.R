@@ -2140,7 +2140,7 @@ extractMultinomialFormulaData <- function(
     refuseFlatOffsetOnMultinomial(model.offset(modelFrame))
   }
   termLabels <- attr(modelTerms, "term.labels")
-  refuseInteractionTerms(termLabels)
+  refuseInteractionTerms(modelTerms)
   badLabels <- grepl("^`[^`]*`$", termLabels)
   if (sum(badLabels) > 0) {
     termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])

@@ -106,9 +106,35 @@ expect_error(
 )
 rm(subsetX, subsetY)
 
+# the terms' order is the test, so a term the character scan read otherwise
+# follows it: an escaped quote inside a string is no interaction, and '%in%'
+# and '/' are interactions of terms
+escapedData <- data.frame(y = rnorm(30L), a = rnorm(30L), b = rnorm(30L))
+escapedData$g <- sample(letters[1:3], 30L, TRUE)
+expect_identical(
+  colnames(
+    dbarts::dbartsData(
+      y ~ g == "a\":b",
+      escapedData,
+      keep.data = FALSE
+    )@x
+  ),
+  "g == \"a\\\":b\""
+)
+expect_error(
+  dbarts::dbartsData(y ~ a %in% b, escapedData),
+  interactionReason,
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbartsData(y ~ a/b, escapedData),
+  interactionReason,
+  fixed = TRUE
+)
+rm(escapedData)
+
 # non-syntactic names: the backticks quote a ':' inside one name, and an
-# interaction of two such names is still refused, as the scan reads the label
-# before the backticks are taken off
+# interaction of two such names is still refused
 quotedData <- data.frame(
   y = rnorm(30L),
   z = rnorm(30L),
