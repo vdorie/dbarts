@@ -68,7 +68,7 @@ rbart_vi(
 }
 \arguments{
   \item{group.by}{
-    Grouping factor. Can be an integer vector/factor, or a reference to such in \code{data}. In \code{predict}, a character or numeric vector names its groups by value, as a factor of it does.
+    Grouping factor. Can be an integer vector/factor, or a reference to such in \code{data}. In \code{predict}, a character or numeric vector names its groups by value, as a factor of it does. With a data object in place of a formula and data, \code{group.by} is looked up where the call was written; with a formula and data it is looked up in \code{data} first (as \code{lm}'s \code{weights}).
   }
   \item{group.by.test}{
     Grouping factor for test data, of the same type as \code{group.by}. Can be missing.
