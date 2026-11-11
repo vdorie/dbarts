@@ -5968,6 +5968,15 @@ Not built.
 See also: [dec-B746], [dec-B737], [dec-A445].
 Record: root TODO, starting-sigma-floor-constant. Marked: ruled by the maintainer, 2026-11-11. [dec-B798]
 
+**Where count weights write out at most one observation, the starting sigma is the unweighted sd of the rows in, with a rounding tolerance on the count and on the regression's degrees of freedom**
+Under count weights (new in 1.0-0; 0.9-34 had precision weights only) the starting sigma's stand-in is the sd of the response with each row written out as often as its count, dividing by the total count less one (dec-B737). A total of at most 1 made it undefined and gave the floor, and rounding decided the side: on main's code, 20 rows with sd(y) 1.85, counts of 0.05 summed to 1 + 2.2e-16 and started at 121,248,413, counts of 0.04 (total 0.8) at the floor 6.2e-8, counts of 0.1 (total 2) at 2.56; the same rounding can make a saturated regression look defined with degrees of freedom of 1e-16. Shown: (a) a tolerance, then the floor; (b) a tolerance, then the unweighted sd of the rows in, BayesTree's sigest when no regression is available, recommended (and by the review of dec-B737's build); (c) a tolerance, then refuse and ask for sigest.
+The maintainer, 2026-11-11: "(b) is fine."
+The rule: under count weights, where the total count is at most 1 up to a rounding tolerance, the starting sigma is the unweighted sd of the rows of positive weight; the same tolerance applies to the regression's degrees of freedom (the dense routine's sum of counts less the rank, the sparse routine's count less the rank), so a regression saturated up to rounding falls back as one saturated exactly does. The tolerance is an agent detail sized to summation rounding. Totals above 1 keep the written-out formula. The verbose, summary and xbart lines name this stand-in.
+The alternative was the floor. The cost is that draws move for count-weighted fits whose counts total at most 1 or whose regression is saturated up to rounding.
+Not built.
+See also: [dec-B737], [dec-B746], [dec-B798], [dec-A445].
+Record: root TODO, starting-sigma-fractional-counts. Marked: ruled by the maintainer, 2026-11-11. [dec-B799]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

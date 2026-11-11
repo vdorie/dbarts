@@ -1495,13 +1495,12 @@ items
     routine's sum(w) - rank, the sparse routine's count - rank) takes
     floating-point rounding as data: rep(0.05, 20) sums to 1 + 2.2e-16
     and starts at sigma 66401035, where a sum of exactly 1 gives the
-    floor, so the result depends on the machine's summation. Options:
-    (a) a tolerance on the denominator, then the floor; (b) a
-    tolerance, then the unweighted sd of the rows in, as dec-B381's
-    fallback stays unweighted (the review recommends it); (c) refuse
-    and ask for sigest. A few lines in the routine every fitting
-    function shares, a test per option's arm. A decision for the
-    maintainer.
+    floor, so the result depends on the machine's summation. Ruled
+    (dec-B799): a rounding tolerance on the total count and on the
+    regression's degrees of freedom, then the unweighted sd of the
+    rows of positive weight where the total is at most 1. A few lines
+    in the routine every fitting function shares, xbart's folds
+    included, a test per arm. Not built.
   two-count-columns-auto: (dec-B732, extending dec-B567, revising
     calls 9, 35, 69 and 70 of dec-A276) under family = "auto" dbarts()
     refuses a data object with exactly two count columns in the words
