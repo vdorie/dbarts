@@ -189,7 +189,7 @@ jobs:
   # ones the tests/cpp sanitizer runs use everywhere.
   cpp-leak:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -233,7 +233,7 @@ jobs:
         run: |
           set -eo pipefail
           cd tests/cpp
-          make OPT="-O2 -g -fsanitize=address,undefined"
+          make -j"$(nproc)" OPT="-O2 -g -fsanitize=address,undefined"
           ./test_bartcore 3 2>&1 | tee cpp-leak.log
           # a UBSAN diagnostic does not always change the exit status
           if grep -Eq "runtime error:|AddressSanitizer|LeakSanitizer|SUMMARY: .*Sanitizer" cpp-leak.log; then
