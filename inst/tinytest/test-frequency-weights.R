@@ -575,14 +575,108 @@ expect_equal(
   )),
   1L
 )
+# folds can take both stand-ins in one run: eight rows and six coefficients,
+# four rows counted 2 and four counted 0.2, which this seed puts in different
+# folds. The fold training on the counts of 2 is saturated on its distinct
+# rows and takes them written out; the one training on the counts totaling
+# 0.8 takes them counted once, and the line says each
+set.seed(1)
+mixX <- matrix(rnorm(40), 8)
+mixY <- rnorm(8)
+oneLines <- character()
+invisible(utils::capture.output(withCallingHandlers(
+  xbart(
+    mixX,
+    mixY,
+    weights = c(rep(0.2, 4), rep(2, 4)),
+    weights.type = "frequency",
+    n.reps = 1L,
+    n.test = 2L,
+    n.samples = 2L,
+    n.burn = 2L,
+    n.trees = 2L,
+    n.threads = 1L,
+    seed = 29L,
+    verbose = TRUE
+  ),
+  message = function(m) {
+    oneLines <<- c(oneLines, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  }
+)))
+expect_equal(
+  sum(grepl(
+    paste0(
+      "starting sigma is the sd of the response with each row written out ",
+      "as often as its weight in 1 and ",
+      oneWords,
+      " in 1 of 2 (replication, fold) units"
+    ),
+    oneLines,
+    fixed = TRUE
+  )),
+  1L
+)
+# the tolerance is the rounding of the counts' sum and no more: twenty counts
+# totaling 1 + 1e-9 are more than one observation, and the rows written out
+# stand in
+nearCounts <- c(0.05 + 1e-9, rep(0.05, 19))
+nearCenter <- sum(nearCounts * oneY[1:20]) / sum(nearCounts)
+for (rule in c("dense", "sparse")) {
+  expect_equal(
+    dbarts(
+      oneX[1:20, ],
+      oneY[1:20],
+      weights = nearCounts,
+      weights.type = "frequency",
+      sigest = rule
+    )$data@sigma,
+    sqrt(
+      sum(nearCounts * (oneY[1:20] - nearCenter)^2) / (sum(nearCounts) - 1)
+    ),
+    tolerance = 1e-9,
+    info = rule
+  )
+}
+# the rounding of a sum in plain double grows with its terms, about n eps
+# times the total: 1412538 counts of 1/1412538 miss 1 by more than 2^16 eps
+# and are still one observation; and past 2^16 counts a total that is off
+# its whole number by between 2^16 and n eps times it is rounding, for the
+# stand-in and for the degrees of freedom of both routines
+expect_false(dbarts:::isWeightedStandIn(rep(1 / 1412538, 1412538), TRUE))
+bigN <- 2^17
+expect_false(dbarts:::isWeightedStandIn(
+  c(2^-17 + 2.2e-11, rep(2^-17, bigN - 1)),
+  TRUE
+))
+bigCounts <- c(2^-16 + 4.4e-11, rep(2^-16, bigN - 1))
+bigX <- matrix(seq_len(bigN) %% 7, bigN)
+bigY <- seq_len(bigN) %% 5
+expect_true(is.nan(dbarts:::residualStandardError(
+  bigY,
+  bigX,
+  bigCounts,
+  NULL,
+  TRUE
+)))
+expect_true(is.na(dbarts:::sparseResidualStandardError(
+  bigY,
+  dbarts:::startingSigmaDesign(bigX, "sparse", NULL),
+  bigCounts,
+  NULL,
+  frequency = TRUE
+)))
 # a regression whose counts total its rank up to rounding is saturated, as
 # one totaling it exactly is: three coefficients and sixteen rows counted
-# 3/16, totaling 3 and 3 + 2^-50, so the rows written out stand in
+# 3/16, totaling 3, 3 + 2^-50 and 3 + 3e-11, so the rows written out stand
+# in. The last is within 2^16 eps of the total, relative to it, not past
+# 2^16 eps itself
 satX <- oneX[1:16, ]
 satY <- oneY[1:16]
 satCounts <- list(
   exact = rep(0.1875, 16),
-  above = c(0.1875 + 2^-50, rep(0.1875, 15))
+  above = c(0.1875 + 2^-50, rep(0.1875, 15)),
+  near = c(0.1875 + 3e-11, rep(0.1875, 15))
 )
 expect_identical(sum(satCounts$above), 3 + 2^-50)
 for (total in names(satCounts)) {
@@ -765,6 +859,14 @@ rm(
   satX,
   satY,
   satCounts,
+  mixX,
+  mixY,
+  nearCounts,
+  nearCenter,
+  bigN,
+  bigCounts,
+  bigX,
+  bigY,
   counts,
   center,
   total

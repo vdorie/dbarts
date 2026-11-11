@@ -924,15 +924,24 @@ xbart <- function(
     "weightedSigmaFallbacks"
   )))
   if (numSigmaFallbacks > 0L) {
+    # the weighted and the unweighted stand-in, each with the units that took
+    # it; under counts a unit's stand-in is unweighted where its training
+    # rows' counts total at most 1, so the two can mix in one run
+    byCount <- identical(weightsType, "frequency")
+    numTaken <- c(
+      numWeightedFallbacks,
+      numSigmaFallbacks - numWeightedFallbacks
+    )
+    taken <- numTaken > 0L
     announceStartingSigma(
       verbose,
       "starting sigma is ",
-      standInWords(
-        numWeightedFallbacks > 0L,
-        identical(weightsType, "frequency")
+      paste0(
+        c(standInWords(TRUE, byCount), standInWords(FALSE, byCount))[taken],
+        " in ",
+        numTaken[taken],
+        collapse = " and "
       ),
-      " in ",
-      numSigmaFallbacks,
       " of ",
       numUnits,
       " (replication, fold) units: the linear model leaves no residual ",

@@ -1219,7 +1219,8 @@ residualStandardError <- function(y, x, weights, offset, frequency = FALSE) {
   if (frequency && !is.null(weights)) {
     total <- sum(weights)
     df <- total - fit$rank
-    defined <- fit$df.residual > 0 && exceedsCountRounding(df, total)
+    defined <- fit$df.residual > 0 &&
+      exceedsCountRounding(df, total, length(weights))
     return(if (defined) sqrt(rss / df) else NaN)
   }
   sqrt(rss / fit$df.residual)
@@ -1771,8 +1772,12 @@ sparseSigmaRoutine <- function(front) {
   # read past its rounding; the regression is defined by the distinct rows
   # however they are counted
   count <- if (is.null(front$count)) n else front$count
+  defined <- function(rank) {
+    rank < n &&
+      (is.null(front$count) || exceedsCountRounding(count - rank, count, n))
+  }
   result <- function(residual, rank) {
-    sigma <- if (rank < n && exceedsCountRounding(count - rank, count)) {
+    sigma <- if (defined(rank)) {
       sqrt(sum(residual^2) / (count - rank))
     } else {
       NA_real_
@@ -2011,20 +2016,24 @@ standInWords <- function(weighted, frequency = FALSE) {
 isWeightedStandIn <- function(weights, frequency = FALSE) {
   !is.null(weights) &&
     !all(weights == 1) &&
-    (!frequency || exceedsCountRounding(sum(weights) - 1, sum(weights)))
+    (!frequency ||
+      exceedsCountRounding(sum(weights) - 1, sum(weights), length(weights)))
 }
 
 ## The size, relative to the quantity it is read against, below which the
 ## starting sigma takes a value for rounding noise: 2^16 eps, thousands of
-## times what an exact fit's residuals or a sum of counts carries.
+## times what an exact fit's residuals carry.
 sigmaRoundingScale <- 2^16 * .Machine$double.eps
 
 ## Whether 'difference', a quantity less a count of observations, is positive
-## past the rounding of the counts' sum 'total' it was taken from. A sum of
-## counts that ought to be a whole number, as 20 counts of 0.05 to 1, is off
-## by its terms' rounding, which would otherwise decide a side.
-exceedsCountRounding <- function(difference, total) {
-  difference > sigmaRoundingScale * total
+## past the rounding of the sum 'total' of 'n' counts it was taken from. A sum
+## of counts that ought to be a whole number, as 20 counts of 0.05 to 1, is
+## off by its terms' rounding, which would otherwise decide a side. Where R
+## adds in plain double that rounding grows with the terms, up to about n eps
+## times the total, so the tolerance is the larger of that and
+## sigmaRoundingScale times the total.
+exceedsCountRounding <- function(difference, total, n) {
+  difference > max(sigmaRoundingScale, n * .Machine$double.eps) * total
 }
 
 ## What a fit records where the sd of the response stood in for its starting
