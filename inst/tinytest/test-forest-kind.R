@@ -254,17 +254,19 @@ objects <- list(
   list("a factor of three levels", arm, "levels", 3L, "refused"),
   list("a character vector of three values", g, "levels", 3L, "refused")
 )
+# how a refusal names the second forest: code doors by its basis text, "B"
+forestAt <- function(door) {
+  if (door %in% codeDoors) "forest \"B\"" else "forest 2"
+}
 # a constant column is a forest with no basis, and written so: refused at every
 # door
 for (door in sevenDoors) {
   said <- made(door, rep(1, n))$refused
   expect_true(
-    startsWith(said, "forest ") &&
-      grepl(
-        "'s basis is constant (1 on every row",
-        said,
-        fixed = TRUE
-      ),
+    startsWith(
+      said,
+      paste0(forestAt(door), "'s basis is constant (1 on every row")
+    ),
     info = paste("a constant column at", door)
   )
 }
@@ -278,8 +280,7 @@ for (object in objects) {
     for (door in sevenDoors) {
       said <- made(door, object[[2L]])$refused
       expect_true(
-        startsWith(said, "forest ") &&
-          grepl(paste0(" has a basis of ", size), said, fixed = TRUE),
+        startsWith(said, paste0(forestAt(door), " has a basis of ", size)),
         info = paste(info, "at", door)
       )
     }

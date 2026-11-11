@@ -397,6 +397,20 @@ expect_true(grepl(
   conditionMessage(above[[1L]]),
   fixed = TRUE
 ))
+# installed memory that cannot be read leaves the limit as the figure
+options(
+  dbarts.cgroupRoot = makeTree("0::/a", list("a/memory.max" = "262144")),
+  dbarts.physicalMemory = NA_real_
+)
+resetKey()
+unreadable <- collect(fitHazard())$warnings
+expect_equal(length(unreadable), 1L)
+expect_true(grepl(
+  "at its peak, and this process may use 0.25 MB; ",
+  conditionMessage(unreadable[[1L]]),
+  fixed = TRUE
+))
+options(dbarts.physicalMemory = 2^18)
 # no limit file: the machine's figure
 options(dbarts.cgroupRoot = emptyRoot)
 resetKey()

@@ -378,7 +378,8 @@ formatBytes <- function(bytes) {
 # Warns, once per session, when a hazard fit's projected peak memory
 # (hazardFitBytes) exceeds the smaller of the machine's physical memory and a
 # cgroup limit on the process, naming the rows, the two figures and what lowers
-# the first; silent where neither can be read. Called before the rows are built, and the fit runs whatever it says.
+# the first; silent where neither can be read. Called before the rows are
+# built, and the fit runs whatever it says.
 warnHazardMemory <- function(rows, testRows, numPredictors, run) {
   available <- physicalMemory()
   limit <- cgroupMemoryLimit()
