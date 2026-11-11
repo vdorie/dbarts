@@ -290,9 +290,8 @@ after <- matrix(liveFits(appended), n + 40L)[seq_len(n), ]
 expect_true(max(abs(after - before)) < 1e-12)
 
 ## --- 3. kept draws across a re-anchor ---------------------------------------
-## setResponse and setOffset with updateScale = TRUE, and setData with a
-## response on another range, returned every kept draw in the new units:
-## 3 f + 10 for a response of 3 y + 10.
+## setResponse, setOffset and setData with updateScale = TRUE return every
+## kept draw in the new units: 3 f + 10 for a response of 3 y + 10.
 y.moved <- 3 * y + 10
 reanchored <- list(
   constant = function() dbarts(x, y, control = control(), n.trees = 8L),
@@ -323,7 +322,9 @@ for (kind in names(reanchored)) {
     setOffset = function(sampler) {
       sampler$setOffset(-5 + x[, 1L], updateScale = TRUE)
     },
-    setData = function(sampler) sampler$setData(dbartsData(x, y.moved))
+    setData = function(sampler) {
+      sampler$setData(dbartsData(x, y.moved), updateScale = TRUE)
+    }
   )
   for (call in names(calls)) {
     info <- paste(kind, call)
@@ -339,11 +340,13 @@ for (kind in names(reanchored)) {
     }
     expect_true(all(is.finite(sampler$run(0L, 2L)$train)), info = info)
   }
-  # holding the range rewrites nothing
+  # holding the range rewrites nothing, and a fresh data object holds it
   sampler <- reanchored[[kind]]()
   invisible(sampler$run())
   before <- keptDraws(sampler)
   sampler$setResponse(y.moved, updateScale = FALSE)
+  expect_identical(keptDraws(sampler), before, info = kind)
+  sampler$setData(dbartsData(x, y.moved))
   expect_identical(keptDraws(sampler), before, info = kind)
 }
 

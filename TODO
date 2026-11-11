@@ -1692,16 +1692,12 @@ items
     hs_plus, so a save_raw_parameters fit stores global.1 and
     global.2, not rstanarm's four (its model reads only the first
     two); the help says "two global scales". Owed with the shrinkage priors; not built.
-  sigma-anchor-setters: (dec-B778, with dec-B777 and the agent calls
-    of dec-A437) setData with no carried scale record keeps the
-    sampler's own response scale as setResponse does, updateScale =
-    NULL then meaning keep and TRUE meaning derive; a carried record
-    is still used; cut points and standardization keep the NULL rule.
-    NEWS and a maintainer-notes line say it. After doors-1111, which
-    makes the new-fit doors calibrate the response-based priors from
-    the data given. Open, not ruled: a way to state a response range
-    on a data object, since none of the doors states one and a
-    hand-written slot is not a door (dec-B554). Not built.
+  response-range-door: (a door, left by dec-B778 and call 4 of
+    dec-A437) a way to state a response range on a data object. Open,
+    not ruled: no door states one and a hand-written slot is not a door
+    (dec-B554), so a caller wanting a fixed range keeps the sampler's
+    with setData or setResponse, or uses stan4bart's two-call
+    setResponse route.
   threaded-chains: (dec-B779, dec-B781 to dec-B783) stan4bart's chains
     run on threads before the release, as one dbarts sampler holding
     every chain with a per-chain compiled hook on dbarts' worker
@@ -1997,8 +1993,11 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     (rngKind); setResponse inside a Gibbs sampler, asked to pass
     updateScale explicitly with the value their model means (dec-B498) -
     countSTAR, mcmcsae, nlfh, TobitBART, SURBART, nkids, sebart, nbbart,
-    sudo, mf-bavart, mf-ss; the maintainer's own plotBart and thinkCausal
-    get change lists. This subsumes the separate lorax, WeightIt/MatchIt, countSTAR
+    sudo, mf-bavart, mf-ss; $setData with a fresh dbartsData() keeps the
+    sampler's response scale where 0.9-34 derived it (dec-B778), so nkids
+    (four $setData calls in R/princeB5.r) is asked to pass updateScale
+    with the value its model means; the maintainer's own plotBart and
+    thinkCausal get change lists. This subsumes the separate lorax, WeightIt/MatchIt, countSTAR
     and tmle contact items below.
   pre-release sequence (VD 2026-09-12): VD's own items before the
     merge - lorax contact, WeightIt/MatchIt contact, tmle contact, GitHub issue #80,

@@ -1728,17 +1728,18 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
 ## words the bridge reads (dec-B460): an argument given is followed, TRUE,
 ## "position" or "value" deriving and FALSE or "none" keeping the sampler's
 ## own; NULL takes the record the data object carries, by presence alone
-## (dec-B458), and derives one it lacks, the grid's splits then moving by
-## value as they always have.
+## (dec-B458). One it lacks is derived, the grid's splits then moving by value
+## as they always have, except the response's scale, which the sampler keeps,
+## as setResponse keeps it.
 setDataChoices <- function(
   newData,
   updateCutPoints,
   updateScale,
   updateStandardization
 ) {
-  choose <- function(value, name, record) {
+  choose <- function(value, name, record, absent = "derive") {
     if (is.null(value)) {
-      return(if (is.null(record)) "derive" else "record")
+      return(if (is.null(record)) absent else "record")
     }
     if (
       !(is.logical(value) || is.numeric(value)) ||
@@ -1762,7 +1763,12 @@ setDataChoices <- function(
   }
   list(
     grid = grid,
-    range = choose(updateScale, "updateScale", dataResponseRange(newData)),
+    range = choose(
+      updateScale,
+      "updateScale",
+      dataResponseRange(newData),
+      "keep"
+    ),
     standardization = choose(
       updateStandardization,
       "updateStandardization",

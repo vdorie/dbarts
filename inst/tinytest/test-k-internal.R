@@ -419,7 +419,7 @@ expect_identical(
 # setOffset and setData re-anchor too
 for (mutate in list(
   function(s) s$setOffset(2 * x[, 3L] + 0.5, updateScale = TRUE),
-  function(s) s$setData(dbartsData(x, wide + 1))
+  function(s) s$setData(dbartsData(x, wide + 1), updateScale = TRUE)
 )) {
   heldAnchor <- burned(normal(sd = 0.5))
   scaleBefore <- heldAnchor$getLeafPrior()$k.scale

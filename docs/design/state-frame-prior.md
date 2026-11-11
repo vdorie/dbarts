@@ -88,7 +88,8 @@ and if values are supplied, use them. If explicit arguments are given, we could 
   as they were therefore gives today's `xbart`, and one edited or holding another grid gives that grid's.
 - `setData(newData, updateState = NULL, updateCutPoints = NULL, updateScale = NULL, updateStandardization =
   NULL)`. Each record separately: an argument given is followed (derive, or keep what the sampler holds); with
-  none, a record `newData` carries is used, and one it lacks is derived. Presence alone decides: a record
+  none, a record `newData` carries is used, and one it lacks is derived, except the response range, which the
+  sampler keeps as `setResponse` does (dec-B778, revising dec-B460 for `updateScale` alone). Presence alone decides: a record
   the sampler wrote into its own data object counts as carried, and nothing is compared (dec-B458). Where `setData` puts the columns
   in the sampler's order (dec-A215) the grid's entries move with their columns. A linear leaf's slopes, live
   and kept, are converted wherever the standardization changes (dec-B329), and kept draws are rewritten
@@ -149,7 +150,7 @@ the runs). "Held" was emulated on the tip with the calls that exist: `setCutPoin
 |---|---|---|---|
 | `setData` of the sampler's own object, edited (`d <- s$data; d@x[, 1] <- 2 * x1; s$setData(d)`) | grid derived again: [0.023, 0.983] to [0.046, 1.966] | the same | held at [0.023, 0.983]; posterior mean fit 0.177 from the truth against 0.081 derived, fits up to 0.52 apart |
 | the same with `d@y <- 3 * y + 10` | range derived again | [0.038, 2.294] to [10.11, 16.88] | held; 0.324 from 3 f + 10 against 0.244, up to 0.72 apart |
-| `setData` of a fresh `dbartsData()` | derived | derived | derived, unchanged |
+| `setData` of a fresh `dbartsData()` | derived | derived | derived, unchanged; the range kept since dec-B778 |
 | creation from `s$data`: `new()`, `dbarts()`, `bart()`, `dbartsSpec()`, `samplePriorPredictive` | grid and range derived from the data | the same; the range from the model where the door re-creates | the sampler's grid and range; `samplePriorPredictive` on the sampler's grid where it derived one from the data |
 | a control taken from a sampler of several forests, handed other data | no anchor | the control's anchor (0.190 where the data give 0.0796) | the data's own, derived |
 | `xbart(s$data)` | derived | derived | the grid carried, the same points as derived on a fit's own predictors (dec-B549); the rest derived per fold |

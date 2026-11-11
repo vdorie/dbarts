@@ -277,14 +277,14 @@ expect_identical(
     "column 1 and the leaf covariate in column 2 are taken from all 200"
   )
 )
-# a setData that derives over no row in says so, last, as creation does
+# a setData that derives the range over no row in says so, last, as creation
+# does
 for (kind in c("gaussian", "probit")) {
   s <- make(kind)
-  made <- fallbacks(s$setData(dbartsData(
-    x,
-    families[[kind]]$response,
-    weights = none
-  )))
+  made <- fallbacks(s$setData(
+    dbartsData(x, families[[kind]]$response, weights = none),
+    updateScale = TRUE
+  ))
   expect_identical(
     made$warnings,
     if (kind == "probit") leafOnly else joint,
@@ -540,7 +540,10 @@ expectRecord(made$value, literal(x1), "one count beside differing offsets")
 # the same at a setData that derives the range; one that keeps it reads the
 # leaf from every row too, one row being in, in the leaf's words
 s <- make()
-made <- fallbacks(s$setData(dbartsData(x, y, weights = oneIn)))
+made <- fallbacks(s$setData(
+  dbartsData(x, y, weights = oneIn),
+  updateScale = TRUE
+))
 expect_identical(made$warnings, oneRow)
 expectRecord(s, literal(x1), "setData, one row in")
 s <- make()
@@ -780,7 +783,10 @@ made <- fallbacks(s$setData(
 expect_identical(made$warnings, character())
 expectRecord(s, literal(x1, 1:3), "setData keeping the range, one y in")
 s <- make()
-made <- fallbacks(s$setData(dbartsData(x, yAtTwo, weights = threeIn)))
+made <- fallbacks(s$setData(
+  dbartsData(x, yAtTwo, weights = threeIn),
+  updateScale = TRUE
+))
 expect_identical(
   made$warnings,
   sub(

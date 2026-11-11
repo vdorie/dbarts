@@ -477,7 +477,10 @@
             \code{sampler$setPredictor(newValues, 1, forceUpdate = TRUE)} for
             one column, where 0.9-34 derived them again from the new
             data, while a data object made by \code{dbartsData()} records
-            none and derives them, as before. A cut count or quantile rule
+            none and derives the cut points, as before. Such an object no
+            longer moves the response's scale: the sampler keeps its own, as
+            \code{$setResponse} does, where 0.9-34 derived it again from the
+            new response; pass \code{updateScale = TRUE} for that. A cut count or quantile rule
             the object states wins and the sampler derives by it from then
             on, where 0.9-34 kept the sampler's, and an object carrying cut
             points brings the count and rule that made them. Its new arguments

@@ -375,8 +375,8 @@ expect_equal(
 )
 
 # ---- setData: the whole-data conduit re-anchors the transform too ----
-# A replacement data set ALWAYS re-anchors the response transform - there is no
-# updateScale to pin it with - so the scale leaf and the drawn surface are owed
+# A replacement data set that derives the scale re-anchors the response
+# transform, so the scale leaf and the drawn surface are owed
 # the restatement the response-side swaps take, and the pinned sigma, which the
 # response rewrites as the ratio of the two transforms on its way through, is
 # owed its 1 back. The same identity carries it, over a replacement that moves
@@ -408,7 +408,10 @@ pinnedSampler <- function(predictors, response) {
 }
 
 dataSwapped <- pinnedSampler(xDataSwap, yDataSwap)
-dataSwapped$setData(dbarts::dbartsData(xDataRepl, 3 * yDataRepl))
+dataSwapped$setData(
+  dbarts::dbartsData(xDataRepl, 3 * yDataRepl),
+  updateScale = TRUE
+)
 dataFresh <- pinnedSampler(xDataRepl, 3 * yDataRepl)
 expect_identical(
   dataSwapped$getLeafPrior()$response.scale,

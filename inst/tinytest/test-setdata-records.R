@@ -2,9 +2,10 @@
 # follows updateCutPoints, updateScale and updateStandardization where given,
 # deriving the value from the new data or keeping the sampler's; left NULL it
 # uses a value the data object records, whoever wrote it (dec-B458), and
-# derives one it does not, so setData(sampler$data) after an edit holds the
-# grid, the range and the standardization, and a fresh dbartsData() derives
-# them as before. setPredictor(updateStandardization = TRUE) derives a linear
+# derives one it does not, except the response range, which the sampler keeps
+# as setResponse does (dec-B778). So setData(sampler$data) after an edit holds
+# the grid, the range and the standardization, and a fresh dbartsData()
+# derives the grid and the standardization and keeps the range. setPredictor(updateStandardization = TRUE) derives a linear
 # or gp leaf's standardization over the values the update leaves, a linear
 # leaf's coefficients rewritten into it. A gp sampler holding kept draws is
 # refused only a call that would change its standardization or its range.
@@ -81,11 +82,12 @@ unnamedStandardization <- function(record) {
   lapply(record$standardization[[1L]], unname)
 }
 
-# ---- fresh object neutral --------------------------------------------------
+# ---- fresh object keeps the scale ------------------------------------------
 
-# a data object that carries no record derives every value, exactly as the
-# three arguments asking for the derivation do: the state, the record and the
-# next draws
+# a data object that carries no record, its response on another scale, derives
+# the grid and the standardization and keeps the sampler's range, exactly as
+# the arguments asking for that do: the state, the record and the next draws.
+# updateScale = TRUE derives the range a sampler made on those data holds.
 for (prior in c("linear", "normal")) {
   leaf <- if (prior == "linear") {
     quote(linear(columns = "b"))
@@ -94,20 +96,48 @@ for (prior in c("linear", "normal")) {
   }
   absent <- make(leaf)
   explicit <- make(leaf)
+  derived <- make(leaf)
+  own <- recordOf(absent)$response.range
   absent$setData(dbarts::dbartsData(x.other, y.other))
   explicit$setData(
     dbarts::dbartsData(x.other, y.other),
     updateCutPoints = "value",
-    updateScale = TRUE,
+    updateScale = FALSE,
     updateStandardization = TRUE
   )
+  derived$setData(dbarts::dbartsData(x.other, y.other), updateScale = TRUE)
+  expect_identical(recordOf(absent)$response.range, own, info = prior)
   expect_identical(stateOf(absent), stateOf(explicit), info = prior)
   expect_identical(recordOf(absent), recordOf(explicit), info = prior)
   expect_identical(absent$run(0L, 5L), explicit$run(0L, 5L), info = prior)
-  # and the derivation is the one a sampler made on those data holds
+  # and the derivations are the ones a sampler made on those data holds
   made <- make(leaf, data = x.other, response = y.other)
-  expect_identical(recordOf(absent), recordOf(made), info = prior)
+  expect_identical(recordOf(derived), recordOf(made), info = prior)
+  expect_identical(
+    recordOf(absent)[-2L],
+    recordOf(made)[-2L],
+    info = prior
+  )
+  expect_false(identical(own, recordOf(made)$response.range), info = prior)
 }
+
+# the kept range is the sampler's record, so a copy and a sampler saved and
+# loaded after the call are made on it and draw as the sampler does
+sampler <- make(normal())
+own <- sampler$data@response.range
+sampler$setData(dbarts::dbartsData(x.other, y.other))
+sampler$storeState()
+copied <- sampler$copy()
+path <- tempfile(fileext = ".rds")
+saveRDS(sampler, path)
+reloaded <- readRDS(path)
+unlink(path)
+expect_identical(readerOf(copied)$response.range, own)
+expect_identical(readerOf(reloaded)$response.range, own)
+expect_identical(stateOf(copied), stateOf(sampler))
+expect_identical(stateOf(reloaded), stateOf(sampler))
+draws <- copied$run(0L, 5L)
+expect_identical(reloaded$run(0L, 5L), draws)
 
 # ---- carried held ----------------------------------------------------------
 
@@ -275,7 +305,7 @@ expect_identical(sampler$data@cutPoints[[2L]], c(0.5, 1.5))
 # each argument at each value, over a data object that carries a record other
 # than the sampler's and one that carries none: an argument given is
 # followed, deriving or keeping the sampler's, and NULL takes the record or
-# derives
+# derives, the range kept
 derivedOn <- readerOf(make(data = x.other, response = y.other))
 carried <- dbarts::dbartsData(x.other, y.other)
 carried@cutPoints <- derivedOn$cutPoints
@@ -315,7 +345,10 @@ for (objectName in c("carried", "fresh")) {
       call <- list(object)
       call[arguments[[slot]]$name] <- list(value)
       do.call(sampler$setData, call)
-      expected <- if (k == 2L) {
+      expected <- if (
+        k == 2L ||
+          (k == 1L && objectName == "fresh" && slot == "response.range")
+      ) {
         own
       } else if (k == 3L || objectName == "fresh") {
         derivedOn
