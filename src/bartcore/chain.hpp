@@ -2303,11 +2303,12 @@ public:
   /// of the trees.
   ///
   /// A Polya-Gamma latent refresh polls it too, inside its draws, and stops
-  /// the sweep there: the refresh opens the sweep, and polls nothing on a
-  /// sweep the collapsed rescaling move opened, so no tree of it is drawn,
+  /// the sweep there: the refresh opens the sweep, so no tree of it is drawn,
   /// the fits are the previous sweep's, and each latent is this sweep's draw
   /// or the previous one (a sampled negative-binomial shape's refresh put
-  /// back whole), a valid state of the chain (the response model says why);
+  /// back whole, and on a sweep the collapsed rescaling move opened, the move
+  /// and the refresh put back whole), a valid state of the chain (the
+  /// response model says why);
   /// the rest of the sweep is skipped as a cancel between sweeps skips the
   /// whole of the next one. A
   /// multinomial glue draw stops the same way ahead of its forest's tree
@@ -2723,17 +2724,22 @@ public:
       // augmentation draw: it reads the fits, the response, the offset, the
       // counts and the mask in force and never a latent, and the draw below,
       // at the scaled fits, draws the latents from their conditional, which
-      // completes it. Where it moves that draw arms no cancel, so a stopped
-      // run never leaves the leaves scaled against latents drawn at the fits
-      // before it. It declines before any generator call wherever it does not
-      // apply.
+      // completes it. A cancel inside that draw puts the move back with it,
+      // so a stopped run never leaves the leaves scaled against latents drawn
+      // at the fits before it. It declines before any generator call wherever
+      // it does not apply.
       const bool rescaled = maybeDrawCollapsedRescale();
       // the augmentation draw follows, after the hook and before anything
       // reads a latent, so a change made between sweeps or inside the hook
       // reaches the trees this sweep fits: drawn after the trees, they would
       // fit values drawn before it, exact only for an outer step that
       // conditions on them
-      drawAugmentation(!rescaled);
+      try {
+        drawAugmentation(true);
+      } catch (const RefreshCanceled&) {
+        if (rescaled) undoCollapsedRescale();
+        throw;
+      }
       // the working pointers are read after it every sweep, since a setter in
       // the hook can change which buffer the family serves (a mask installed)
       double* y = response_->workingResponse();
@@ -8815,7 +8821,8 @@ private:
   /// only a state of zero prior density gives. Every decline reads only
   /// quantities the group leaves invariant, so mixing the move with the
   /// identity keeps the posterior. The leaves, k and totalFits move by
-  /// scaleOrbitForests. factorOut, when non-null, receives r, 1 on a decline.
+  /// scaleOrbitForests, kept first with the latents for undoCollapsedRescale.
+  /// factorOut, when non-null, receives r, 1 on a decline.
   bool drawCollapsedRescale(double* factorOut = nullptr) {
     if (factorOut != nullptr) *factorOut = 1.0;
     if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
@@ -8849,9 +8856,57 @@ private:
         rng_, logDensity, collapsedRescaleSliceWidth, rescaleSliceStepLimit));
       if (factorOut != nullptr) *factorOut = factor;
 
+      keepCollapsedUndo();
       scaleOrbitForests(factor);
       return true;
     }
+  }
+
+  /// Keeps what the collapsed move is about to change and what the
+  /// augmentation draw that completes it will, in collapsedUndo_.
+  void keepCollapsedUndo() {
+    CollapsedUndo& undo = collapsedUndo_;
+    undo.leaves.clear();
+    undo.totalFits.clear();
+    undo.totalFitsScales.clear();
+    undo.ks.clear();
+    for (std::size_t f : orbitForests()) {
+      const Forest<L, ResidT>& forest = forests_[f];
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        undo.leaves.insert(undo.leaves.end(), forest.muByTree[t].begin(),
+                           forest.muByTree[t].end());
+      undo.totalFits.insert(undo.totalFits.end(), forest.totalFits.begin(),
+                            forest.totalFits.end());
+      undo.totalFitsScales.push_back(forest.totalFitsScale);
+      undo.ks.push_back(forest.k);
+    }
+    const double* latents = response_->latents();
+    undo.latents.assign(latents, latents + data_.numObservations);
+  }
+
+  /// Puts back, bit for bit, what keepCollapsedUndo kept: the orbit
+  /// forests' leaves, totalFits, accumulated factors and k, and the latents,
+  /// the working response rebuilt from them. Between the two, only the move
+  /// and the augmentation draw may run, so every tree keeps its nodes.
+  void undoCollapsedRescale() {
+    const CollapsedUndo& undo = collapsedUndo_;
+    const double* leaves = undo.leaves.data();
+    const double* totals = undo.totalFits.data();
+    std::size_t g = 0;
+    for (std::size_t f : orbitForests()) {
+      Forest<L, ResidT>& forest = forests_[f];
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        std::vector<double>& mu = forest.muByTree[t];
+        std::copy(leaves, leaves + mu.size(), mu.begin());
+        leaves += mu.size();
+      }
+      std::copy(totals, totals + forest.totalFits.size(),
+                forest.totalFits.begin());
+      totals += forest.totalFits.size();
+      forest.totalFitsScale = undo.totalFitsScales[g];
+      forest.k = undo.ks[g++];
+    }
+    response_->restoreLatents(undo.latents.data());
   }
 
   /// Draws tree t's leaf parameters and writes its fits. Where k is drawn each
@@ -9839,6 +9894,14 @@ private:
   // sharers' summed fit and the rest; scratch, rewritten by every move along
   // the orbit that reads it
   std::vector<double> orbitFits_, orbitOthers_;
+  // what the collapsed move and the augmentation draw that completes it
+  // change, as keepCollapsedUndo found them: per orbit forest, in
+  // orbitForests order, every tree's leaves, totalFits, the accumulated
+  // factor and k; and the latents. Written by every move; read only by
+  // undoCollapsedRescale
+  struct CollapsedUndo {
+    std::vector<double> leaves, totalFits, totalFitsScales, ks, latents;
+  } collapsedUndo_;
   // the map's anchor s, and the response units in one s, which a stated sd is
   // divided by; both are creation's and no mutation moves either
   double nodeScaleAnchor_ = 1.0;

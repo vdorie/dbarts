@@ -1442,6 +1442,78 @@ void runCollapsedRescaleTests() {
                 link, numOpeningsMoved, numOpeningsStill);
   check(openingsAgree && numOpeningsMoved > 0 && numOpeningsStill > 0, what);
 
+  // 10. A cancel inside the augmentation draw of a sweep the move opened puts
+  // the move and the draw back: the leaves, k, the cache and its accumulated
+  // factor, the latents, the working response and the precisions are the
+  // sweep's start bit for bit. Binomial rows of 400 trials put the draw's
+  // first poll, the cancel's second call, past a hundred and fifty redrawn
+  // rows; a twin on the same seed shows the sweep moves and its draw changes
+  // the rows the cancel reaches. Seeds on until a sweep moves.
+  std::vector<double> trials400(rescaleN, 400.0), successes(rescaleN);
+  for (size_t i = 0; i < rescaleN; ++i) {
+    double eta = 1.5 * std::sin(3.0 * data.x[i]) + data.x[i + rescaleN] - 0.5;
+    successes[i] = std::round(400.0 / (1.0 + std::exp(-eta)));
+  }
+  auto standing = [](Chain<ConstantGaussianLeaf>& chain) {
+    std::vector<double> v;
+    for (size_t t = 0; t < rescaleTrees; ++t)
+      v.insert(v.end(), TestPeer::muByTree(chain, t).begin(),
+               TestPeer::muByTree(chain, t).end());
+    const std::vector<double>& total = TestPeer::totalFitsInForest(chain, 0);
+    v.insert(v.end(), total.begin(), total.end());
+    for (const double* p : {TestPeer::latents(chain),
+                            TestPeer::workingResponse(chain),
+                            TestPeer::workingWeights(chain)})
+      v.insert(v.end(), p, p + rescaleN);
+    v.push_back(TestPeer::totalFitsScale(chain));
+    v.push_back(TestPeer::forestK(chain));
+    return v;
+  };
+  bool cancelSeen = false;
+  for (std::uint32_t seed = 71u; seed < 111u && !cancelSeen; ++seed) {
+    ext_rng* sweepRng =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* twinRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(sweepRng, seed);
+    ext_rng_setSeed(twinRng, seed);
+    std::unique_ptr<ConstantLeafSampler> swept = makeRescaleSampler(
+      data.x, successes, nullptr, trials400.data(), nullptr, family, true,
+      true, true, &sweepRng);
+    std::unique_ptr<ConstantLeafSampler> twin = makeRescaleSampler(
+      data.x, successes, nullptr, trials400.data(), nullptr, family, true,
+      true, true, &twinRng);
+    swept->run(5, 0, results);
+    twin->run(5, 0, results);
+    Chain<ConstantGaussianLeaf>& chain = swept->chain(0);
+    Chain<ConstantGaussianLeaf>& twinChain = twin->chain(0);
+    std::vector<double> start = standing(chain);
+    double kStart = TestPeer::forestK(chain);
+    if (TestPeer::maybeDrawCollapsedRescale(twinChain)) {
+      cancelSeen = true;
+      TestPeer::drawAugmentation(twinChain);
+      bool drawReaches = TestPeer::forestK(twinChain) != kStart;
+      for (size_t i = 0; i < 150; ++i)
+        drawReaches = drawReaches &&
+          TestPeer::latents(twinChain)[i] != TestPeer::latents(chain)[i];
+      int calls = 0;
+      std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
+      bool stopped = chain.run(1, 0, results, nullptr, 0, &cancel);
+      std::snprintf(what, sizeof what,
+                    "%s: a cancel inside the draw of a sweep that moved puts "
+                    "the sweep back bit for bit (seed %u)", link, seed);
+      check(stopped && calls == 2 && drawReaches && standing(chain) == start,
+            what);
+      swept->run(1, 0, results);
+      checkLabeled(TestPeer::forestK(chain) > 0.0, link,
+                   "the chain runs on after the cancel");
+    }
+    swept.reset();
+    twin.reset();
+    ext_rng_destroy(sweepRng);
+    ext_rng_destroy(twinRng);
+  }
+  checkLabeled(cancelSeen, link, "some seed's sweep takes the move");
+
   // 7. Every chain.
   checkActsOnEveryChain("the collapsed move", 21u, 50,
                         [&](bool on, ext_rng** rngs) {

@@ -229,10 +229,16 @@ fit, is the latent draw that completes it, so the move draws no latents of its o
 pays one Polya-Gamma pass, not two. Every recorded channel (training and test fits, saved trees, k, the
 latents `getLatents` reads) is written after both.
 
-A cancel. The augmentation draw polls the cancel inside its draws and can stop a sweep there. On a sweep the move
-opened it polls nothing ([`Chain::run`](../../src/bartcore/chain.hpp)'s comment): a stopped run never leaves the
-leaves scaled against latents drawn at the fits before the move, and nothing outside a sweep reads the latents
-in such a window, since none opens.
+A cancel. The augmentation draw polls the cancel inside its draws and can stop a sweep there, on a sweep the
+move opened too (dec-B202's in-sweep interrupt). The move keeps what it and the draw change before it scales
+([`Chain::keepCollapsedUndo`](../../src/bartcore/chain.hpp): the orbit forests' leaves, `totalFits`, accumulated
+factors and k, and the latents), and a cancel inside that draw puts them back bit for bit
+([`Chain::undoCollapsedRescale`](../../src/bartcore/chain.hpp), the working response rebuilt from the latents),
+so the sampler stands where the sweep began, as the negative binomial's drawn shape and its omega are put back
+(dec-B256's valid stopped state). It costs a copy of the leaves, the fits and the latents on a sweep that moves,
+small beside the Polya-Gamma pass it guards, and no draw: an uninterrupted run draws as before. As first built
+on this branch the draw polled nothing on a sweep the move opened, so a large-count fit's Ctrl-C waited out a
+pass on a quarter of its sweeps (an agent call of 2026-11-10 extending dec-B202 replaced that).
 
 Eligible when all hold, read before any generator call
 ([`Chain::collapsedRescaleApplies`](../../src/bartcore/chain.hpp)): the engine toggle
@@ -293,9 +299,8 @@ before the tree loop, on one forest, and redrew the latents itself.
   scalar loop in row order. A shipped build may vectorize or reorder it later (dec-B786; the maintainer's
   ruling of 2026-11-10 on the rebuild's call 4): it is a plain loop there today too, and no code holds it
   to row order outside those builds. [Later work](#later-work) times a vectorized pass.
-- A cancel cannot land between the move and the latent draw that completes it: on a sweep the move opened
-  the augmentation draw arms no cancel ([Where it runs](#where-it-runs)), so a canceled run never leaves the
-  leaves scaled and the latents stale.
+- A cancel inside the latent draw that completes the move puts the move and the draw back whole
+  ([Where it runs](#where-it-runs)), so a canceled run never leaves the leaves scaled and the latents stale.
 
 ## Scope
 
@@ -385,7 +390,9 @@ the branch:
   step keeps its latent scaling and its order of draws.
 - [`Chain::collapsedRescaleApplies`](../../src/bartcore/chain.hpp): the predicate, no generator.
   [`Chain::maybeDrawCollapsedRescale`](../../src/bartcore/chain.hpp): predicate, coin, move; returns whether it
-  moved, which tells the sweep's augmentation draw to arm no cancel.
+  moved, which tells the sweep to undo the move if its augmentation draw is canceled
+  ([`Chain::keepCollapsedUndo`](../../src/bartcore/chain.hpp), called by the move before it scales, and
+  [`Chain::undoCollapsedRescale`](../../src/bartcore/chain.hpp)).
   [`Chain::drawCollapsedRescale`](../../src/bartcore/chain.hpp)`(double* factorOut = nullptr)`: the move without
   the coin, factorOut receiving r (1 on a decline), the out-parameter tests/cpp reads, as
   `drawForestRescale`'s `alphaOut`.
@@ -506,6 +513,11 @@ destroyed: the k-internal slice's leak-sanitizer leg found four that were not.
    ([`assertForestCachesMatchLeaves`](../../src/bartcore/chain.hpp)) silent.
 9. Every row inactive: the move runs, its v1 passes test 2's KS against the target with no likelihood
    term (k's prior along the orbit, N = 5e4), and no latent changes.
+10. A cancel inside the augmentation draw of a sweep the move opened: on a binomial fixture of 400 trials
+    per row, the draw's first poll stops it past 150 redrawn rows; the leaves, k, `totalFits` and its
+    accumulated factor, the latents, the working response and the precisions equal the sweep's start bit
+    for bit, a twin on the same seed showing the sweep moved and its draw changed those rows; the chain
+    runs on.
 
 tinytest, a new file inst/tinytest/test-collapsed-rescale.R, both links unless said:
 - Per chain, on any number of threads: a two-chain drawn-k fit draws identically at n.threads 1 and 2.
@@ -778,8 +790,11 @@ Each must fail a named test or gate:
     terms: tests/cpp 1's grid.
 21. A log p(0) that is not finite handed to the slice step: tests/cpp 5's last case.
 
-Read, not run: the likelihood sum stays a scalar loop in row order in the reference build and tests/cpp, and
-the move's refresh sits outside the armed cancel window.
+22. A cancel inside the draw that completes the move, with the latents not put back, with the leaves and k
+    not put back, or with the draw unpolled on a sweep the move opened: tests/cpp 10 (each ran, each
+    fails it).
+
+Read, not run: the likelihood sum stays a scalar loop in row order in the reference build and tests/cpp.
 
 ## Budget and stops
 
@@ -1037,7 +1052,7 @@ k-move-pricing's step 0 says:
   the probit step into helpers over a single forest or the sharers, drawing bit for bit as before, and the
   logistic move reaches the sharers through them (dec-B618; [The move](#the-move), [Changes](#changes)).
 - A sweep draws its augmentation variables first (dec-B586). The move goes after the per-sweep hook and ahead
-  of that draw, and draws no latents of its own; on a sweep it opened the draw arms no cancel
+  of that draw, and draws no latents of its own; a cancel inside the draw on a sweep it opened puts the move back
   ([Where it runs](#where-it-runs)). The branch's two tests of its own redraw are sweep-level tests, the move
   then the augmentation draw, and a test of the sweep's opening is added ([Tests](#tests)).
 - Leaf scales per tree (blocks() groups, dec-B506; the trees' sd on every forest, dec-B550). The density reads
