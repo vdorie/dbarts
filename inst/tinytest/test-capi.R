@@ -2554,8 +2554,10 @@ expect_identical(again$sigma, reference$sigma)
 
 # while chains hold their own offsets a re-derivation of the transform is
 # refused on every route; a sampler-wide offset, new data, or a clear, puts
-# every chain back on one offset and lifts it
+# every chain back on one offset and lifts it; an accepted call is checked
+# through outcome, so a wrong refusal fails its test and the file runs on
 refusal <- "sweep hook wrote"
+outcome <- function(expr) tryCatch(expr, error = conditionMessage)
 heldOffsets <- function(binary = FALSE) {
   sampler <- hookSampler(2L, 2L, binary)
   ptr <- sampler$getPointer()
@@ -2576,32 +2578,32 @@ expect_error(
   held$setActiveRows(c(0, rep(1, nH - 1L)), updateScale = TRUE),
   refusal
 )
-expect_equal(CALL("capi_set_response", ptr, yH, FALSE), 1L)
-expect_equal(CALL("capi_set_offset", ptr, rep(0.1, nH), FALSE), 1L)
-expect_equal(CALL("capi_set_response", ptr, yH, TRUE), 1L)
+expect_equal(outcome(CALL("capi_set_response", ptr, yH, FALSE)), 1L)
+expect_equal(outcome(CALL("capi_set_offset", ptr, rep(0.1, nH), FALSE)), 1L)
+expect_equal(outcome(CALL("capi_set_response", ptr, yH, TRUE)), 1L)
 CALL("capi_set_gibbs_hooks", ptr, 0L)
 held <- heldOffsets()
 ptr <- held$getPointer()
 CALL("capi_set_gibbs_hooks", ptr, 0L)
-expect_equal(CALL("capi_set_response", ptr, yH, TRUE), 1L)
+expect_equal(outcome(CALL("capi_set_response", ptr, yH, TRUE)), 1L)
 held <- heldOffsets()
 held$setData(dbartsData(xH, yH, offset = rep(0.1, nH)))
 ptr <- held$getPointer()
-expect_equal(CALL("capi_set_response", ptr, yH, TRUE), 1L)
+expect_equal(outcome(CALL("capi_set_response", ptr, yH, TRUE)), 1L)
 CALL("capi_set_gibbs_hooks", ptr, 0L)
 # a probit sampler has no response scale to re-derive, so its chains' own
 # offsets refuse nothing
-accepted <- function(expr) {
-  !inherits(tryCatch(expr, error = function(e) e), "error")
-}
 held <- heldOffsets(TRUE)
 ptr <- held$getPointer()
 oneRowOut <- c(0, rep(1, nH - 1L))
-expect_true(accepted(held$setWeights(oneRowOut, updateScale = TRUE)))
-expect_true(accepted(held$setActiveRows(oneRowOut, updateScale = TRUE)))
-expect_equal(CALL("capi_set_response", ptr, as.numeric(yH > 1.5), TRUE), 1L)
+expect_null(outcome(held$setWeights(oneRowOut, updateScale = TRUE)))
+expect_null(outcome(held$setActiveRows(oneRowOut, updateScale = TRUE)))
+expect_equal(
+  outcome(CALL("capi_set_response", ptr, as.numeric(yH > 1.5), TRUE)),
+  1L
+)
 CALL("capi_set_gibbs_hooks", ptr, 0L)
-rm(held, ptr, accepted, oneRowOut)
+rm(held, ptr, outcome, oneRowOut, refusal, heldOffsets)
 
 # a C++ consumer's exceptions, from its sweep hook and its draw callback,
 # inline and on a worker, come back to R as errors carrying their what(), and
