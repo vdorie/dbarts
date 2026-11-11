@@ -429,10 +429,32 @@ fetchPasser <- function(p) {
   )
 }
 
+# foreign::read.arff refuses ARFF's integer type; the header is rewritten to
+# numeric (same values) in a temporary copy, the archived file untouched.
+readArff <- function(path) {
+  lines <- readLines(path, warn = FALSE)
+  d <- grep("^[[:space:]]*@data", lines, ignore.case = TRUE)[1L]
+  if (is.na(d)) {
+    stop("no @data line in ", path)
+  }
+  hdr <- seq_len(d - 1L)
+  lines[hdr] <- sub(
+    "^([[:space:]]*@attribute[[:space:]]+('[^']*'|\"[^\"]*\"|[^[:space:]]+)[[:space:]]+)integer\\b",
+    "\\1numeric",
+    lines[hdr],
+    ignore.case = TRUE,
+    perl = TRUE
+  )
+  tmp <- tempfile(fileext = ".arff")
+  on.exit(unlink(tmp))
+  writeLines(lines, tmp)
+  foreign::read.arff(tmp)
+}
+
 parsePasser <- function(p, path) {
   switch(
     p$source,
-    openml = foreign::read.arff(path),
+    openml = readArff(path),
     pmlb = utils::read.delim(gzfile(path), check.names = FALSE),
     uci = utils::read.csv(
       path,
