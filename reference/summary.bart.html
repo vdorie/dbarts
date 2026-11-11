@@ -225,9 +225,21 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   <code>sd</code>, <code>mad</code>, <code>q5</code>, <code>q95</code>, <code>rhat</code>,
   <code>ess_bulk</code>, and <code>ess_tail</code> - the same columns
   <code>posterior::summarise_draws</code> reports for a plain array, computed
-  without that package. Its print method notes when any R-hat exceeds
-  1.01; this does not withhold the rest of the summary or error, as
-  dbarts does not refuse to summarize a non-converged fit.</p>
+  without that package. Its print method shows each R-hat as a value, with
+  no bar and no note, and dbarts does not refuse to summarize a fit whose
+  chains disagree.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="reading-r-hat">Reading R-hat<a class="anchor" aria-label="anchor" href="#reading-r-hat"></a></h2>
+    <p>R-hat compares each chain's spread with the spread of the chains pooled, so
+  a value above 1 says the chains disagree; pooling them does not cure it. At
+  the defaults BART's chains routinely disagree on <code>sigma</code>, on <code>k</code>
+  and on a single row's prediction, so values above 1 there are expected, and
+  no single bar says whether a fit is usable. Averaged estimands, such as the
+  mean prediction over a subgroup or a contrast between two subgroups, mix far
+  better, so read R-hat on the estimand you report. <code><a href="bartBT.html">extract</a></code> with
+  <code>combineChains = FALSE</code> gives each chain's draws; the example computes
+  R-hat of a contrast this way, with <code><a href="rhat.html">rhat</a></code>.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -247,11 +259,30 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
 <span class="r-out co"><span class="r-pr">#&gt;</span>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     n.threads = 1L, verbose = FALSE)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   variable      mean    median         sd        mad        q5      q95</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1    sigma 0.9282111 0.9153438 0.08056062 0.09271487 0.8240338 1.051335</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       rhat ess_bulk ess_tail</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 1.001159 34.91574 40.72398</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   variable     mean   median         sd        mad        q5      q95      rhat</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1    sigma 1.071629 1.056783 0.08315055 0.08252557 0.9504061 1.195286 0.9996105</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   ess_bulk ess_tail</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 44.60904 43.93939</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (Fixed, not sampled: k = 2)</span>
+<span class="r-in"><span><span class="co"># }</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># \donttest{</span></span></span>
+<span class="r-in"><span><span class="co"># R-hat of the estimand reported: the difference between the mean prediction</span></span></span>
+<span class="r-in"><span><span class="co"># for two subgroups, one value per draw and chain</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">200L</span></span></span>
+<span class="r-in"><span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">5L</span><span class="op">)</span>, <span class="va">n</span>, <span class="fl">5L</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fl">10</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">sin</a></span><span class="op">(</span><span class="va">pi</span> <span class="op">*</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">1L</span><span class="op">]</span> <span class="op">*</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">2L</span><span class="op">]</span><span class="op">)</span> <span class="op">+</span> <span class="fl">20</span> <span class="op">*</span> <span class="op">(</span><span class="va">x</span><span class="op">[</span>, <span class="fl">3L</span><span class="op">]</span> <span class="op">-</span> <span class="fl">0.5</span><span class="op">)</span><span class="op">^</span><span class="fl">2</span> <span class="op">+</span></span></span>
+<span class="r-in"><span>  <span class="fl">10</span> <span class="op">*</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">4L</span><span class="op">]</span> <span class="op">+</span> <span class="fl">5</span> <span class="op">*</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">5L</span><span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, n.chains <span class="op">=</span> <span class="fl">4L</span>, n.samples <span class="op">=</span> <span class="fl">500L</span>, n.burn <span class="op">=</span> <span class="fl">100L</span>,</span></span>
+<span class="r-in"><span>            n.trees <span class="op">=</span> <span class="fl">50L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># chains by samples by rows</span></span></span>
+<span class="r-in"><span><span class="va">yhat</span> <span class="op">&lt;-</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="bartBT.html">extract</a></span><span class="op">(</span><span class="va">fit</span>, <span class="st">"ev"</span>, combineChains <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">group</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">1L</span><span class="op">]</span> <span class="op">&gt;</span> <span class="fl">0.5</span></span></span>
+<span class="r-in"><span><span class="va">contrast</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">yhat</span><span class="op">[</span>, , <span class="va">group</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2</span>, <span class="va">mean</span><span class="op">)</span> <span class="op">-</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">yhat</span><span class="op">[</span>, , <span class="op">!</span><span class="va">group</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2</span>, <span class="va">mean</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="rhat.html">rhat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">contrast</span><span class="op">)</span><span class="op">)</span> <span class="co"># rhat() takes iterations by chains</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1.022329</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

@@ -120,9 +120,23 @@ the scale as attributes `"rows"` and `"scale"`) or the string
 `variable`, `mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`,
 `ess_bulk`, and `ess_tail` - the same columns
 `posterior::summarise_draws` reports for a plain array, computed without
-that package. Its print method notes when any R-hat exceeds 1.01; this
-does not withhold the rest of the summary or error, as dbarts does not
-refuse to summarize a non-converged fit.
+that package. Its print method shows each R-hat as a value, with no bar
+and no note, and dbarts does not refuse to summarize a fit whose chains
+disagree.
+
+## Reading R-hat
+
+R-hat compares each chain's spread with the spread of the chains pooled,
+so a value above 1 says the chains disagree; pooling them does not cure
+it. At the defaults BART's chains routinely disagree on `sigma`, on `k`
+and on a single row's prediction, so values above 1 there are expected,
+and no single bar says whether a fit is usable. Averaged estimands, such
+as the mean prediction over a subgroup or a contrast between two
+subgroups, mix far better, so read R-hat on the estimand you report.
+[`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) with
+`combineChains = FALSE` gives each chain's draws; the example computes
+R-hat of a contrast this way, with
+[`rhat`](https://vdorie.github.io/dbarts/reference/rhat.md).
 
 ## See also
 
@@ -144,10 +158,29 @@ summary(fit)
 #>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
 #>     n.threads = 1L, verbose = FALSE)
 #> 
-#>   variable      mean    median         sd        mad        q5      q95
-#> 1    sigma 0.9282111 0.9153438 0.08056062 0.09271487 0.8240338 1.051335
-#>       rhat ess_bulk ess_tail
-#> 1 1.001159 34.91574 40.72398
+#>   variable     mean   median         sd        mad        q5      q95      rhat
+#> 1    sigma 1.071629 1.056783 0.08315055 0.08252557 0.9504061 1.195286 0.9996105
+#>   ess_bulk ess_tail
+#> 1 44.60904 43.93939
 #> (Fixed, not sampled: k = 2)
+# }
+
+# \donttest{
+# R-hat of the estimand reported: the difference between the mean prediction
+# for two subgroups, one value per draw and chain
+set.seed(1)
+n <- 200L
+x <- matrix(runif(n * 5L), n, 5L)
+y <- 10 * sin(pi * x[, 1L] * x[, 2L]) + 20 * (x[, 3L] - 0.5)^2 +
+  10 * x[, 4L] + 5 * x[, 5L] + rnorm(n)
+fit <- bart(x, y, n.chains = 4L, n.samples = 500L, n.burn = 100L,
+            n.trees = 50L, n.threads = 1L, verbose = FALSE)
+# chains by samples by rows
+yhat <- dbarts::extract(fit, "ev", combineChains = FALSE)
+group <- x[, 1L] > 0.5
+contrast <- apply(yhat[, , group, drop = FALSE], 1:2, mean) -
+  apply(yhat[, , !group, drop = FALSE], 1:2, mean)
+dbarts::rhat(t(contrast)) # rhat() takes iterations by chains
+#> [1] 1.022329
 # }
 ```

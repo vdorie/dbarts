@@ -76,7 +76,7 @@ gives its position.
 
 ``` r
 
-trees <- extract(bartFit, "trees")
+trees <- dbarts::extract(bartFit, "trees")
 ```
 
 ## Flattened Trees
@@ -150,7 +150,7 @@ y.cat <- ifelse(g %in% c("a", "b"), 5, -5) + rnorm(n.cat, 0, 0.5)
 catFit <- bart(y ~ g, data.frame(y = y.cat, g = g),
                n.trees = 3L, n.samples = 1L, n.burn = 20L, n.chains = 1L,
                n.threads = 1L, keepTrees = TRUE, seed = 0, verbose = FALSE)
-catTrees <- extract(catFit, "trees")
+catTrees <- dbarts::extract(catFit, "trees")
 print(subset(catTrees, var != -1))
 ```
 
@@ -404,7 +404,7 @@ same form as for `predict`.
 ``` r
 
 newData <- data[1:5, ]
-newTrees <- extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNums = 1)
+newTrees <- dbarts::extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNums = 1)
 print(subset(newTrees, chain == 1))
 ```
 

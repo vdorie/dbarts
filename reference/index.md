@@ -183,6 +183,8 @@ Convergence summaries, and calibration of a sampler composed around one.
 - [`summary(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`print(`*`<summary.bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   : Convergence Diagnostics for BART Fits
+- [`rhat()`](https://vdorie.github.io/dbarts/reference/rhat.md) : R-hat
+  of One Quantity's Draws
 - [`dbartsValidateComposition()`](https://vdorie.github.io/dbarts/reference/dbartsValidateComposition.md)
   : Validate A Composed Sampler By Simulation-Based Calibration
 

@@ -71,7 +71,7 @@ df$y <- df$x + 0.5 * (df$g == "b") + rnorm(50L, 0, 0.1)
 
 sampler <- dbarts(y ~ x + g, df, control = dbartsControl(
   n.chains = 1L, n.threads = 1L, updateState = FALSE))
-predictors <- extract(sampler, "predictors")
+predictors <- dbarts::extract(sampler, "predictors")
 str(predictors)
 #>  num [1:50, 1:2] 0.1009 0.7313 0.9683 0.7249 0.0321 ...
 #>  - attr(*, "dimnames")=List of 2

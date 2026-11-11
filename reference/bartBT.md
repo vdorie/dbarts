@@ -1367,6 +1367,14 @@ Scholkopf, Platt and Hoffman, Eds., MIT Press, Cambridge, MA, 265-272.
 Friedman, J.H. (1991) Multivariate adaptive regression splines. *The
 Annals of Statistics*, **19**, 1–67.
 
+## Calling `extract`
+
+Call it as `dbarts::extract`. Other packages export a function named
+`extract`: rstan, tidyr, terra, raster, magrittr and R.utils. Whichever
+is attached last masks the others, so a bare `extract(fit, ...)` may
+reach the wrong one. The stan4bart package attaches dbarts, so it brings
+this name in.
+
 ## Author
 
 Hugh Chipman: <hugh.chipman@gmail.com>, Robert McCulloch:
@@ -1456,7 +1464,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.166618
+#> total seconds in loop: 0.210837
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

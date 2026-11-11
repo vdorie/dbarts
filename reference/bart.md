@@ -2548,7 +2548,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001468
+#> total seconds in loop: 0.001745
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 4 3 2 2 4 2 1 2 4 4 2 3 3 3 3 
@@ -2585,7 +2585,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000738
+#> total seconds in loop: 0.000865
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2620,7 +2620,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001125
+#> total seconds in loop: 0.001302
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2674,7 +2674,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001670
+#> total seconds in loop: 0.002022
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 
@@ -2685,5 +2685,5 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #> 
 fit.bcf$n.forests
 #> [1] 2
-modulatingFit <- extract(fit.bcf, type = "forest", forest = 2L)
+modulatingFit <- dbarts::extract(fit.bcf, type = "forest", forest = 2L)
 ```
