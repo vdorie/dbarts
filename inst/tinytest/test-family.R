@@ -248,12 +248,44 @@ expect_error(
     x,
     ifelse(y.binary == 1L, exp(y.continuous), 0),
     family = "hurdle.lognormal",
-    variance = ~1,
+    variance = TRUE,
     verbose = FALSE
   ),
   "family = \"hurdle.lognormal\" does not take a variance forest",
   fixed = TRUE
 )
+# a variance that states no predictor is no variance forest, as left out
+hurdleResponse <- ifelse(y.binary == 1L, exp(y.continuous), 0)
+hurdleFit <- function(...) {
+  bart(
+    x,
+    hurdleResponse,
+    family = "hurdle.lognormal",
+    ...,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = 2L
+  )
+}
+hurdleLeft <- hurdleFit()
+for (spelling in list(~1, character(0L), integer(0L), logical(0L))) {
+  fit <- hurdleFit(variance = spelling)
+  expect_false(is.null(hurdleLeft$positive$yhat.train))
+  expect_identical(
+    fit$positive$yhat.train,
+    hurdleLeft$positive$yhat.train,
+    info = deparse(spelling)
+  )
+  expect_identical(
+    fit$zero$yhat.train,
+    hurdleLeft$zero$yhat.train,
+    info = deparse(spelling)
+  )
+}
 # every encoding of a one-class response is fitted alike, on every binary
 # family and on "auto" where a categorical encoding resolves to one, with
 # exactly the one warning

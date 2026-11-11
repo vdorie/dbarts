@@ -1915,9 +1915,10 @@ bart <- function(
     # its zero part is a probit fit, whose precision is its latent's own, so
     # the refusal a component would raise would name a family the caller
     # never asked for
-    if (!is.null(variance) && !isFALSE(variance)) {
+    if (!statesConstantVariance(variance)) {
       stop("family = \"hurdle.lognormal\" does not take a variance forest")
     }
+    variance <- NULL
     # its weights mark rows in and out of both parts; a precision would be
     # refused by the zero part in a probit's words
     if (identical(validateWeightsType(weights.type), "precision")) {

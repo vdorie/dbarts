@@ -1008,6 +1008,20 @@ resolveMonotone <- function(spec, data) {
   list(directions = result, prior = spec$prior)
 }
 
+# Whether `variance` states the constant variance: NULL, FALSE, an empty
+# selection (the empty set of predictors) or the formula ~ 1. A varianceForest()
+# object's own `vars` (argument "vars") never does; forest()'s empty selection
+# is refused.
+statesConstantVariance <- function(variance, argument = "variance") {
+  is.null(variance) ||
+    isFALSE(variance) ||
+    (is.atomic(variance) && length(variance) == 0L) ||
+    (argument == "variance" &&
+      inherits(variance, "formula") &&
+      length(variance) == 2L &&
+      identical(variance[[2L]], 1))
+}
+
 # Resolve the `variance` heteroscedastic selector to 1-based model-matrix
 # column indices for the variance forest, or NULL for a homoscedastic fit.
 # NULL/FALSE, an empty selection or ~ 1 -> no variance forest; TRUE or ~. -> every column; a one-sided
@@ -1017,7 +1031,7 @@ resolveMonotone <- function(spec, data) {
 # an integer vector; a full-set selection returns every index (the caller may
 # elide the mask, which is equivalent).
 resolveVarianceColumns <- function(variance, data, argument = "variance") {
-  if (is.null(variance) || isFALSE(variance)) {
+  if (statesConstantVariance(variance, argument)) {
     return(NULL)
   }
   numColumns <- ncol(data@x)
@@ -1038,21 +1052,9 @@ resolveVarianceColumns <- function(variance, data, argument = "variance") {
   if (isTRUE(variance)) {
     return(seq_len(numColumns))
   }
-  # an empty selection is the empty set of predictors, the constant variance, as
-  # variance = ~ 1 is; forest()'s own empty selection is refused
-  if (is.atomic(variance) && length(variance) == 0L) {
-    return(NULL)
-  }
   if (inherits(variance, "formula")) {
     # read exactly as varianceForest()'s first argument is, by the one
     # grammar: the terms matched to the fit's column labels
-    if (
-      argument == "variance" &&
-        length(variance) == 2L &&
-        identical(variance[[2L]], 1)
-    ) {
-      return(NULL)
-    }
     code <- captureForestVars(variance, "the 'variance' formula")
     code$unbound <- all.vars(code$expr)
     if (length(code$unbound) == 0L) {

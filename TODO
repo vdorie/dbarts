@@ -1513,11 +1513,6 @@ items
     the other doors use; three or more stay multinomial. About 10
     lines, a test and help; the dbartsData help is corrected beside it
     (a flat offset is taken with counts). Not built.
-  variance-constant-hurdle-door: family = "hurdle.lognormal" refuses any
-    variance that is not NULL or FALSE, so variance = ~ 1 or character(0)
-    is refused there though it means no variance forest everywhere else
-    (dec-B736, dec-B794); the test reads the unresolved argument. A
-    few lines.
   weighted-sigma-line-wording: agent fix from the 2026-11-10 sitting
     (dec-A302, call C16 of dec-A438): the verbose, summary and xbart
     fold lines no longer call the weighted stand-in "the weighted sd
