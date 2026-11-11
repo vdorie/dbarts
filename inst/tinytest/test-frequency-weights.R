@@ -544,6 +544,37 @@ for (rule in c("dense", "sparse")) {
     expect_identical(fold$result, sd(fold$residual), info = rule)
   }
 }
+# where all rows allow the regression and the fold holding out the one large
+# count does not, xbart's line names the stand-in that fold took
+oneLines <- character()
+invisible(utils::capture.output(withCallingHandlers(
+  xbart(
+    oneX[1:20, ],
+    oneY[1:20],
+    weights = c(10, rep(0.01, 19)),
+    weights.type = "frequency",
+    n.reps = 1L,
+    n.test = 2L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.threads = 1L,
+    seed = 3L,
+    verbose = TRUE
+  ),
+  message = function(m) {
+    oneLines <<- c(oneLines, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  }
+)))
+expect_equal(
+  sum(grepl(
+    paste0("starting sigma is ", oneWords, " in 1 of 2 (replication, fold)"),
+    oneLines,
+    fixed = TRUE
+  )),
+  1L
+)
 # a regression whose counts total its rank up to rounding is saturated, as
 # one totaling it exactly is: three coefficients and sixteen rows counted
 # 3/16, totaling 3 and 3 + 2^-50, so the rows written out stand in

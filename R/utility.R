@@ -1924,9 +1924,8 @@ sparseResidualStandardError <- function(
 ## degrees of freedom there is no regression and the sd of the response less
 ## its offset stands in, weighted as the regression is except under counts
 ## that total at most one observation (floorSigmaEstimate); a condition of
-## class dbartsSigmaFallback is signaled
-## first, for a caller that records it. Not a message class: a handler that
-## muffles messages would find no restart.
+## class dbartsSigmaFallback is signaled first, for a caller that records it.
+## Not a message class: a handler that muffles messages would find no restart.
 estimateSigmaFromLinearModel <- function(
   data,
   rule = "auto",
@@ -2069,9 +2068,9 @@ sigmaDesignMatrix <- function(x) {
 ## one is 1, so unit weights give the unweighted fit's starting sigma to the
 ## bit, and where counts total at most one observation, whose rows written
 ## out leave no sd (isWeightedStandIn). sd() of one row is NA, which the
-## floor replaces. The floor reads the residual on the estimate's own scale: under
-## precision weights each row's times the square root of its weight, the
-## noise of a row of weight 1; counts leave that scale as it is.
+## floor replaces. The floor reads the residual on the estimate's own scale:
+## under precision weights each row's times the square root of its weight,
+## the noise of a row of weight 1; counts leave that scale as it is.
 floorSigmaEstimate <- function(
   sigma,
   residual,
@@ -2117,9 +2116,9 @@ weightedSd <- function(x, weights, frequency = FALSE) {
 ## does not depend on the units the response is written in, and binds only
 ## where the estimate is at the level of rounding noise: an exact fit's is a
 ## few tens of eps times the largest residual. An all-zero residual has no
-## scale and takes sigmaRoundingScale itself. sd() of a length-1
-## residual is itself NA (undefined, not merely small); re-check finiteness
-## rather than let that NA reach the comparison.
+## scale and takes sigmaRoundingScale itself. sd() of a length-1 residual is
+## itself NA (undefined, not merely small); re-check finiteness rather than
+## let that NA reach the comparison.
 floorMarginalSigma <- function(sigma, residual) {
   scale <- max(abs(residual))
   sigmaFloor <- sigmaRoundingScale * if (scale > 0) scale else 1
