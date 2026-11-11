@@ -323,6 +323,24 @@ writeStandins <- function() {
 }
 fitRowCap <- 4000L
 guardFitsStart <- 40L
+step3Fits <- 20L # step 3's default fits a library a dataset, no pilot raise
+
+# The fits a library a dataset reads: the pilot's count on R2; step 3's 20
+# on an R3 dataset (and a quick run's 4 either way before any pilot).
+guardFitCount <- function(name) {
+  pilotPath <- runDir("guard", fileTag(name), "pilot.rds")
+  if (file.exists(pilotPath)) {
+    return(readChecked(pilotPath)$fits)
+  }
+  a <- tryCatch(assignment(), error = function(e) NULL)
+  if (quick) {
+    4L
+  } else if (!is.null(a) && name %in% a$r3) {
+    step3Fits
+  } else {
+    guardFitsStart
+  }
+}
 guardFitsRaised <- 80L
 guardSpreadRaise <- 0.95
 guardMargin <- 1
@@ -691,6 +709,31 @@ kstudyReferenceSampler <- referenceSampler
 
 # A one-chain sampler returns its fits as rows x draws; the k study's binder,
 # which a continuation round also calls, takes rows x draws x chains.
+# The smoke forces its first stand-in up the reference ladder: every round
+# before the first past refBlockMax's next opens the next (extend while it
+# stays within refBlockMax, then one escalation to the shipped half alone),
+# so the one-chain parts run extendReferencePart on both kinds of round; the
+# round after decides as written.
+if (kmpSmoke) {
+  kstudyAcceptReference <- acceptReference
+  kstudyGuardDecision <- guardDecision
+  forcedLadder <- FALSE
+  acceptReference <- function(cell, link, rep, round) {
+    first <- guardCell(passers$name[1L])
+    nextL <- refLengths()[round + 2L]
+    forcedLadder <<- identical(cell, first) &&
+      !is.na(nextL) &&
+      refLengths()[round + 1L] <= mcmc$refBlockMax
+    kstudyAcceptReference(cell, link, rep, round)
+  }
+  guardDecision <- function(cur, prev, nextL, projected, escalating) {
+    if (forcedLadder) {
+      return(if (nextL <= mcmc$refBlockMax) "extend" else "escalate")
+    }
+    kstudyGuardDecision(cur, prev, nextL, projected, escalating)
+  }
+}
+
 kstudyAbind3 <- abind3
 abind3 <- function(a, b) {
   as3d <- function(m) {
@@ -977,6 +1020,9 @@ skewness <- function(v) {
 # no difference is computed. A spread past 0.95 raises the dataset to 80.
 runGuardPilot <- function(name) {
   guardAllowed(name)
+  if (!file.exists(runDir("step3", "commit.rds"))) {
+    stop("the guard's pilot is read after step 3 is committed")
+  }
   r <- guardReference(name)
   if (!isTRUE(r$acc$accepted)) {
     cat("guard pilot", name, ": reference not accepted, no pilot\n")
@@ -1072,12 +1118,7 @@ guardDatasetReading <- function(name, tag = "") {
     return(base)
   }
   nFit <- nrow(loadDesign(guardCell(name), kmpLink, 1L)$x)
-  pilotPath <- runDir("guard", fileTag(name), "pilot.rds")
-  n <- if (file.exists(pilotPath)) {
-    readChecked(pilotPath)$fits
-  } else {
-    guardFitsStart
-  }
+  n <- guardFitCount(name)
   values <- referenceValues(r$pooled)
   units <- referenceUnits(r$pooled, values, name)
   labels <- guardLabels(values)
@@ -1246,6 +1287,10 @@ guardDatasetReading <- function(name, tag = "") {
 # datasets' D is below 1; a confirmed harm on any dataset is a harm. Beside:
 # the exact bound on the share harmed, the Wilcoxon signed-rank test of D
 # below 1, the sign count. Run only after step 3's commit (step3 select).
+commitMd5 <- function() {
+  unname(tools::md5sum(runDir("step3", "commit.rds")))
+}
+
 runGuardRead <- function(excludeDeterministic = FALSE) {
   if (!file.exists(runDir("step3", "commit.rds"))) {
     stop("no R2 reading is opened before step 3 is committed")
@@ -1323,6 +1368,7 @@ runGuardRead <- function(excludeDeterministic = FALSE) {
     over = over,
     verdict = verdict,
     excludeDeterministic = excludeDeterministic,
+    step3CommitMd5 = commitMd5(),
     quick = quick
   )
   saveAtomic(
@@ -1611,13 +1657,17 @@ clopper <- function(x, n) {
 # Step 3's reading: the trigger on each dataset's training rows, the need of
 # each, the refutation rule, and sensitivity and specificity with exact
 # intervals at every count; R2's datasets join when the commit predates any R2
-# reading (the commit file's time against the guard reading's).
+# reading (the guard reading saw this commit file, by its md5). The trigger's
+# separation score is each passer's sealed one.
 runStep3Read <- function() {
   commit <- readChecked(runDir("step3", "commit.rds"))
   a <- assignment()
-  guardOpened <- file.exists(runDir("readings", "guard.rds")) &&
-    file.mtime(runDir("readings", "guard.rds")) <
-      file.mtime(runDir("step3", "commit.rds"))
+  # R2 joins when the guard was read under this commit (the md5 of the
+  # commit file it saw), so the commit predates every R2 reading
+  gf <- runDir("readings", "guard.rds")
+  guardOpened <- file.exists(gf) &&
+    !identical(readChecked(gf)$step3CommitMd5, commitMd5())
+  sealed <- readChecked(sealedPath("scores.rds"))$score
   names3 <- c(a$r3, if (!guardOpened) a$r2)
   rows <- lapply(names3, function(name) {
     cell <- guardCell(name)
@@ -1625,15 +1675,9 @@ runStep3Read <- function() {
       return(NULL)
     }
     d <- blind(loadDesign(cell, kmpLink, 1L))
+    # the sealed separation score, the trigger's own feature
     f <- c(
-      score = sealedScore(
-        d$x,
-        d$y,
-        withSeed(
-          seedOf("trigger-folds", name),
-          sample(rep_len(1:5, length(d$y)))
-        )
-      ),
+      score = unname(sealed[name]),
       minority = min(sum(d$y), sum(1L - d$y))
     )
     rd <- guardDatasetReading(name)
