@@ -19,8 +19,8 @@
 # columns dropped as not predictors, the columns the donor lists as
 # categorical (set as factors; every other column keeps the file's type), and
 # the listing's rows and predictors. The OpenML file ids and md5 sums are the
-# suites' records, read from OpenML's metadata; SECOM and Vertebral Column
-# enter only if step 3 runs (their second screens first).
+# suites' records, read from OpenML's metadata. The census's later passers
+# (Vertebral Column first) enter R3 only if step 3 runs.
 passers <- data.frame(
   name = c(
     "APSFailure",
@@ -259,6 +259,29 @@ passers <- data.frame(
   ),
   stringsAsFactors = FALSE
 )
+# Bone marrow transplant: children failed the pre-fit check (its file holds
+# 36 predictors against the listing's 38), so the census read on: SECOM
+# (frame 211) passed its second screen and enters in its place, its two
+# donor files joined row by row (features, then the pass/fail label and a
+# time stamp that is not a listed predictor).
+passers <- rbind(
+  passers[passers$name != "Bone marrow transplant: children", ],
+  data.frame(
+    name = "SECOM",
+    frame = 211L,
+    source = "secom",
+    id = "179",
+    fileId = "",
+    md5 = "",
+    target = "pass_fail",
+    drop = "timestamp",
+    factors = "",
+    rows = 1567L,
+    predictors = 591L,
+    stringsAsFactors = FALSE
+  )
+)
+rownames(passers) <- NULL
 r2Size <- 12L
 
 # The smoke (KMP_SMOKE=1) replaces the list with three stand-in datasets
@@ -392,7 +415,11 @@ sourceUrl <- function(p) {
       p$id,
       p$id
     ),
-    uci = sprintf("https://archive.ics.uci.edu/static/public/%s/data.csv", p$id)
+    uci = sprintf(
+      "https://archive.ics.uci.edu/static/public/%s/data.csv",
+      p$id
+    ),
+    secom = "https://archive.ics.uci.edu/static/public/179/secom.zip"
   )
 }
 
@@ -401,7 +428,13 @@ sourceUrl <- function(p) {
 # later load. KMP_LOADER_SOURCE names a directory holding the files under
 # their archive names instead of the network (the smoke's stand-ins).
 fetchPasser <- function(p) {
-  ext <- switch(p$source, openml = "arff", pmlb = "tsv.gz", uci = "csv")
+  ext <- switch(
+    p$source,
+    openml = "arff",
+    pmlb = "tsv.gz",
+    uci = "csv",
+    secom = "zip"
+  )
   local <- file.path(archiveDir(), paste0(fileTag(p$name), ".", ext))
   shaPath <- sealedPath("sha256", paste0(fileTag(p$name), ".txt"))
   if (!file.exists(local)) {
@@ -456,9 +489,35 @@ readArff <- function(path) {
   foreign::read.arff(tmp)
 }
 
+# SECOM's donor files: secom.data (591 features a line, NaN missing) and
+# secom_labels.data (the label and a quoted time stamp a line), one line per
+# example in each, joined row by row.
+readSecom <- function(path) {
+  dir <- tempfile("secom")
+  on.exit(unlink(dir, recursive = TRUE))
+  files <- utils::unzip(path, exdir = dir)
+  pick <- function(nm) {
+    f <- files[basename(files) == nm]
+    if (length(f) != 1L) {
+      stop("no single ", nm, " in ", path)
+    }
+    f
+  }
+  x <- utils::read.table(pick("secom.data"), na.strings = "NaN")
+  lab <- utils::read.table(pick("secom_labels.data"), colClasses = "character")
+  if (nrow(x) != nrow(lab) || ncol(lab) != 2L) {
+    stop("SECOM's two files do not align row by row")
+  }
+  names(x) <- sprintf("feature%03d", seq_len(ncol(x)))
+  x$pass_fail <- lab[[1L]]
+  x$timestamp <- lab[[2L]]
+  x
+}
+
 parsePasser <- function(p, path) {
   switch(
     p$source,
+    secom = readSecom(path),
     openml = readArff(path),
     pmlb = utils::read.delim(gzfile(path), check.names = FALSE),
     uci = utils::read.csv(
