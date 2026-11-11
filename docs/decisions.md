@@ -5959,6 +5959,15 @@ Built on 2026-11-11 (dec-A447).
 See also: [dec-B776], [dec-B796], [dec-A431], [dec-A438].
 Record: root TODO, stan4bart-mixing-summary-flag. Marked: ruled by the maintainer, 2026-11-10. [dec-B797]
 
+**The starting-sigma floor is 2^16 eps times the largest |y| (the largest sqrt(w)|y| under precision weights), so it binds only on a degenerate estimate**
+dec-B746 made the floor on the starting sigma relative to the estimate's own scale, with the rule that it "only makes a degenerate estimate machine-independent and never overrides a sound one", at sqrt(eps) (about 1.5e-8) times the largest |y|. That constant overrides sound estimates: it binds whenever the noise sd is below about 1.5e-8 of the largest |y|, as for timestamps, ECEF coordinates and running counters with small noise. For y = 1.7e9 + f + N(0, 1) the start is 25.3 where lm and 0.9-34 give 1.02; with the default bart() fit, 10 seeds per cell at n = 50 to 1000, the posterior mean of sigma was 1.2 to 3.1 against 0.93 to 0.98 and coverage 0.998 to 1.0 against 0.98 to 0.99, RMSE going both ways. The rounding noise of an exact fit, which the floor exists for, was at most 22 eps times the largest |y| (n up to 5000, growing slowly with n). 0.9-34 took lm's residual sd as it came, with no floor. Shown: (a) keep sqrt(eps); (b) 2^16 eps, about 1.5e-11 times the largest |y| and about 3000 times the largest rounding noise measured, recommended; (c) no floor, as 0.9-34.
+The maintainer, 2026-11-11: "(b)"
+The rule: the floor is 2^16 eps times the largest |y| over the rows in, the largest sqrt(w)|y| under precision weights, and 2^16 eps itself only for an all-zero response; it binds only where the estimate is at the level of rounding noise. Revises the constant of dec-B746; its rule stands. Flip to a larger multiple, or one growing with n, if the rounding noise of exact fits at large n approaches 2^16 eps.
+The alternative was sqrt(eps). The cost is that draws move for fits where either floor binds: exact fits and large-mean responses with small noise, the latter returning to 0.9-34's start.
+Not built.
+See also: [dec-B746], [dec-B737], [dec-A445].
+Record: root TODO, starting-sigma-floor-constant. Marked: ruled by the maintainer, 2026-11-11. [dec-B798]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

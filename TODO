@@ -1483,6 +1483,12 @@ items
     silently, where bartCause now refuses it (dec-A274); and
     predict-newdata-weights carries dec-B698's missing-weight rule (a
     missing weight refused unless na.action says otherwise).
+  starting-sigma-floor-constant: (dec-B798, revising the constant of
+    dec-B746) the starting-sigma floor is 2^16 eps times the largest
+    |y| over the rows in (the largest sqrt(w)|y| under precision
+    weights), 2^16 eps itself only for an all-zero response, in the
+    routine every fitting function shares, xbart's folds included;
+    pins, the help and NEWS's floor wording follow. Not built.
   starting-sigma-fractional-counts: (found in the review of
     the count floor, dec-B737) under fractional counts the
     written-out denominator (weightedSd's total - 1, the dense
