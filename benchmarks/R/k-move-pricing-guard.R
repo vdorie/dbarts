@@ -479,6 +479,9 @@ runLoad <- function(name) {
   p <- passerRow(name)
   f <- fetchPasser(p)
   raw <- parsePasser(p, f$path)
+  # a file may repeat a column name (Parkinsons, Diabetic_Retinopathy_Debrecen);
+  # each column is kept, a repeat suffixed, before columns are selected by name
+  names(raw) <- make.unique(names(raw))
   if (!p$target %in% names(raw)) {
     stop("no outcome column ", p$target, " in ", name)
   }
