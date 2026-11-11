@@ -100,7 +100,7 @@ are compiled once per instruction set in separate translation units that
 cannot move into a consumer's.
 
 Below the bridge, the math and the printing are chosen when the code is
-compiled. The engine and the support library call seven math names ([`ext_pnorm`, `ext_qnorm`, `ext_dnorm`, `ext_dt`, `ext_qt`, `ext_qchisq`, `ext_lchoose`](../src/include/external/nmath.h)),
+compiled. The engine and the support library call six math names ([`ext_pnorm`, `ext_qnorm`, `ext_dnorm`, `ext_qt`, `ext_qchisq`, `ext_lchoose`](../src/include/external/nmath.h)),
 which in the R package are R's own routines, so every draw is what R
 computes, and print through [`ext_printf`](../src/include/external/io.h),
 R's console there. A build that defines `DBARTS_HOST_STANDALONE` gets a copy
@@ -110,8 +110,9 @@ standalone-math target is that build's recipe, and its nmath suite holds the
 copy to R's values. The log-gamma is the C library's in either build, taken
 through [`misc_logGamma`](../src/misc/logGamma.c), its reentrant form, since
 `lgamma` itself writes a process-wide global that chains on worker threads
-would race on; tests/cpp's signgam-free target refuses a `dbarts.so` that
-calls `lgamma`.
+would race on, and the Student-t log-likelihood is the engine's own density
+(`StudentTLogDensity`, model.hpp) for the same reason: R's `dt` reaches that
+`lgamma` at a non-integer df.
 
 ## Dispatch tiers
 
@@ -556,10 +557,22 @@ sampler.
 
 `Sampler::run` (sampler.hpp) runs chains on as many `std::thread` workers as
 `numThreads` and the chain count allow. While running, a chain reads the
-shared `ColumnStore` but never writes it, never calls R or a C library
-function that writes process-wide state (`lgamma`, for one), and never touches
-another chain, and the per-sweep hook it calls on its own thread reaches that
-chain alone, so results are bitwise identical at any thread count. Two execution paths across chains, and one pool
+shared `ColumnStore` but never writes it, never touches another chain, and
+writes no process-wide state: of R it calls only `pnorm`, `dnorm` and
+`qnorm`, which are pure arithmetic, and no C library function that writes
+state (`lgamma`'s `signgam`, for one); the per-sweep hook it calls on its own
+thread reaches that chain alone, so results are bitwise identical at any
+thread count. R's routines that can reach `lgamma` (`qt`, `qchisq`) run on
+R's thread, at construction and in setters. tests/cpp holds the rule three
+ways: its signgam-free target refuses a `dbarts.so` that imports a log-gamma
+writing `signgam` or reads `signgam` itself, which cannot see inside libR; its
+model suite checks that `pnorm`, `dnorm`, `qnorm` and the engine's t density
+leave `signgam` alone at the arguments a chain passes; and its
+ThreadSanitizer job runs two chains on two threads through the paths that
+take a log-gamma or a t density (the variance forest's moves, the negative
+binomial and Student-t log-likelihoods, the latter at a fixed df of 3.5),
+which on Linux, where the sanitizer intercepts `lgamma`, reports a write on
+any path its suites reach. Two execution paths across chains, and one pool
 inside a chain:
 
 - **Inline** (one worker or fewer): chains run sequentially on the calling

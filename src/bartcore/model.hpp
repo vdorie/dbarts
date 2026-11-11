@@ -24,7 +24,7 @@
 #include <vector>
 
 #include <external/random.h>
-#include <external/stats.h> // ext_dnorm, ext_pnorm, ext_dt for the log-likelihood channel
+#include <external/stats.h> // ext_dnorm, ext_pnorm for the log-likelihood channel
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
 
@@ -7045,6 +7045,68 @@ private:
   std::array<double, gridSize> weight_;
 };
 
+/// The standard Student-t log density at \p nu degrees of freedom,
+///   log dt(t, nu) = C(nu) - (nu + 1)/2 log1p(t^2 / nu),
+///   C(nu) = lgamma((nu + 1)/2) - lgamma(nu/2) - log(nu pi)/2,
+/// with the constant taken once and each row one log1p. It stands in for R's
+/// dt, which chains on worker threads cannot call: R's stirlerr takes the C
+/// library's lgamma, writing the process-wide signgam, at a non-integer nu up
+/// to about 10.5. It agrees with R's dt to a relative 1e-14 over nu in
+/// [1e-6, 1e10] and t across both tails, bounds tests/cpp pins.
+///
+/// From nu = 15 the constant is the Stirling series' difference at x = nu/2,
+///   x log1p(1/(2x)) - 1/2 - log(2 pi)/2 + S(x + 1/2) - S(x),
+/// since there the two log-gammas, each near (x - 1/2) log x, cancel to a
+/// constant near -1/2 - log(2 pi)/2 and their rounding grows with them; S's
+/// first omitted term, 43867 / (244188 z^17), is below 1e-15 from z = 7.5.
+/// Once t^2 / nu passes 1 / epsilon, log1p(t^2 / nu) is 2 log|t| - log nu,
+/// which holds where t^2 overflows.
+class StudentTLogDensity {
+public:
+  /// \p nu must be positive and finite.
+  explicit StudentTLogDensity(double nu)
+    : nu_(nu), halfShape_(0.5 * (nu + 1.0)) {
+    if (nu < seriesThreshold) {
+      constant_ = misc_logGamma(halfShape_) - misc_logGamma(0.5 * nu) -
+                  0.5 * std::log(nu * std::numbers::pi);
+    } else {
+      double x = 0.5 * nu;
+      constant_ = x * std::log1p(0.5 / x) - 0.5 -
+                  0.5 * std::log(2.0 * std::numbers::pi) +
+                  stirlingSeries(x + 0.5) - stirlingSeries(x);
+    }
+  }
+
+  /// log dt(\p t, nu).
+  double operator()(double t) const {
+    double ratio = t * t / nu_;
+    double logTerm = ratio > 1.0 / std::numeric_limits<double>::epsilon()
+                       ? 2.0 * std::log(std::fabs(t)) - std::log(nu_)
+                       : std::log1p(ratio);
+    return constant_ - halfShape_ * logTerm;
+  }
+
+private:
+  static constexpr double seriesThreshold = 15.0;
+
+  /// lgamma(z) - [(z - 1/2) log z - z + log(2 pi)/2], through z^-15: the
+  /// terms B_2k / (2k (2k - 1) z^(2k - 1)), k = 1, ..., 8, by Horner in 1/z^2.
+  static double stirlingSeries(double z) {
+    static constexpr double coefficients[] = {
+      1.0 / 12.0,       -1.0 / 360.0, 1.0 / 1260.0, -1.0 / 1680.0,
+      1.0 / 1188.0,     -691.0 / 360360.0,          1.0 / 156.0,
+      -3617.0 / 122400.0};
+    double inverseSq = 1.0 / (z * z);
+    double sum = coefficients[7];
+    for (int k = 6; k >= 0; --k) sum = coefficients[k] + inverseSq * sum;
+    return sum / z;
+  }
+
+  double nu_;
+  double halfShape_;
+  double constant_;
+};
+
 /// Student-t continuous errors by the Gaussian scale-mixture augmentation:
 /// sqrt(w_i) r_i / sigma ~ t_nu comes from
 ///   r_i | lambda_i ~ N(0, sigma^2 / (w_i lambda_i)), lambda_i ~ Gamma(nu/2, nu/2),
@@ -7281,6 +7343,7 @@ public:
     double shift = gaussian_->fitShift();
     double sigmaOriginal = sigma * scale;
     const double* offset = gaussian_->offset();
+    StudentTLogDensity tLogDensity(nu_);
     for (std::size_t i = 0; i < numObservations; ++i) {
       // lambda is positive, so the composite vanishes exactly when the user
       // weight or the mask does: not in the model, hence NaN
@@ -7292,7 +7355,7 @@ public:
       double mu = scale * totalFits[i] + shift +
                   (offset != nullptr ? offset[i] : 0.0);
       if (frequency()) {
-        double logDensity = ext_dt((y_[i] - mu) / sigmaOriginal, nu_, 1) -
+        double logDensity = tLogDensity((y_[i] - mu) / sigmaOriginal) -
                             std::log(sigmaOriginal);
         out[i] = userWeights_ != nullptr ? userWeights_[i] * logDensity
                                          : logDensity;
@@ -7301,7 +7364,7 @@ public:
       double sd = userWeights_ != nullptr
                     ? sigmaOriginal / std::sqrt(userWeights_[i])
                     : sigmaOriginal;
-      out[i] = ext_dt((y_[i] - mu) / sd, nu_, 1) - std::log(sd);
+      out[i] = tLogDensity((y_[i] - mu) / sd) - std::log(sd);
     }
   }
 

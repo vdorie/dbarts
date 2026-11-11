@@ -573,11 +573,22 @@ A16. **The callback names the channels it reads** (ruled 2026-11-10, "Use your r
 A17. **One log-gamma, the C library's reentrant form** (`misc_logGamma`), after the TSan job caught chains
     racing on `signgam` through `lgamma`. Bitwise `lgamma`'s value wherever R builds: `lgamma_r` on glibc,
     musl, macOS and the BSDs, declared in the C file since each library hides it behind its own feature
-    macro, and libmingwex's `__lgamma_r` on Windows, the function its `lgamma` wraps, exported since 2012
-    but declared in no header. No configure check: every Unix C library R builds on has `lgamma_r`, and one
-    without fails the install's load test by name. Alternatives: a lock around `lgamma` (bitwise, but a lock
-    on the per-draw negative binomial path and the variance forest's moves), or an own implementation
-    (lock-free, but last-bit changes, so every draw moves on every build).
+    macro, and libmingwex's `__lgamma_r` on Windows, the function its `lgamma` wraps, exported since 2007
+    (its `lgamma` passing `&signgam` to it since 2012) but declared in no header. No configure check: every
+    Unix C library R builds on has `lgamma_r`, and one without fails the install's load test by name.
+    Alternatives: a lock around `lgamma` (bitwise, but a lock on the per-draw negative binomial path and the
+    variance forest's moves), or an own implementation (lock-free, but last-bit changes, so every draw moves
+    on every build).
+A18. **The Student-t log-likelihood is the engine's own density** (`StudentTLogDensity`), since R's `dt`
+    reaches the C library's `lgamma` through its `stirlerr` at a non-integer df up to about 10.5, so two
+    chains at a fixed df of 3.5 raced on `signgam` inside libR, where the symbol read cannot look. The plain
+    form, a constant per df through `misc_logGamma` and one `log1p` per row, with the Stirling series'
+    difference for the constant from df 15, where the two log-gammas cancel, agrees with `dt` to a relative
+    1e-14 over df in [1e-6, 1e10]; the channel's last bits move, no draw does. Alternatives: a port of R's
+    `dt`, `stirlerr` and `bd0` with `stirlerr`'s `lgamma` swapped (about 200 lines and `lgamma1p`'s
+    dependencies, to keep `dt`'s last bits), or a lock around `dt` (on the per-draw channel). Of R's routines a chain then calls only `pnorm`, `dnorm` and
+    `qnorm`, pure arithmetic; `qt`, `qchisq` and `lchoose`, which can reach `lgamma` (the last never at
+    whole counts), run on R's thread, at construction and in setters.
 
 ## Risks and the objections answered
 

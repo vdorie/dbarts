@@ -11,23 +11,15 @@
 // declares it in no header.
 
 #ifdef __MINGW32__
-
-extern double __lgamma_r(double x, int* sign);
-
-double misc_logGamma(double x)
-{
-  int sign;
-  return __lgamma_r(x, &sign);
-}
-
+#  define REENTRANT_LGAMMA __lgamma_r
 #else
+#  define REENTRANT_LGAMMA lgamma_r
+#endif
 
-extern double lgamma_r(double x, int* sign);
+extern double REENTRANT_LGAMMA(double x, int* sign);
 
 double misc_logGamma(double x)
 {
   int sign;
-  return lgamma_r(x, &sign);
+  return REENTRANT_LGAMMA(x, &sign);
 }
-
-#endif

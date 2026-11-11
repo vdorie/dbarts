@@ -1,6 +1,6 @@
 /* The standalone-math target's driver: the support libraries (external, misc)
  * and the copy of R's math compiled with DBARTS_HOST_STANDALONE, linked with no
- * libR. It calls each of the seven math names through the support library's own
+ * libR. It calls each of the six math names through the support library's own
  * header, draws from the generators that reach them (the inversion normal, the
  * truncated normals), prints through the standalone output functions, checks
  * values that hold exactly in any correct build, and checks that each name
@@ -33,7 +33,6 @@ int main(void) {
   check(ext_qnorm(0.975, 0.0, 1.0, 1, 0) > 1.9599 && ext_qnorm(0.975, 0.0, 1.0, 1, 0) < 1.9600,
         "qnorm(0.975)");
   check(ext_dnorm(0.0, 0.0, 1.0, 0) == 0.398942280401432677939946059934, "dnorm(0) is 1 / sqrt(2 pi)");
-  check(fabs(ext_dt(0.0, 1.0, 0) * M_PI - 1.0) < 1e-15, "dt(0, 1) is 1 / pi");
   check(ext_qt(0.5, 3.0, 1, 0) == 0.0, "qt(1/2) is 0");
   check(fabs(ext_qchisq(0.5, 2.0, 1, 0) - 2.0 * log(2.0)) < 1e-14, "qchisq(1/2, 2) is 2 log 2");
   check(fabs(ext_quantileOfStudentT(0.75, 1.0) - 1.0) < 1e-15, "the t prior's quartile at 1 df");
@@ -62,8 +61,6 @@ int main(void) {
     char what[64];
     snprintf(what, sizeof(what), "ext_dnorm at log %d", logP);
     check(ext_dnorm(0.7, 0.2, 1.3, logP) == dbarts_nmath_dnorm4(0.7, 0.2, 1.3, logP), what);
-    snprintf(what, sizeof(what), "ext_dt at log %d", logP);
-    check(ext_dt(0.7, 3.5, logP) == dbarts_nmath_dt(0.7, 3.5, logP), what);
   }
   check(ext_quantileOfChiSquared(0.3, 3.5) == dbarts_nmath_qchisq(0.3, 3.5, 1, 0),
         "ext_quantileOfChiSquared");

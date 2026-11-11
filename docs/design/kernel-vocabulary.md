@@ -135,7 +135,9 @@ thread managers themselves. Not part of the per-observation contract.
 `misc_logGamma` (misc/stats.h, src/misc/logGamma.c) is the engine's one
 log-gamma: the C library's own value, bit for bit, through its reentrant
 form, since `lgamma` writes the process-wide `signgam` and chains on worker
-threads would race on it.
+threads would race on it. The Student-t log-likelihood takes it through the
+engine's own t density (`StudentTLogDensity`), not R's `dt`, which reaches
+`lgamma`.
 
 ## Planned additions (generalized core)
 

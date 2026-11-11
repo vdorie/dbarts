@@ -1263,8 +1263,10 @@ static int channelRecorderCallback(void* context, const DrawInfo* draw) {
 // same draw. So storing or not moves no draw either. A variance forest's
 // sigma is NaN in the draw and in the stored slab. The variance forest's
 // moves and the negative binomial's log-likelihood take log-gammas on both
-// workers, which a ThreadSanitizer build reports should either reach a
-// process-wide global.
+// workers, and the Student-t log-likelihood at a fixed df of 3.5 takes the t
+// density where R's dt would reach the C library's lgamma, which a
+// ThreadSanitizer build reports should any of them write a process-wide
+// global.
 static void testDrawCallbackCarriesEveryChannel() {
   const size_t n = 120, p = 3, nTest = 15, numChains = 2, numBurnIn = 5,
                numSamples = 3;
@@ -1284,7 +1286,7 @@ static void testDrawCallbackCarriesEveryChannel() {
   }
   rngState = savedRngState;
 
-  enum Arm { dartArm, ordinalArm, varianceArm, nbinomArm, bcfArm };
+  enum Arm { dartArm, ordinalArm, varianceArm, nbinomArm, studentArm, bcfArm };
   struct ArmSpec {
     Arm arm;
     const char* name;
@@ -1299,6 +1301,8 @@ static void testDrawCallbackCarriesEveryChannel() {
     {varianceArm, "variance forest",
      always | seenTest | seenVariance | seenVarianceTest | seenLogLikelihood},
     {nbinomArm, "negative binomial, drawn shape",
+     always | seenTest | seenLogLikelihood},
+    {studentArm, "Student-t, fixed df 3.5",
      always | seenTest | seenLogLikelihood},
     {bcfArm, "BCF", always | seenForestFits | seenGlue}};
 
@@ -1326,6 +1330,7 @@ static void testDrawCallbackCarriesEveryChannel() {
         if (spec.arm == ordinalArm) options.numCategories = 3;
         if (spec.arm == varianceArm) options.numVarianceTrees = 3;
         if (spec.arm == nbinomArm) options.shape = -1.0;
+        if (spec.arm == studentArm) options.residualDf = 3.5;
         const double* response = spec.arm == ordinalArm ? ordinal.data()
           : spec.arm == nbinomArm                       ? counts.data()
                                                         : y.data();

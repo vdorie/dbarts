@@ -174,10 +174,10 @@ standalone-math: $(SA_BUILD)/standalone_math
 	@echo "standalone-math: no R symbol in $(SA_BUILD)/standalone_math"
 
 # The R package's dbarts.so (left in src/ by the in-place build) calls R's own
-# math, never the copy: each of the seven names the engine and the support
+# math, never the copy: each of the six names the engine and the support
 # library use is R's, and no dbarts_nmath_ symbol is in the library. Draws
 # cannot tell the two apart where the copy is exact, so this reads the symbols.
-R_MATH_NAMES := Rf_pnorm5 Rf_qnorm5 Rf_dnorm4 Rf_dt Rf_qt Rf_qchisq Rf_lchoose
+R_MATH_NAMES := Rf_pnorm5 Rf_qnorm5 Rf_dnorm4 Rf_qt Rf_qchisq Rf_lchoose
 r-math-symbols:
 	@so=../../src/dbarts.so; \
 	if [ ! -f $$so ]; then echo "error: $$so not found; run 'R CMD INSTALL .' first" >&2; exit 1; fi; \
@@ -192,11 +192,14 @@ r-math-symbols:
 	echo "r-math-symbols: $$so calls R's $(R_MATH_NAMES)"
 
 # The package's dbarts.so calls no log-gamma that writes the process-wide
-# signgam, which chains on worker threads would race on: every one goes
-# through misc_logGamma, the reentrant form. A ThreadSanitizer run sees the
-# race only on a path its suites reach; this reads the symbols, which glibc
-# versions (lgamma@GLIBC_2.23).
-SIGNGAM_NAMES := lgamma lgammaf lgammal gamma gammaf
+# signgam, which chains on worker threads would race on, and reads no signgam
+# itself: every log-gamma goes through misc_logGamma, the reentrant form. A
+# ThreadSanitizer run sees the race only on a path its suites reach; this reads
+# the symbols, which glibc versions (lgamma@GLIBC_2.23) and also exports under
+# its _FloatN names. It cannot see inside libR: the model suite's signgam probe
+# covers the R routines a chain calls.
+SIGNGAM_NAMES := lgamma lgammaf lgammal gamma gammaf gammal signgam __signgam \
+                 lgammaf32 lgammaf64 lgammaf128 lgammaf32x lgammaf64x
 signgam-free:
 	@so=../../src/dbarts.so; \
 	if [ ! -f $$so ]; then echo "error: $$so not found; run 'R CMD INSTALL .' first" >&2; exit 1; fi; \

@@ -1,5 +1,5 @@
 // The standalone build's copy of R's math routines (standalone/nmath) against
-// R's own (libR's Rmath), on a grid over the seven routines the engine and the
+// R's own (libR's Rmath), on a grid over the six routines the engine and the
 // support library call and their flag combinations.
 //
 // This binary links both: the copy's symbols carry a dbarts_nmath_ prefix, so
@@ -30,7 +30,6 @@ extern "C" {
 double dbarts_nmath_dnorm4(double, double, double, int);
 double dbarts_nmath_pnorm5(double, double, double, int, int);
 double dbarts_nmath_qnorm5(double, double, double, int, int);
-double dbarts_nmath_dt(double, double, int);
 double dbarts_nmath_qt(double, double, int, int);
 double dbarts_nmath_qchisq(double, double, int, int);
 double dbarts_nmath_lchoose(double, double);
@@ -43,9 +42,9 @@ double dbarts_nmath_lchoose(double, double);
 
 namespace {
 
-enum Routine { PNORM, QNORM, DNORM, DT, QT, QCHISQ, LCHOOSE, NUM_ROUTINES };
+enum Routine { PNORM, QNORM, DNORM, QT, QCHISQ, LCHOOSE, NUM_ROUTINES };
 const char* const routineNames[NUM_ROUTINES] = {
-  "pnorm", "qnorm", "dnorm", "dt", "qt", "qchisq", "lchoose"};
+  "pnorm", "qnorm", "dnorm", "qt", "qchisq", "lchoose"};
 
 struct Point {
   Routine routine;
@@ -58,7 +57,6 @@ double evalR(const Point& p) {
     case PNORM: return ext_pnorm(p.a, p.b, p.c, p.lowerTail, p.logP);
     case QNORM: return ext_qnorm(p.a, p.b, p.c, p.lowerTail, p.logP);
     case DNORM: return ext_dnorm(p.a, p.b, p.c, p.logP);
-    case DT: return ext_dt(p.a, p.b, p.logP);
     case QT: return ext_qt(p.a, p.b, p.lowerTail, p.logP);
     case QCHISQ: return ext_qchisq(p.a, p.b, p.lowerTail, p.logP);
     case LCHOOSE: return ext_lchoose(p.a, p.b);
@@ -72,7 +70,6 @@ double evalCopy(const Point& p) {
     case PNORM: return dbarts_nmath_pnorm5(p.a, p.b, p.c, p.lowerTail, p.logP);
     case QNORM: return dbarts_nmath_qnorm5(p.a, p.b, p.c, p.lowerTail, p.logP);
     case DNORM: return dbarts_nmath_dnorm4(p.a, p.b, p.c, p.logP);
-    case DT: return dbarts_nmath_dt(p.a, p.b, p.logP);
     case QT: return dbarts_nmath_qt(p.a, p.b, p.lowerTail, p.logP);
     case QCHISQ: return dbarts_nmath_qchisq(p.a, p.b, p.lowerTail, p.logP);
     case LCHOOSE: return dbarts_nmath_lchoose(p.a, p.b);
@@ -145,12 +142,6 @@ std::vector<Point> buildGrid() {
     for (int lg = 0; lg <= 1; ++lg) grid.push_back({DNORM, x, mu, sd, 1, lg});
   }
 
-  // dt: N(0, 5) at df log-uniform on [0.2, 1e5]; both log flags
-  for (int i = 0; i < 1000; ++i) {
-    double x = g.normal(5.0), df = g.logUniform(0.2, 1e5);
-    for (int lg = 0; lg <= 1; ++lg) grid.push_back({DT, x, df, 0.0, 1, lg});
-  }
-
   // qt and qchisq: the 0.75 and 0.5 points the engine reads at df from 0.05
   // to 1e7 and 1 to 200; then uniform p at df log-uniform on [0.5, 1000],
   // every flag pair
@@ -176,10 +167,7 @@ std::vector<Point> buildGrid() {
   const double xs[] = {-inf, inf, nan, 0.0, -0.0};
   for (double x : xs) {
     addTails(grid, PNORM, x, 0.0, 1.0, false);
-    for (int lg = 0; lg <= 1; ++lg) {
-      grid.push_back({DNORM, x, 0.0, 1.0, 1, lg});
-      grid.push_back({DT, x, 3.0, 0.0, 1, lg});
-    }
+    for (int lg = 0; lg <= 1; ++lg) grid.push_back({DNORM, x, 0.0, 1.0, 1, lg});
   }
   const double ps[] = {0.0, 1.0, -0.5, 1.5, nan};
   for (double p : ps) {
@@ -200,8 +188,6 @@ std::vector<Point> buildGrid() {
     grid.push_back({QCHISQ, 0.3, 0.0, 0.0, lt, 0});
   }
   grid.push_back({DNORM, 1.0, 0.0, -1.0, 1, 0});
-  grid.push_back({DT, 1.0, -1.0, 0.0, 1, 0});
-  grid.push_back({DT, 1.0, inf, 0.0, 1, 0});
 
   // lchoose at the binomial row's log choose constants: whole n up to the
   // trial cap of one million and whole k in [0, n], log-uniform in n; every

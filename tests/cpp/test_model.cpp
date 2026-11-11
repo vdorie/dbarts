@@ -1,5 +1,8 @@
 #include "common.hpp"
 
+// R's own dt from libR, the oracle for the engine's Student-t log density
+extern "C" double Rf_dt(double, double, int);
+
 static void testIntegratedLikelihood() {
   ConstantGaussianLeaf leaf{0.5 / std::sqrt(200.0)};
   double k = 2.0, sigmaSq = 0.01;
@@ -462,6 +465,90 @@ static void testLogGammaIsLibmWithoutSigngam() {
   check(untouched && signgam == -1,
         "misc_logGamma leaves signgam alone, which lgamma sets");
   printf("ok: misc_logGamma is lgamma's value without its signgam write\n");
+}
+
+// The Student-t log-likelihood channel's density against R's dt, which it
+// stands in for: nu log-spaced over [1e-6, 1e10] with the df grid, 3.5 and
+// both sides of the series threshold, t at 0 and log-spaced over both tails
+// out to where t^2 overflows. log dt is below log(1 / sqrt(2 pi)) everywhere,
+// so a relative tolerance never meets a zero.
+static void testStudentTLogDensity() {
+  std::vector<double> nus = {3.0,  3.5,  4.0,  5.0,  6.0,  8.0, 10.0, 12.0,
+                             15.0, std::nextafter(15.0, 0.0), 20.0, 25.0};
+  for (int e = -600; e <= 1000; ++e) nus.push_back(std::pow(10.0, e / 100.0));
+  std::vector<double> ts = {0.0};
+  for (int e = -800; e <= 30000; e += 40) {
+    double t = std::pow(10.0, e / 100.0);
+    ts.push_back(t);
+    ts.push_back(-t);
+  }
+
+  const double tolerance = 1e-14;
+  double worst = 0.0, worstNu = 0.0, worstT = 0.0;
+  for (double nu : nus) {
+    StudentTLogDensity logDensity(nu);
+    for (double t : ts) {
+      double theirs = Rf_dt(t, nu, 1);
+      double relative = std::fabs(logDensity(t) - theirs) / std::fabs(theirs);
+      if (!(relative <= worst)) {
+        worst = relative;
+        worstNu = nu;
+        worstT = t;
+      }
+    }
+  }
+  if (!(worst <= tolerance))
+    printf("  worst relative %.3g at nu %.17g, t %.17g\n", worst, worstNu,
+           worstT);
+  check(worst <= tolerance,
+        "StudentTLogDensity matches R's dt to a relative 1e-14");
+  printf("ok: Student-t log density matches R's dt (worst relative %.2g)\n",
+         worst);
+}
+
+// What a chain on a worker thread computes leaves signgam alone: R's pnorm,
+// dnorm and qnorm, the only routines of R's it calls, at the flags and
+// arguments its call sites pass (the log-likelihood channels, the truncated
+// normal draws, the probit and ordinal latents), and the Student-t log
+// density that stands in for R's dt. The symbol read cannot see inside libR,
+// which ThreadSanitizer sees only on Linux and only on the paths its suites
+// reach; this sees any write. Rf_dt at a non-integer df is the control: it
+// writes signgam through R's stirlerr, so the probe can tell.
+static void testChainMathLeavesSigngamAlone() {
+  const double inf = std::numeric_limits<double>::infinity();
+  std::vector<double> xs = {0.0, -0.0, inf, -inf};
+  for (int e = -300; e <= 160; ++e) {
+    double x = std::pow(10.0, e / 100.0);
+    xs.push_back(x);
+    xs.push_back(-x);
+  }
+
+  signgam = 7;
+  volatile double sink = 0.0;
+  for (double x : xs) {
+    for (int lowerTail = 0; lowerTail <= 1; ++lowerTail)
+      for (int logP = 0; logP <= 1; ++logP) {
+        sink = ext_pnorm(x, 0.0, 1.0, lowerTail, logP);
+        sink = ext_pnorm(x, 0.3, 2.5, lowerTail, logP);
+      }
+    sink = ext_dnorm(x, 0.0, 1.0, 1);
+    sink = ext_dnorm(x, -1.2, 0.4, 1);
+  }
+  for (int i = 1; i < 1000; ++i) sink = ext_qnorm(i / 1000.0, 0.0, 1.0, 1, 0);
+  sink = ext_qnorm(DBL_MIN, 0.0, 1.0, 1, 0);
+  sink = ext_qnorm(1.0 - DBL_EPSILON / 2.0, 0.0, 1.0, 1, 0);
+  for (double nu : {0.3, 1.5, 2.5, 3.5, 4.5, 7.25, 9.5, 10.5, 24.5, 1e6}) {
+    StudentTLogDensity logDensity(nu);
+    for (double x : xs) sink = logDensity(x);
+  }
+  bool untouched = signgam == 7;
+
+  volatile double nu = 3.5;
+  sink = Rf_dt(0.3, nu, 1);
+  (void) sink;
+  check(untouched && signgam != 7,
+        "a chain's math leaves signgam alone, which R's dt at df 3.5 writes");
+  printf("ok: pnorm, dnorm, qnorm and the t log density leave signgam alone\n");
 }
 
 // (a) the scale marginal matches direct quadrature over (n, ssr), and the
@@ -11130,6 +11217,8 @@ void runModelTests(ext_rng* rng) {
   testChiKEmptyLeafAccounting(rng);
   testSigmaPosteriorDf(rng);
   testLogGammaIsLibmWithoutSigngam();
+  testStudentTLogDensity();
+  testChainMathLeavesSigngamAlone();
   testVarianceLeafMarginal();
   testVarianceLeafDraw();
   testVarianceLeafCalibration();
