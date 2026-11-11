@@ -120,8 +120,18 @@ expect_identical(family(fits$hurdle$zero)@token, "probit")
 expect_identical(family(fits$hurdle$positive)@token, "gaussian")
 
 # a hazard fit is recognized by its specified family: survivalProbabilities
-# takes the hazard branch, which then asks for the trees
-expect_error(survivalProbabilities(fits$hazard), "keepTrees")
+# takes the hazard branch, which then asks for the trees a fit made without
+# them lacks
+expect_error(
+  survivalProbabilities(
+    fitOf(
+      survival::Surv(time, status),
+      family = "hazard",
+      keepTrees = FALSE
+    )
+  ),
+  "keepTrees"
+)
 
 # a bartBT fit's binary family carries no residual prior: the one bartBT
 # stamps on before the response settles the family means nothing to probit,
