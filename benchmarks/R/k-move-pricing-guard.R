@@ -762,6 +762,9 @@ runGuardDesign <- function(name) {
   }
   x <- r$x
   rownames(x) <- NULL
+  # the fits build data frames whose names must survive check.names (jm1's
+  # "v(g)", breast_cancer's "tumor-size"), so the design's names are syntactic
+  names(x) <- make.names(names(x), unique = TRUE)
   d <- list(
     regime = "G",
     cell = guardCell(name),
