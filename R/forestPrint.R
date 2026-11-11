@@ -561,7 +561,7 @@ forestEffectLines <- function(effects) {
         one$effect,
         ": average ",
         shown(one$average, one$average.q5, one$average.q95),
-        ", spread across rows ",
+        ", sd across rows ",
         shown(one$spread, one$spread.q5, one$spread.q95)
       )
     },
@@ -569,8 +569,7 @@ forestEffectLines <- function(effects) {
   )
   c(
     paste0(
-      "effect of one unit of each basis (a factor's: one level against the ",
-      "first), ",
+      "effect of one unit of each basis, ",
       attr(effects, "scale"),
       ", over ",
       attr(effects, "rows"),

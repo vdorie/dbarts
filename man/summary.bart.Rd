@@ -28,8 +28,8 @@
   forest's \code{leaf.prior.sd}, which the block gives. Under the block, each
   forest with a basis has a line for the effect of one unit of its basis (for
   a factor, of its second level against its first): its \emph{average} over
-  the training rows in the likelihood, and its \emph{spread}, the standard
-  deviation of the effect across those rows, each with its posterior median and
+  the training rows in the likelihood, and its \emph{sd across rows}, the
+  standard deviation of the effect across those rows, each with its posterior median and
   the 5\% to 95\% interval \code{stats} uses. Both are computed for each draw
   and the median taken last, on the scale the forests add on (the response's
   units, or the probit or logit scale of a binary response), from
