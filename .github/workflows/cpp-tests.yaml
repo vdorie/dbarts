@@ -234,7 +234,7 @@ jobs:
           set -eo pipefail
           cd tests/cpp
           make -j"$(nproc)" OPT="-O2 -g -fsanitize=address,undefined"
-          ./test_bartcore 3 2>&1 | tee cpp-leak.log
+          LD_LIBRARY_PATH="$(R RHOME)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ./test_bartcore 3 2>&1 | tee cpp-leak.log
           # a UBSAN diagnostic does not always change the exit status
           if grep -Eq "runtime error:|AddressSanitizer|LeakSanitizer|SUMMARY: .*Sanitizer" cpp-leak.log; then
             echo "::error::sanitizer reported a finding"; exit 1
