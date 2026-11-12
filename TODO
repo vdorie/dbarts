@@ -1694,7 +1694,7 @@ items
     in the response's units (sd(y) 1)" takes the latent wording the
     probit and logistic blocks use (it prints in a hazard sampler's
     verbose creation too), and the NEWS aside names hazard. About 25
-    to 30 R lines, help and pins; no draws move. Not built.
+    to 30 R lines, help and pins; no draws move. Built (7d7b57cad).
   news-helpfulness-pass: before any release (the maintainer,
     2026-11-11: "I think the news probably contains way too many
     things ... before any release we'll want to make sure it is
@@ -1714,15 +1714,11 @@ items
     survivalProbabilities(fit) and pdbart work on a default hazard fit
     and that other families are unchanged. About 10 R lines; no draws
     move; an R fix round. Built (19bc05ba2).
-  saved-fit-state-at-fit-end: a question for the maintainer, raised by
-    two of the dec-B814 experts: when a fit keeps its trees, should
-    bart() store the sampler state at the end of the fit, so a fit
-    saved with saveRDS reloads whole (about 8 to 9 MB of file, 15 to
-    25 MB of memory, no measurable time; scratch/haztrees/report.md),
-    against the documented manual storeState() step of 0.9-34? It
-    reopens dec-B104 (eager capture) for every family that keeps
-    trees; a stale state after running the kept sampler further is
-    dec-B613's case. Not decided.
+  saved-fit-state-at-fit-end: dec-B815: a fit that keeps its trees
+    (bart()'s four fit paths: the main, multinomial, ordinal and
+    negative-binomial ones) stores the sampler state at the end of the
+    fit, so a fit saved with saveRDS reloads whole; the help and a NEWS
+    line say so. Built (f2e7ba8c6).
   fixes-2026-11-10-slices: the 2026-11-10 sitting's unbuilt fix items,
     queued after threaded-chains lands, in four slices (about 350
     lines): R fixes 2, no draws move (fit-weights-record,
