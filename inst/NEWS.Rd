@@ -330,8 +330,9 @@
             state at the end of the fit, so it reloads whole after
             \code{saveRDS} or \code{save}: 0.9-34's fit with
             \code{keeptrees = TRUE} needed \code{fit$fit$storeState()}
-            before saving. It adds about 8 to 9 MB of file and 15 to 25 MB
-            of memory at the defaults, growing with draws and trees.
+            before saving. A hazard fit at the defaults adds up to about
+            9 MB of file and 15 to 25 MB of memory, growing with draws and
+            trees.
       \item A \code{TRUE}/\code{FALSE} argument takes a single logical or
             number, read as \code{as.logical} reads it (0 is \code{FALSE}),
             and refuses \code{NA}, a string or another length by name.

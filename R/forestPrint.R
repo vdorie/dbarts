@@ -631,7 +631,13 @@ fitForestEffects <- function(fit) {
   }
   link <- effectLink(fit[["family"]])
   eta <- if (!is.null(link) && !is.null(fit[["yhat.train"]])) {
-    reshapeChainedChannel(fit$yhat.train, chains, TRUE, 1L)
+    # yhat.train leaves out the offset, which the probability is taken at
+    latent <- reshapeChainedChannel(fit$yhat.train, chains, TRUE, 1L)
+    offset <- fit[["offset"]]
+    if (is.numeric(offset) && length(offset) %in% c(1L, ncol(latent))) {
+      latent <- latent + rep_len(as.double(offset), ncol(latent))[col(latent)]
+    }
+    latent
   }
   rows <- lapply(has, function(k) {
     own <- glue[, glueForest == forestNames[k], drop = FALSE]

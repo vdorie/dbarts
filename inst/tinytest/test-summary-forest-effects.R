@@ -610,3 +610,91 @@ for (hazardFamily in c("hazard", "hazard.logistic")) {
   )))
   expect_false(any(grepl("response's units", printedH, fixed = TRUE)))
 }
+
+quantities2 <- function(difference, rows) {
+  q <- function(v) quantile(v, c(0.5, 0.05, 0.95), names = FALSE)
+  c(q(rowMeans(difference[, rows])), q(apply(difference[, rows], 1L, sd)))
+}
+
+# an offset enters the latent fit the probability is taken at: the line equals
+# predict's probabilities with the same offset, for a numeric and a factor basis
+set.seed(20261120)
+no <- 80L
+o <- data.frame(
+  x1 = runif(no),
+  x2 = runif(no),
+  z = runif(no),
+  g = factor(sample(c("a", "b"), no, TRUE)),
+  off = rnorm(no, 0, 0.3)
+)
+o$y <- rbinom(no, 1L, pnorm(o$x1 + o$z * o$x2 + o$off))
+fOffset <- bart(
+  y ~
+    forest(x1) +
+    forest(x1 + x2, basis = z) +
+    forest(x2, basis = g),
+  data = o,
+  offset = o$off,
+  family = "probit",
+  n.chains = 2L,
+  n.samples = 40L,
+  n.burn = 20L,
+  n.trees = 15L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+effectsO <- summary(fOffset)$effects
+evO <- function(data) {
+  predict(fOffset, newdata = data, type = "ev", offset = o$off)
+}
+expect_equal(
+  probabilityOf(effectsO, 2L),
+  quantities2(
+    (evO(transform(o, z = z + 1e-6)) - evO(o)) / 1e-6,
+    rep(TRUE, no)
+  ),
+  tolerance = 1e-4
+)
+levelO <- function(level) {
+  evO(transform(o, g = factor(level, levels = c("a", "b"))))
+}
+expect_equal(
+  probabilityOf(effectsO, 3L),
+  quantities2(levelO("b") - levelO("a"), rep(TRUE, no)),
+  tolerance = 1e-8
+)
+
+# a hazard fit's offset (stored per person-period row) enters the same way
+set.seed(20261121)
+ho <- data.frame(
+  time = sample(1:3, 40L, TRUE),
+  status = rbinom(40L, 1L, 0.7),
+  x1 = runif(40L),
+  x2 = runif(40L),
+  dose = runif(40L),
+  off = rnorm(40L, 0, 0.3)
+)
+hzO <- bart(
+  survival::Surv(time, status) ~ forest(x1) + forest(x2, basis = dose),
+  data = ho,
+  offset = ho$off,
+  family = "hazard",
+  n.chains = 2L,
+  n.samples = 20L,
+  n.burn = 10L,
+  n.trees = 10L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(length(hzO$offset), ncol(hzO$yhat.train))
+etaO <- hzO$yhat.train + rep(hzO$offset, each = nrow(hzO$yhat.train))
+glueO <- hzO$glue[,
+  attr(hzO$glue, "forest") == dimnames(hzO$forestFits)[[3L]][2L]
+]
+slopeO <- dnorm(etaO) * (glueO * hzO$forestFits[,, 2L])
+expect_equal(
+  probabilityOf(summary(hzO)$effects, 2L),
+  quantities2(slopeO, rep(TRUE, ncol(slopeO))),
+  tolerance = 1e-10
+)
