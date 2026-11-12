@@ -1694,7 +1694,7 @@ items
     in the response's units (sd(y) 1)" takes the latent wording the
     probit and logistic blocks use (it prints in a hazard sampler's
     verbose creation too), and the NEWS aside names hazard. About 25
-    to 30 R lines, help and pins; no draws move. Built (7d7b57cad).
+    to 30 R lines, help and pins; no draws move. Built (1b323263d).
   news-helpfulness-pass: before any release (the maintainer,
     2026-11-11: "I think the news probably contains way too many
     things ... before any release we'll want to make sure it is
