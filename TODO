@@ -1640,7 +1640,8 @@ items
     with the untreated value first, or 0/1; a factor, a logical and
     0/1 are accepted as now. About 5 lines in treatmentIsBinary and
     its message, two or three tests, a help sentence and a NEWS
-    sentence; no draws move. The bartCause fixes batch. Not built.
+    sentence; no draws move. The bartCause fixes batch. Built
+    (bartCause 2f5c4d2).
   bartcause-fixes-2026-11-11: agent fixes of the 2026-11-11 sitting in
     bartCause, with bartcause-character-treatment-refusal. (1) The
     treatment check (dec-A448 call 5, extended) reads the rows subset
@@ -1653,7 +1654,19 @@ items
     the columns in data fails "object 'z' not found" ("object '..4'
     not found" on none), numeric treatments included, in 1.0-10 too: a
     wrapper that forwards its dots loses the call's data. A fix and a
-    pin. Not built.
+    pin. Built (bartCause 2f5c4d2, 7afa8e8): data and the arguments
+    read with it take the forwarded expressions only where data is
+    given; a call without data reads its promises as 1.0-10 did.
+  bartcause-wrapper-seed-draws: found landing the fixes batch: with
+    the same seed, w <- function(...) bartc(...) called without data
+    from a function holding y, z and x gives slightly different draws
+    from the direct call (mean CATE 1.843 against 1.826, method.trt
+    glm, n = 100; probe scratch/bcfix1111rev/r.R with decoys scaled
+    by 10), on bartCause main before the batch too; the inputs match
+    (propensity scores, columns, seed). 1.0-10 with dbarts 0.9-34
+    gave equal draws. Find what in the call path feeds the stream
+    (deparsed names such as ..1 are the likely lead) and whether
+    dbarts or bartCause owns it. Not built.
   r-fixes-2026-11-11: the R fixes batch of the 2026-11-11 sitting,
     dbarts. (1) The interaction refusal reads "interaction terms (a:b,
     a*b, a/b, a %in% b, (a + b)^2) are not supported ..." (dec-A441
