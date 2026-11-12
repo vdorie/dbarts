@@ -31,8 +31,16 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   each forest's own fits times the coefficient on its basis, which is what
   predict gives with the basis one unit higher less the basis as it
   stands; a fit that kept no per-forest fits (keepFits = FALSE) says so
-  in one line instead. A change in probability is predict's job (predict with
-  the basis one unit up less predict as it stands). Where the weights
+  in one line instead. On a binary (probit or logistic), binomial or discrete-time
+  hazard response, a second line under each effect gives it as a probability: for
+  a factor the change in probability from its first level to its second, for a
+  numeric basis the slope of the probability per unit of the basis (as
+  marginaleffects::avg_slopes reports it), each an average and an sd
+  across rows computed per draw and row from the kept fits and averaged last,
+  so the average is the posterior of the mean change in probability. A 0/1
+  numeric basis has a slope that is not the 0 to 1 contrast, which
+  factor(z) as the basis gives exactly. A gaussian response has no such
+  line. Where the weights
   are counts of identical rows (the count families' default, and gaussian with
   weights.type = &quot;frequency&quot;), the average and the sd across rows, as
   the forest line's column mean and sd, count each row at its count, as the
@@ -70,8 +78,16 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   each forest's own fits times the coefficient on its basis, which is what
   predict gives with the basis one unit higher less the basis as it
   stands; a fit that kept no per-forest fits (keepFits = FALSE) says so
-  in one line instead. A change in probability is predict's job (predict with
-  the basis one unit up less predict as it stands). Where the weights
+  in one line instead. On a binary (probit or logistic), binomial or discrete-time
+  hazard response, a second line under each effect gives it as a probability: for
+  a factor the change in probability from its first level to its second, for a
+  numeric basis the slope of the probability per unit of the basis (as
+  marginaleffects::avg_slopes reports it), each an average and an sd
+  across rows computed per draw and row from the kept fits and averaged last,
+  so the average is the posterior of the mean change in probability. A 0/1
+  numeric basis has a slope that is not the 0 to 1 contrast, which
+  factor(z) as the basis gives exactly. A gaussian response has no such
+  line. Where the weights
   are counts of identical rows (the count families' default, and gaussian with
   weights.type = &quot;frequency&quot;), the average and the sd across rows, as
   the forest line's column mean and sd, count each row at its count, as the
@@ -149,8 +165,16 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   each forest's own fits times the coefficient on its basis, which is what
   <code>predict</code> gives with the basis one unit higher less the basis as it
   stands; a fit that kept no per-forest fits (<code>keepFits = FALSE</code>) says so
-  in one line instead. A change in probability is <code>predict</code>'s job (<code>predict</code> with
-  the basis one unit up less <code>predict</code> as it stands). Where the weights
+  in one line instead. On a binary (probit or logistic), binomial or discrete-time
+  hazard response, a second line under each effect gives it as a probability: for
+  a factor the change in probability from its first level to its second, for a
+  numeric basis the slope of the probability per unit of the basis (as
+  <code>marginaleffects::avg_slopes</code> reports it), each an average and an sd
+  across rows computed per draw and row from the kept fits and averaged last,
+  so the average is the posterior of the mean change in probability. A 0/1
+  numeric basis has a slope that is not the 0 to 1 contrast, which
+  <code>factor(z)</code> as the basis gives exactly. A gaussian response has no such
+  line. Where the weights
   are counts of identical rows (the count families' default, and gaussian with
   <code>weights.type = "frequency"</code>), the average and the sd across rows, as
   the forest line's column mean and sd, count each row at its count, as the
@@ -225,8 +249,10 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   forest has a basis, a data frame with a row for each effect (columns
   <code>forest</code>, <code>label</code>, <code>effect</code>, <code>average</code>,
   <code>average.q5</code>, <code>average.q95</code>, <code>spread</code>, <code>spread.q5</code> and
-  <code>spread.q95</code>, with the number of rows averaged over and the scale as
-  attributes <code>"rows"</code> and <code>"scale"</code>) or the string <code>"dropped"</code>
+  <code>spread.q95</code>, and, for a binary, binomial or hazard response,
+  <code>probability.kind</code> (<code>"change"</code> or <code>"slope"</code>) and the same
+  six summaries prefixed <code>probability.</code>, with the number of rows averaged
+  over and the scale as attributes <code>"rows"</code> and <code>"scale"</code>) or the string <code>"dropped"</code>
   for a fit that kept no per-forest fits. <code>stats</code> has columns <code>variable</code>, <code>mean</code>, <code>median</code>,
   <code>sd</code>, <code>mad</code>, <code>q5</code>, <code>q95</code>, <code>rhat</code>,
   <code>ess_bulk</code>, and <code>ess_tail</code> - the same columns

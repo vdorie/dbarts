@@ -1707,8 +1707,11 @@ future use requires that R's serialization mechanism be able to access
 the state of the sampler which, for memory purposes, is only made
 available to R on request. To make it available, call `storeState()` on
 the sampler before saving, e.g. for the object `sampler`, execute
-`sampler$storeState()`; this captures the sampler's current state into
-the serializable `state` field regardless of the `updateState` setting.
+`sampler$storeState()` (a fit of
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) that keeps
+its trees has done so at the end of its fit); this captures the
+sampler's current state into the serializable `state` field regardless
+of the `updateState` setting.
 
 The state object is opaque and engine-specific, and carries a format
 version and the package version that wrote it. A state loads only within

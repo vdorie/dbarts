@@ -918,22 +918,19 @@ refused by name; `ci.level` is refused too (see its own entry above).
 [`save`](https://rdrr.io/r/base/save.html)ing and
 [`load`](https://rdrr.io/r/base/load.html)ing a fitted BART object for
 use with `predict` requires that it be fit with `keeptrees`/`keepTrees`
-as `TRUE`, and that the sampler's tree and generator state be captured
-before saving by calling `storeState()` on the sampler:
-`bartFit$fit$storeState()`. The state is not captured automatically
-because it duplicates the trees on the R side and can exceed the fit's
-own sample blocks; it is materialized only on request. A fit saved
-without it reloads, but `predict`, `extract(type = "trees")`, and
-`plotTree` all stop identically, each with an error naming
-`storeState()`. The same convention covers
+as `TRUE`. A fit that keeps its trees stores the sampler's tree and
+generator state at the end of the fit, so it saves and reloads whole,
+`predict`, `extract(type = "trees")` and `plotTree` working on the
+reloaded fit; the same holds for
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own-class
-families - `family = "multinomial"`, `"ordinal"`, and `"nbinom"` - whose
-`$fit` is the sampler (K-forest or single-forest) that actually ran; see
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s Value
-section for each. A `family = "hurdle.lognormal"` fit has no `$fit` of
-its own: it is the pair `$zero` and `$positive`, each a `bart` fit in
-its own right, so both of their samplers need the call before saving:
-`fH$zero$fit$storeState(); fH$positive$fit$storeState()`.
+families - `family = "multinomial"`, `"ordinal"`, and `"nbinom"` - and
+for each part of a `family = "hurdle.lognormal"` fit. A user who runs
+the kept sampler further calls `storeState()` on it again before saving:
+`bartFit$fit$storeState()`. The state duplicates the trees on the R side
+and can exceed the fit's own sample blocks. A fit whose sampler was
+saved without a stored state reloads, but `predict`,
+`extract(type = "trees")`, and `plotTree` all stop identically, each
+with an error naming `storeState()`.
 
 ### Reproducibility
 
@@ -1464,7 +1461,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.165398
+#> total seconds in loop: 0.121901
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

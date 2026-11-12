@@ -37,15 +37,22 @@ units, or the probit or logit scale of a binary response), from each
 forest's own fits times the coefficient on its basis, which is what
 `predict` gives with the basis one unit higher less the basis as it
 stands; a fit that kept no per-forest fits (`keepFits = FALSE`) says so
-in one line instead. A change in probability is `predict`'s job
-(`predict` with the basis one unit up less `predict` as it stands).
-Where the weights are counts of identical rows (the count families'
-default, and gaussian with `weights.type = "frequency"`), the average
-and the sd across rows, as the forest line's column mean and sd, count
-each row at its count, as the data written out row by row would. A
-binomial response, written as two columns, counts each row at its trials
-times any such weight, and the header then reads “over 371 trials (18
-training rows)”.
+in one line instead. On a binary (probit or logistic), binomial or
+discrete-time hazard response, a second line under each effect gives it
+as a probability: for a factor the change in probability from its first
+level to its second, for a numeric basis the slope of the probability
+per unit of the basis (as `marginaleffects::avg_slopes` reports it),
+each an average and an sd across rows computed per draw and row from the
+kept fits and averaged last, so the average is the posterior of the mean
+change in probability. A 0/1 numeric basis has a slope that is not the 0
+to 1 contrast, which `factor(z)` as the basis gives exactly. A gaussian
+response has no such line. Where the weights are counts of identical
+rows (the count families' default, and gaussian with
+`weights.type = "frequency"`), the average and the sd across rows, as
+the forest line's column mean and sd, count each row at its count, as
+the data written out row by row would. A binomial response, written as
+two columns, counts each row at its trials times any such weight, and
+the header then reads “over 371 trials (18 training rows)”.
 
 ## Usage
 
@@ -117,8 +124,10 @@ forests that kept its fits, `forests`, the lines of the full block that
 the print method gives after the table, and `effects`, where a forest
 has a basis, a data frame with a row for each effect (columns `forest`,
 `label`, `effect`, `average`, `average.q5`, `average.q95`, `spread`,
-`spread.q5` and `spread.q95`, with the number of rows averaged over and
-the scale as attributes `"rows"` and `"scale"`) or the string
+`spread.q5` and `spread.q95`, and, for a binary, binomial or hazard
+response, `probability.kind` (`"change"` or `"slope"`) and the same six
+summaries prefixed `probability.`, with the number of rows averaged over
+and the scale as attributes `"rows"` and `"scale"`) or the string
 `"dropped"` for a fit that kept no per-forest fits. `stats` has columns
 `variable`, `mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`,
 `ess_bulk`, and `ess_tail` - the same columns

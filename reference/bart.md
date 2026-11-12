@@ -1479,9 +1479,10 @@ nobs(object, ...)
 
 - keepTrees:
 
-  A fit saved to disk and reloaded needs its sampler's state stored
-  first, with `fit$fit$storeState()`; `predict` on a fit reloaded
-  without it refuses, naming `storeState()` (see
+  A fit that keeps its trees stores its sampler's state at the end of
+  the fit, so a fit saved with `saveRDS` and read back predicts as the
+  original did; a user who runs the kept sampler further calls
+  `fit$fit$storeState()` again before saving (see
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   ‘Saving’ section). Logical; must be `TRUE` in order to use `predict`
   with the result of a fit. `NULL`, the default, keeps the trees on a
@@ -2554,7 +2555,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001477
+#> total seconds in loop: 0.001190
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 4 3 2 2 4 2 1 2 4 4 2 3 3 3 3 
@@ -2591,7 +2592,7 @@ fit.shallow <- bart(y.bin ~ x.bin, power = 3, base = 0.5,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000708
+#> total seconds in loop: 0.000553
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 2 1 2 1 1 2 2 1 1 1 2 2 2 2 
@@ -2626,7 +2627,7 @@ fit.dart <- bart(y.bin ~ x.bin, split.probs = dart(),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001101
+#> total seconds in loop: 0.000849
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 3 2 4 2 2 3 2 2 2 2 3 3 2 
@@ -2680,7 +2681,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #>   trees: 10, 50; 60 in all
 #> Running mcmc loop:
-#> total seconds in loop: 0.001594
+#> total seconds in loop: 0.001217
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 2 2 2 2 2 3 3 2 
